@@ -23,7 +23,10 @@ Builds for both Imprint halves against ZMK `main` and Cyboard's `zephyr-4.1`
 halves of canon's Cyboard Imprint (canon #263, 2026-10-19): the boot light on
 battery, then dark; lit on plugging in and dark on unplugging, each half for
 itself; lit through a boot on the cable. The idle rule
-(`CONFIG_LANTERN_OFF_WHEN_IDLE`): not yet seen on hardware (2026-10-19).
+(`CONFIG_LANTERN_OFF_WHEN_IDLE`): seen on the right half on 2026-10-19, in
+canon's logging build with a 20 s `CONFIG_ZMK_IDLE_TIMEOUT`: `dark: idle` once
+the half had sat untouched on the cable, `lit: usb powered` at the next key;
+the five-minute product images are canon's (its t-0y3a).
 
 ## What it does
 
