@@ -5,8 +5,9 @@ how to build. Usage: [README.md](README.md). English only.
 
 ## What this repository is
 
-- A ZMK module for the key LEDs of a split half: lit while USB powers the half,
-  dark and unpowered on battery, a boot light (`CONFIG_LANTERN_ON_USB_POWER`,
+- A ZMK module for the key LEDs of a split half: lit while USB powers the half
+  and ZMK's activity state is active, dark and unpowered on battery and while
+  idle, a boot light (`CONFIG_LANTERN_ON_USB_POWER`, `CONFIG_LANTERN_OFF_WHEN_IDLE`,
   `CONFIG_LANTERN_BOOT_LIGHT_MS`). One source, [src/on_usb_power.c](src/on_usb_power.c),
   whose header carries the design and every reason; one binding,
   `lantern,rail` ([dts/bindings/lantern,rail.yaml](dts/bindings/lantern,rail.yaml)).
@@ -83,18 +84,25 @@ how to build. Usage: [README.md](README.md). English only.
   overrides it at every boot and powers the rail before the restored tick's
   first frames reach the LEDs (the only way to DARK is through BLANKING), so
   the saved value is harmless and never trusted.
-- **All state lives on the system work queue** (the USB event, the steps, the
-  first evaluation); a new entry point submits work there, never touches the
-  state.
+- **All state lives on the system work queue** (the USB and activity events,
+  the steps, the first evaluation); a new entry point submits work there,
+  never touches the state.
+- **The idle timeout is ZMK's `CONFIG_ZMK_IDLE_TIMEOUT`, set by the consumer;
+  the module keeps no timer**: ZMK's activity state already counts a half's
+  keys, sensors and pointing input, and the consumer's later effects module
+  (canon t-6ttk) reads the same state. A cable plugged into an idle half
+  lights nothing until its next key, by design (the source says why).
 - A target without a `lantern,rail` node (canon's dongles) builds none of the
   module: `CONFIG_LANTERN_ON_USB_POWER` depends on
   `DT_HAS_LANTERN_RAIL_ENABLED`. Exactly one node per target (BUILD_ASSERT).
 - Remove or rename a Kconfig symbol together with the canon change that stops
   setting it: Kconfig aborts on an assignment to an undefined symbol.
-- Hardware verification is canon's: flash with canon's `scripts/flash-watch.sh`,
-  read a `--logging` image's lines with its `dongle.py log`. Hardware claims
-  here, in README and in task bodies carry a date; the module is unverified
-  on hardware as of 2026-10-19 (README "Status").
+- Hardware verification is canon's: flash with canon's `scripts/flash-dongle.sh
+  imprint_left` / `imprint_right` (a data cable, USB power), read a `--logging`
+  image's lines with its `dongle.py log`. Hardware claims here, in README and
+  in task bodies carry a date; README "Status" holds what was seen (the USB
+  rule and the boot light on both halves, canon #263, 2026-10-19; the idle
+  rule: the right half, canon's logging build with a 20 s timeout, 2026-10-19).
 
 ## Commits, pull requests, fleet files
 

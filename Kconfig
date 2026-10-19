@@ -40,4 +40,17 @@ config LANTERN_BOOT_LIGHT_MS
       rule applies: on USB the LEDs stay lit, on battery they go dark and the
       rail off. 0: no boot light, the rule applies at once.
 
+config LANTERN_OFF_WHEN_IDLE
+    bool "Dark once ZMK's activity state leaves ACTIVE, lit again on activity"
+    default y
+    depends on LANTERN_ON_USB_POWER
+    help
+      While USB powers the device, the LEDs go dark and the rail off, as on
+      battery, once ZMK turns IDLE: CONFIG_ZMK_IDLE_TIMEOUT ms (ZMK's default
+      30000) without a key, sensor or pointing input on this device, each
+      split half for itself. The next input lights them again, settle-ms
+      after the rail. The boot light is not cut short. The timeout is the
+      consumer's line (canon's halves set 300000); a cable plugged into an
+      idle device lights nothing until its next input (the source says why).
+
 endmenu
