@@ -15,10 +15,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define LANTERN_PALETTE_SLOTS 4
+#define LANTERN_PALETTE_SLOTS 6
 #define LANTERN_PALETTE_RGB_MAX 0xFFFFFF
 
-/* The four colours (0xRRGGBB, slot 0 first). False while no palette has been
+/* The six colours (0xRRGGBB, slot 0 first). False while no palette has been
  * set on this device, and colours[] is then left alone. */
 bool lantern_palette_get(uint32_t colours[LANTERN_PALETTE_SLOTS]);
 

@@ -7,11 +7,12 @@
  * the split central (canon's Imprint Dongle has one, its board's; canon's
  * scripts/dongle.py palette writes it). Lines, ASCII, ended by LF or CR:
  *
- *   palette RRGGBB [RRGGBB [RRGGBB [RRGGBB]]]   set slots 0.. (the rest stay)
- *     -> palette ok RRGGBB RRGGBB RRGGBB RRGGBB   the four slots as stored
+ *   palette RRGGBB [RRGGBB ...]   set slots 0.. (one to LANTERN_PALETTE_SLOTS,
+ *                                 six, colours; the rest stay)
+ *     -> palette ok RRGGBB RRGGBB RRGGBB RRGGBB RRGGBB RRGGBB   the six slots as stored
  *     -> palette error: <reason>
- *   palette  or  palette?                       ask
- *     -> palette RRGGBB RRGGBB RRGGBB RRGGBB   or   palette none
+ *   palette  or  palette?         ask
+ *     -> palette RRGGBB RRGGBB RRGGBB RRGGBB RRGGBB RRGGBB   or   palette none
  *
  * A colour is exactly six hex digits, either case; the reply writes upper
  * case. A line that does not begin with "palette" is not for this file and
@@ -77,9 +78,10 @@ LOG_MODULE_REGISTER(lantern_palette_port, LOG_LEVEL_INF);
 
 #define WORD "palette"
 #define COLOUR_DIGITS 6
-/* "palette RRGGBB RRGGBB RRGGBB RRGGBB" is 35 characters. */
-#define LINE_LIMIT 48
-#define REPLY_MAX 64
+/* "palette " and a slot's six digits and a space each: 49 characters for six
+ * slots; the reply "palette ok " and the slots 53. */
+#define LINE_LIMIT (16 + 7 * LANTERN_PALETTE_SLOTS)
+#define REPLY_MAX (16 + 7 * LANTERN_PALETTE_SLOTS)
 #define LINES_WAITING 2
 
 /* The USB work queue's side: bytes into a line. */
@@ -112,8 +114,10 @@ static void reply_palette(const struct device *dev, const char *head) {
     if (!lantern_palette_get(colours)) {
         snprintk(text, sizeof(text), "%s none", WORD);
     } else {
-        snprintk(text, sizeof(text), "%s%s %06X %06X %06X %06X", WORD, head, colours[0], colours[1],
-                 colours[2], colours[3]);
+        int n = snprintk(text, sizeof(text), "%s%s", WORD, head);
+        for (size_t i = 0; i < LANTERN_PALETTE_SLOTS && n < (int)sizeof(text); i++) {
+            n += snprintk(text + n, sizeof(text) - n, " %06X", colours[i]);
+        }
     }
     reply(dev, text);
 }
@@ -181,7 +185,7 @@ static void handle(const struct line *l) {
             continue;
         }
         if (count == LANTERN_PALETTE_SLOTS) {
-            reply_error(dev, "at most four colours");
+            reply_error(dev, "at most " STRINGIFY(LANTERN_PALETTE_SLOTS) " colours");
             return;
         }
         if (!parse_colour(s, &colours[count]) ||

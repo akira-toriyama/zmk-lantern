@@ -9,7 +9,7 @@ how to build. Usage: [README.md](README.md). English only.
   and ZMK's activity state is active, dark and unpowered on battery and while
   idle, a boot light (`CONFIG_LANTERN_ON_USB_POWER`, `CONFIG_LANTERN_OFF_WHEN_IDLE`,
   `CONFIG_LANTERN_BOOT_LIGHT_MS`; [src/on_usb_power.c](src/on_usb_power.c), binding
-  `lantern,rail`), and their colour: a palette of four colours the host hands
+  `lantern,rail`), and their colour: a palette of six colours the host hands
   the split central over its USB CDC ACM port, which the central and every
   half keep in their settings and whose slot 0 the underglow paints
   (`CONFIG_LANTERN_PALETTE`, `CONFIG_LANTERN_PALETTE_PORT`;
@@ -122,6 +122,15 @@ how to build. Usage: [README.md](README.md). English only.
   underglow from that handler and from the subtree's settings commit at
   commit priority 1 (after ZMK restored its own `rgb/underglow/state`);
   only hue and saturation change, the brightness stays the device's.
+- **The central's run queue holds a whole palette for every half at once**
+  (`CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE` at least three
+  invocations a half, 6 for two halves, asserted in `src/palette.c`): a set
+  from the port queues every half's three in one go, ZMK's thread drains
+  them with GATT writes that block on full Bluetooth buffers, and a put into
+  a full queue drops its oldest command after 100 ms, the first half's slots
+  0-1 (the source header). A change of `LANTERN_PALETTE_SLOTS` moves the
+  requirement and the settings value's size, which a device flashed across
+  it ignores until the host sends again.
 - **The resend rides on the halves' battery reports**
   (`zmk_peripheral_battery_state_changed`, hence the asserted
   `CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING`): ZMK's split central

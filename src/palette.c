@@ -3,11 +3,12 @@
  *
  * SPDX-License-Identifier: MIT
  *
- * The palette: four colours (0xRRGGBB, slots 0..3) that the host hands the
- * keyboard's split central (src/palette_port.c), which every half and the
- * central keep in their settings across boots, and whose slot 0 is the
- * colour ZMK's underglow paints the key LEDs with on a half. The other slots
- * are kept for effects to come (canon t-6ttk) and change nothing yet.
+ * The palette: six colours (0xRRGGBB, slots 0..5: five from the day's sprite
+ * and a spare, canon t-0967) that the host hands the keyboard's split central
+ * (src/palette_port.c), which every half and the central keep in their
+ * settings across boots, and whose slot 0 is the colour ZMK's underglow
+ * paints the key LEDs with on a half. The other slots are kept for effects to
+ * come (canon t-69g7, t-6ttk) and change nothing yet.
  *
  * - One path for every change, the behavior `lantern,behavior-palette`: the
  *   central's code invokes it with zmk_behavior_invoke_binding(), whose
@@ -20,12 +21,23 @@
  *   (app/src/split/central.c): the node is named `palette` on every device
  *   (the consumer's keymap or overlay), and an invocation
  *   carries one pair of slots, param1 = pair << 24 | the first slot's colour,
- *   param2 = the second slot's, so a palette is two invocations. Press only;
- *   no release is sent or needed. Two per half fits the central's run queue
- *   (CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE, 5 by default) with
- *   both halves resent at once; one invocation per slot would not.
- * - Settings: "lantern/palette/colours", the four colours as one value, saved
- *   when a colour changed or the first palette arrived and not otherwise:
+ *   param2 = the second slot's, so a palette is three invocations. Press
+ *   only; no release is sent or needed. The central's run queue
+ *   (CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE, 5 by default) must
+ *   hold a whole palette for every half, PAIRS x the peripheral count: a set
+ *   from the port queues every half's three in one go, and ZMK's own thread
+ *   drains the queue with one GATT write each, which blocks while the
+ *   Bluetooth buffers are full; a put into a full queue waits 100 ms and then
+ *   drops the oldest command (app/src/split/bluetooth/central.c,
+ *   split_bt_invoke_behavior_payload), the first half's slots 0-1, the ones
+ *   seen. With the whole palette fitting, no set or resend depends on how
+ *   fast the writes go out. Asserted at build time; a consumer with two
+ *   halves sets 6 (canon's config/imprint_dongle.conf). A resend is one
+ *   half's three.
+ * - Settings: "lantern/palette/colours", the six colours as one value, saved
+ *   when a colour changed or the first palette arrived and not otherwise; a
+ *   value of another size (stored by a build with another slot count) is
+ *   ignored at load, and the device has no palette until the host sends one:
  *   the central resends the palette at every battery report of a half
  *   (below), and a half must not rewrite its flash for a palette it already
  *   holds. Slot 0 reaches the underglow from the handler and, at boot, from
@@ -131,6 +143,14 @@ BUILD_ASSERT(IS_ENABLED(CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING),
 #define PAIRS (LANTERN_PALETTE_SLOTS / 2)
 #define PAIR_SHIFT 24
 #define RESEND_DELAY_MS 1000
+
+BUILD_ASSERT(LANTERN_PALETTE_SLOTS % 2 == 0, "an invocation carries a pair of slots");
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
+BUILD_ASSERT(PAIRS * ZMK_SPLIT_CENTRAL_PERIPHERAL_COUNT <=
+                 CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE,
+             "CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE must hold a whole palette for "
+             "every half at once, one invocation per pair of slots (the header says why)");
+#endif
 
 static atomic_t colours[LANTERN_PALETTE_SLOTS];
 static atomic_t have_palette;
