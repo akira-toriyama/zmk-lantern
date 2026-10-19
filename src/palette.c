@@ -14,9 +14,11 @@
  *   BEHAVIOR_LOCALITY_GLOBAL sends the same invocation to every half over
  *   ZMK's split transport (app/src/behavior.c) and then runs it here, so the
  *   central stores its own copy by the same handler the halves run. ZMK's
- *   transport carries a behavior by its devicetree node name and two 32-bit
- *   parameters (app/src/split/central.c): the node is named `palette` on
- *   every device (the consumer's keymap or overlay), and an invocation
+ *   transport carries a behavior by its devicetree node name (at most 8
+ *   characters: ZMK_SPLIT_RUN_BEHAVIOR_DEV_LEN 9 in the Bluetooth payload,
+ *   app/include/zmk/split/bluetooth/service.h) and two 32-bit parameters
+ *   (app/src/split/central.c): the node is named `palette` on every device
+ *   (the consumer's keymap or overlay), and an invocation
  *   carries one pair of slots, param1 = pair << 24 | the first slot's colour,
  *   param2 = the second slot's, so a palette is two invocations. Press only;
  *   no release is sent or needed. Two per half fits the central's run queue
@@ -57,15 +59,25 @@
  *   sent until then is dropped with "Run behavior handle not found". A level
  *   report is a few an hour at most, and the half compares before it writes.
  * - Threads: the behavior handler runs where ZMK runs behaviors, on a half the
- *   Bluetooth host's thread that delivers the central's write (ZMK
- *   app/src/split/bluetooth/service.c), on the central the system work queue
- *   (the port's line, the resend); the settings handlers run on the main
- *   thread inside settings_load(); the port's reply and lantern_palette_get()
- *   read on the system work queue. The colours and the "have a palette" flag
- *   are atomics, read and written one at a time, so no lock; a reader between
- *   the two slots of a pair sees one old slot, which the next invocation or
- *   boot settles. The save is a work item on the system work queue: a settings
- *   write is a flash write and stays off the Bluetooth thread.
+ *   Bluetooth receive work queue that delivers the central's write (ZMK
+ *   app/src/split/bluetooth/service.c, CONFIG_BT_RECV_WORKQ_BT), on the
+ *   central the system work queue (the port's line, src/palette_port.c, and
+ *   the resend); the settings handlers run on the main thread inside
+ *   settings_load(); the port's reply and lantern_palette_get() read on the
+ *   system work queue. The colours and the two flags are atomics, read and
+ *   written one at a time, so no lock; a reader between the two slots of a
+ *   pair sees one old slot, which the next invocation or boot settles. The
+ *   save is a work item on the system work queue: a settings write is a flash
+ *   write and stays off the Bluetooth queue. Until the settings have loaded
+ *   (this subtree's commit) a command is refused with -EAGAIN: a line taken
+ *   earlier would store colours that the load then overwrites, and save those.
+ * - Delivery is not confirmed: zmk_behavior_invoke_binding() returns the
+ *   local handler's result and ignores the transport's, and the transport
+ *   itself drops a command for a half that is not connected or still in
+ *   discovery, or when its queue of five overflows. The next battery report
+ *   of the half resends the whole palette; on a half whose level does not
+ *   move (full, on a charger) that can be hours. canon's call (t-0967): the
+ *   palette is a toy, optimistic is fine.
  */
 
 #define DT_DRV_COMPAT lantern_behavior_palette
@@ -122,6 +134,7 @@ BUILD_ASSERT(IS_ENABLED(CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING),
 
 static atomic_t colours[LANTERN_PALETTE_SLOTS];
 static atomic_t have_palette;
+static atomic_t settings_loaded;
 
 bool lantern_palette_get(uint32_t out[LANTERN_PALETTE_SLOTS]) {
     if (!atomic_get(&have_palette)) {
@@ -257,6 +270,7 @@ static int on_set(const char *name, size_t len, settings_read_cb read_cb, void *
 }
 
 static int on_commit(void) {
+    atomic_set(&settings_loaded, 1);
     if (atomic_get(&have_palette)) {
         apply();
     }
@@ -290,6 +304,9 @@ static struct zmk_behavior_binding pair_binding(uint32_t pair, uint32_t a, uint3
 int lantern_palette_send(const uint32_t *in, size_t count) {
     if (count < 1 || count > LANTERN_PALETTE_SLOTS) {
         return -EINVAL;
+    }
+    if (!atomic_get(&settings_loaded)) {
+        return -EAGAIN;
     }
     uint32_t next[LANTERN_PALETTE_SLOTS];
     for (size_t i = 0; i < LANTERN_PALETTE_SLOTS; i++) {

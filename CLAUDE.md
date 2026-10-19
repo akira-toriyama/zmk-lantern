@@ -110,7 +110,8 @@ how to build. Usage: [README.md](README.md). English only.
   none of the palette. Exactly one node of each per target (BUILD_ASSERT).
 - **The palette's node is named `palette` on every device of a split, and the
   two parameters of an invocation are a wire format**: ZMK's split transport
-  carries a behavior by its node name (16 bytes with the terminator) and
+  carries a behavior by its node name (at most 8 characters: the Bluetooth
+  payload's `ZMK_SPLIT_RUN_BEHAVIOR_DEV_LEN` is 9 with the terminator) and
   param1/param2, so the central and the halves must agree on the name and on
   the packing (`src/palette.c`: param1 = pair << 24 | the first slot's
   0xRRGGBB, param2 = the second's). A change to either is a change on every
@@ -130,7 +131,13 @@ how to build. Usage: [README.md](README.md). English only.
 - The port's line is central-only and never touches the port's rate: 1200
   baud is zmk-beacon's bootloader entry, 2400 its screen dump, both the CDC
   driver's rate callback; this file is the UART interrupt callback, which
-  nothing else in a canon image sets.
+  nothing else in a canon image sets. **The callback runs on the USB device
+  work queue (1 KiB of stack) and only collects bytes**: a complete line goes
+  through a message queue to the system work queue, where the parse, the
+  behavior and the reply run (Opus review 2026-10-19: the behavior path's
+  frames do not fit the USB queue's stack with margin). Replies are never
+  commands: a line shaped like a reply is ignored, so an echoing host cannot
+  start a loop; before the settings have loaded a command gets an error.
 - Remove or rename a Kconfig symbol together with the canon change that stops
   setting it: Kconfig aborts on an assignment to an undefined symbol.
 - Hardware verification is canon's: flash with canon's `scripts/flash-dongle.sh

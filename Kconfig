@@ -90,6 +90,8 @@ config LANTERN_PALETTE_PORT
       canon's scripts/dongle.py palette sends it to the Imprint Dongle. The
       port's rate is untouched: 1200 baud is zmk-beacon's bootloader entry.
       The reply is written without waiting for a reader; a line that does
-      not begin with "palette" gets none.
+      not begin with "palette" gets none. It takes the UART interrupt
+      callback of every CDC ACM port, of which a device keeps one: a
+      consumer that gives a port to a shell or another reader sets this n.
 
 endmenu

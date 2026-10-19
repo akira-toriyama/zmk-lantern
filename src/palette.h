@@ -24,7 +24,9 @@ bool lantern_palette_get(uint32_t colours[LANTERN_PALETTE_SLOTS]);
 
 /* Split central only: set slots 0..count-1 on every half and on this device;
  * the slots from count on keep their colours. count is 1..LANTERN_PALETTE_SLOTS
- * and every colour at most LANTERN_PALETTE_RGB_MAX, else -EINVAL. 0 means the
- * invocations are queued for the halves, not that they arrived: a half that is
- * away gets the palette when it is back (src/palette.c). */
+ * and every colour at most LANTERN_PALETTE_RGB_MAX, else -EINVAL; -EAGAIN until
+ * the settings have loaded at boot. 0 means this device stored the colours and
+ * handed the halves' invocations to ZMK's split transport, which confirms
+ * nothing: a half that is away gets the palette when it is back
+ * (src/palette.c). */
 int lantern_palette_send(const uint32_t *colours, size_t count);
