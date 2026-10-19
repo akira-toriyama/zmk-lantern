@@ -66,10 +66,9 @@ how to build. Usage: [README.md](README.md). English only.
   CLAUDE.md says why); the weekly run of `build.yml` warns early of an
   upstream break.
 - Against canon's exact tree (its ZMK pin and patches): canon's
-  `./scripts/build-zmk.sh imprint --module <this checkout>` once canon's
-  scripts take a second module (canon t-66ww); until then a `west build` in
-  canon's workspace with `-DZMK_EXTRA_MODULES=<this checkout>` and an extra
-  conf and overlay (done 2026-10-19 for both halves).
+  `./scripts/build-zmk.sh imprint --module <this checkout>` (canon #267,
+  2026-10-19): the images carry `-lantern` and a stamp of canon's pinned
+  inputs plus that variant, which `dongle.py check` reports as `debug`.
 - CI: `build.yml` → the local reusable `zmk-build.yml` (it says why not ZMK's);
   `shellcheck.yml`; the fleet gates. No release workflow: the module ships no
   image, consumers pin a commit.
