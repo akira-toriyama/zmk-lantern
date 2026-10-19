@@ -8,9 +8,14 @@ how to build. Usage: [README.md](README.md). English only.
 - A ZMK module for the key LEDs of a split half: lit while USB powers the half
   and ZMK's activity state is active, dark and unpowered on battery and while
   idle, a boot light (`CONFIG_LANTERN_ON_USB_POWER`, `CONFIG_LANTERN_OFF_WHEN_IDLE`,
-  `CONFIG_LANTERN_BOOT_LIGHT_MS`). One source, [src/on_usb_power.c](src/on_usb_power.c),
-  whose header carries the design and every reason; one binding,
-  `lantern,rail` ([dts/bindings/lantern,rail.yaml](dts/bindings/lantern,rail.yaml)).
+  `CONFIG_LANTERN_BOOT_LIGHT_MS`; [src/on_usb_power.c](src/on_usb_power.c), binding
+  `lantern,rail`), and their colour: a palette of four colours the host hands
+  the split central over its USB CDC ACM port, which the central and every
+  half keep in their settings and whose slot 0 the underglow paints
+  (`CONFIG_LANTERN_PALETTE`, `CONFIG_LANTERN_PALETTE_PORT`;
+  [src/palette.c](src/palette.c), [src/palette_port.c](src/palette_port.c),
+  binding `lantern,behavior-palette`). Each source's header carries its design
+  and every reason.
   Device names follow canon's
   [docs/glossary.md](https://github.com/akira-toriyama/canon/blob/main/docs/glossary.md):
   Cyboard Imprint (the halves), Imprint Dongle, Prospector Dongle.
@@ -18,8 +23,12 @@ how to build. Usage: [README.md](README.md). English only.
   (`zephyr/module.yml` with `dts_root`, `dts/bindings/`, `src/`, `Kconfig`,
   `CMakeLists.txt`; no shield, no board) and the zmk-config (`config/`,
   `build.yaml`) that CI and [scripts/build.sh](scripts/build.sh) build:
-  Cyboard's stock Imprint halves plus the consumer-side lines a half needs
-  (`config/imprint.conf`, `config/imprint.overlay`).
+  Cyboard's stock Imprint halves and its `imprint_dongle` shield plus the
+  consumer-side lines each needs (`config/imprint.conf`, `config/imprint.overlay`,
+  `config/imprint_left.conf`, `config/imprint_dongle.{conf,overlay}`,
+  `config/palette.dtsi`). With Cyboard's stock roles the left half is a split
+  central (canon's is a peripheral): the check build compiles the palette's
+  central side on the left half and the dongle, its half side on both halves.
 - The one consumer, [canon](https://github.com/akira-toriyama/canon), pins
   this repository by commit SHA in its `config/west.yml` and carries the real
   overlays and confs; a merge here reaches the halves with canon's pin bump,
@@ -41,10 +50,13 @@ how to build. Usage: [README.md](README.md). English only.
   `build-user-config.yml` does). Never `west init` inside the repository.
 - Per build directory (`$ZMK_WS/ws/build/<image name>/`): `build.log` (west's
   output, FLASH/RAM at its end), `zephyr/.config`, `zephyr/zephyr.dts`,
-  `zephyr/zmk.map`, `zephyr/zmk.elf`. A build that carries the module shows
-  `CONFIG_LANTERN_ON_USB_POWER=y` in `.config`, a `lantern_rail` node with
-  `compatible = "lantern,rail"` in `zephyr.dts` and `on_usb_power.c.obj` in
-  `zmk.map`; a dongle build shows none of the three.
+  `zephyr/zmk.map`, `zephyr/zmk.elf`. A half's build shows
+  `CONFIG_LANTERN_ON_USB_POWER=y` and `CONFIG_LANTERN_PALETTE=y` in `.config`,
+  a `lantern_rail` node with `compatible = "lantern,rail"` and a `palette` node
+  with `compatible = "lantern,behavior-palette"` in `zephyr.dts`, and
+  `on_usb_power.c.obj` and `palette.c.obj` in `zmk.map`; a split central's
+  (the dongle, the stock left half) `CONFIG_LANTERN_PALETTE_PORT=y` and
+  `palette_port.c.obj` too, the dongle's nothing of the rail.
 - Kconfig merge order, later wins: board defconfig → ZMK `app/prj.conf` → the
   shield's confs → the consumer's `config/<prefix>.conf` files →
   `EXTRA_CONF_FILE` fragments (build.sh: logging, `--kconfig`) → `-DCONFIG_*`.
@@ -93,13 +105,38 @@ how to build. Usage: [README.md](README.md). English only.
   (canon t-6ttk) reads the same state. A cable plugged into an idle half
   lights nothing until its next key, by design (the source says why).
 - A target without a `lantern,rail` node (canon's dongles) builds none of the
-  module: `CONFIG_LANTERN_ON_USB_POWER` depends on
-  `DT_HAS_LANTERN_RAIL_ENABLED`. Exactly one node per target (BUILD_ASSERT).
+  rail: `CONFIG_LANTERN_ON_USB_POWER` depends on `DT_HAS_LANTERN_RAIL_ENABLED`;
+  one without a `lantern,behavior-palette` node (canon's Prospector Dongle)
+  none of the palette. Exactly one node of each per target (BUILD_ASSERT).
+- **The palette's node is named `palette` on every device of a split, and the
+  two parameters of an invocation are a wire format**: ZMK's split transport
+  carries a behavior by its node name (16 bytes with the terminator) and
+  param1/param2, so the central and the halves must agree on the name and on
+  the packing (`src/palette.c`: param1 = pair << 24 | the first slot's
+  0xRRGGBB, param2 = the second's). A change to either is a change on every
+  device at once (canon flashes all four targets at a pin bump).
+- **Every palette change goes through the behavior**, on the central too: the
+  port only parses and replies (`lantern_palette_send()`), and the central
+  stores its copy by the same handler the halves run. Slot 0 reaches the
+  underglow from that handler and from the subtree's settings commit at
+  commit priority 1 (after ZMK restored its own `rgb/underglow/state`);
+  only hue and saturation change, the brightness stays the device's.
+- **The resend rides on the halves' battery reports**
+  (`zmk_peripheral_battery_state_changed`, hence the asserted
+  `CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING`): ZMK's split central
+  raises no event of its own for a half's connection, and the report after a
+  (re)connection is the one signal it does raise. The send waits a second for
+  the discovery to finish; a half saves only a changed palette.
+- The port's line is central-only and never touches the port's rate: 1200
+  baud is zmk-beacon's bootloader entry, 2400 its screen dump, both the CDC
+  driver's rate callback; this file is the UART interrupt callback, which
+  nothing else in a canon image sets.
 - Remove or rename a Kconfig symbol together with the canon change that stops
   setting it: Kconfig aborts on an assignment to an undefined symbol.
 - Hardware verification is canon's: flash with canon's `scripts/flash-dongle.sh
   imprint_left` / `imprint_right` (a data cable, USB power), read a `--logging`
-  image's lines with its `dongle.py log`. Hardware claims here, in README and
+  image's lines with its `dongle.py log`, set and ask the palette with its
+  `dongle.py palette`. Hardware claims here, in README and
   in task bodies carry a date; README "Status" holds what was seen (the USB
   rule and the boot light on both halves, canon #263, 2026-10-19; the idle
   rule: the right half, canon's logging build with a 20 s timeout, 2026-10-19).
