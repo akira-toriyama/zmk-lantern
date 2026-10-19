@@ -1,0 +1,5 @@
+# Claude Code local settings and worktrees (never committed; same rule as the other repos)
+.claude/
+
+# scripts/build.sh output
+/firmware/

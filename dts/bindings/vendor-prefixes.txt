@@ -1,0 +1,1 @@
+lantern	zmk-lantern, a ZMK module (akira-toriyama)

@@ -1,0 +1,43 @@
+# Copyright (c) 2026 akira-toriyama
+# SPDX-License-Identifier: MIT
+#
+# Module-wide options, all LANTERN_*.
+
+menu "Lantern"
+
+config LANTERN_ON_USB_POWER
+    bool "Light the key LEDs while USB powers this half, dark and unpowered on battery"
+    default y
+    depends on DT_HAS_LANTERN_RAIL_ENABLED
+    depends on GPIO
+    help
+      On a device with a lantern,rail node (a split half of the Cyboard
+      Imprint in canon): while USB powers the device, the LED rail is on and
+      ZMK's underglow is on; on battery the underglow is off and the rail is
+      off, so the LEDs draw nothing from the battery (src/on_usb_power.c).
+      The rail is the node's gpios, the pin ZMK's zmk,ext-power-generic node
+      would drive as control-gpios; that node stays disabled in the
+      consumer's overlay (the source says why), and a gpio hog may hold the
+      pin low from reset until the module takes it.
+
+      Needs CONFIG_ZMK_RGB_UNDERGLOW=y with CONFIG_ZMK_RGB_UNDERGLOW_EXT_POWER=n
+      (ZMK's Kconfig.defaults sets it y with the underglow),
+      CONFIG_ZMK_RGB_UNDERGLOW_AUTO_OFF_USB=n, CONFIG_ZMK_RGB_UNDERGLOW_AUTO_OFF_IDLE=n
+      and CONFIG_ZMK_RGB_UNDERGLOW_ON_START=n, CONFIG_USB_DEVICE_STACK (ZMK's
+      default on nRF52840, the split peripheral included) and CONFIG_SETTINGS;
+      the source asserts each at build time, so a wrong conf fails the build
+      with a message. Default y where the node is present: the node is the
+      switch, and a target without one (a dongle) builds none of the module.
+
+config LANTERN_BOOT_LIGHT_MS
+    int "Light the key LEDs at boot for this many milliseconds (0 = no boot light)"
+    range 0 60000
+    default 1000
+    depends on LANTERN_ON_USB_POWER
+    help
+      At boot the rail goes on and the underglow lights for this long from
+      its first frame, on USB and on battery alike; then LANTERN_ON_USB_POWER's
+      rule applies: on USB the LEDs stay lit, on battery they go dark and the
+      rail off. 0: no boot light, the rule applies at once.
+
+endmenu

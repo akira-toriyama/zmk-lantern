@@ -1,0 +1,26 @@
+# Copyright (c) 2026 akira-toriyama
+# SPDX-License-Identifier: MIT
+
+description: |
+  The LED power rail that zmk-lantern switches (CONFIG_LANTERN_ON_USB_POWER):
+  one GPIO that enables the supply of the key LEDs, the pin the board's
+  zmk,ext-power-generic node has as control-gpios. That node stays disabled
+  on a target with this one, and there is exactly one of these per target.
+
+compatible: "lantern,rail"
+
+include: base.yaml
+
+properties:
+  gpios:
+    type: phandle-array
+    required: true
+    description: The rail's enable pin; the rail is on while the pin is active.
+
+  settle-ms:
+    type: int
+    default: 100
+    description: |
+      Milliseconds between enabling the rail and the first frame to the LEDs,
+      their power-up time. The zmk,ext-power-generic node's init-delay-ms
+      (100 on the Cyboard assimilator-bt board).

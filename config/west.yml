@@ -1,0 +1,36 @@
+# West manifest for building this module against the Cyboard Imprint (CI and
+# scripts/build.sh). The repository plays two roles in that build:
+#   1. zmk-config: this config/ directory (`west init -l config`), with the
+#      consumer-side lines a half needs (imprint.conf, imprint.overlay) on top
+#      of Cyboard's stock shield, keymap and roles.
+#   2. Zephyr module: the repository root (zephyr/module.yml), passed to the
+#      build as -DZMK_EXTRA_MODULES, the way ZMK's build-user-config reusable
+#      workflow does for any config repo that carries a module.yml.
+# The west topdir is kept outside the module root (a temp dir in CI,
+# ~/.cache/zmk-lantern/ws locally): zmk/, zephyr/, zmk-keyboards/ and modules/
+# must not land inside the module tree.
+#
+# Consumers do not import this file; they add the repository as a project in
+# their own manifest (README).
+#
+# The projects are canon's, at canon's revisions (its config/west.yml says
+# why): ZMK at main, never a release tag, because the Cyboard assimilator-bt
+# board needs Zephyr's new hardware model; Cyboard's zmk-keyboards at
+# zephyr-4.1, never main, which pins ZMK v0.3.0 and the HWv1 board.
+manifest:
+  remotes:
+    - name: zmkfirmware
+      url-base: https://github.com/zmkfirmware
+    - name: Cyboard-DigitalTailor
+      url-base: https://github.com/Cyboard-DigitalTailor
+  projects:
+    - name: zmk
+      remote: zmkfirmware
+      revision: main
+      import: app/west.yml
+    - name: zmk-keyboards
+      remote: Cyboard-DigitalTailor
+      revision: zephyr-4.1
+      import: config/west.yml
+  self:
+    path: config

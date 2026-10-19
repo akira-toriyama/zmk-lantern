@@ -1,0 +1,32 @@
+// Both halves: ZMK takes the first user overlay whose name is a prefix of
+// the shield's, so this one serves imprint_left and imprint_right (a consumer
+// with per-half overlays includes a dtsi like this from each).
+//
+// The LED rail (assimilator-bt P1.02) is the module's, not ZMK's ext_power
+// driver's: the board's EXT_POWER node stays disabled, and a gpio hog holds
+// the pin low from early boot (POST_KERNEL) until the module configures it
+// (src/on_usb_power.c says why). The lantern,rail node copies the board's control-gpios and its
+// init-delay-ms as settle-ms (zmk-keyboards
+// boards/cyboard/assimilator-bt/assimilator-bt.dts).
+
+#include <zephyr/dt-bindings/gpio/gpio.h>
+
+&{/EXT_POWER} {
+    status = "disabled";
+};
+
+&gpio1 {
+    lantern_rail_hog {
+        gpio-hog;
+        gpios = <2 GPIO_ACTIVE_HIGH>;
+        output-low;
+    };
+};
+
+/ {
+    lantern_rail: lantern_rail {
+        compatible = "lantern,rail";
+        gpios = <&gpio1 2 GPIO_ACTIVE_HIGH>;
+        settle-ms = <100>;
+    };
+};
