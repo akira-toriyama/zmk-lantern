@@ -29,8 +29,13 @@ itself; lit through a boot on the cable. The idle rule
 (`CONFIG_LANTERN_OFF_WHEN_IDLE`): seen on the right half on 2026-10-19, in
 canon's logging build with a 20 s `CONFIG_ZMK_IDLE_TIMEOUT`: `dark: idle` once
 the half had sat untouched on the cable, `lit: usb powered` at the next key;
-the five-minute product images are canon's (its t-0y3a). The palette: built
-for all three check targets, not yet seen on hardware (2026-10-19).
+the five-minute product images are canon's (its t-0y3a). The palette, on
+hardware 2026-10-19 with canon's logging images of this module on both halves
+and the Imprint Dongle: one `dongle.py palette` changed both halves over the
+split (each logged `stored` and `applied`); a half rebooted on the cable
+applied slot 0 from its settings at 0.3 s and took the central's resend at
+1.8 s; a half flashed fresh, with no palette stored, had it 1.7 s after boot
+from the resend; and the central's reboot resent it to both halves within 2 s.
 
 ## What it does
 
