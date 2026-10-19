@@ -125,12 +125,15 @@ how to build. Usage: [README.md](README.md). English only.
 - **The central's run queue holds a whole palette for every half at once**
   (`CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE` at least three
   invocations a half, 6 for two halves, asserted in `src/palette.c`): a set
-  from the port queues every half's three in one go, ZMK's thread drains
-  them with GATT writes that block on full Bluetooth buffers, and a put into
-  a full queue drops its oldest command after 100 ms, the first half's slots
-  0-1 (the source header). A change of `LANTERN_PALETTE_SLOTS` moves the
-  requirement and the settings value's size, which a device flashed across
-  it ignores until the host sends again.
+  from the port queues every half's three in one go, ZMK's own thread
+  drains them with one GATT write each, and a put into a full queue waits
+  up to 100 ms for the drain and then drops the oldest queued command. With
+  ZMK's 5, a drain stalled by a half that stopped acknowledging would cost
+  the first half's slots 0-1, the ones seen; with the palette fitting, a
+  set never waits and a stall drops only what was queued before it (the
+  source header; on an idle link 5 drops nothing either). A change of
+  `LANTERN_PALETTE_SLOTS` moves the requirement and the settings value's
+  size, which a device flashed across it ignores until the host sends again.
 - **The resend rides on the halves' battery reports**
   (`zmk_peripheral_battery_state_changed`, hence the asserted
   `CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING`): ZMK's split central

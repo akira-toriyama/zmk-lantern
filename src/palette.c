@@ -22,18 +22,24 @@
  *   (the consumer's keymap or overlay), and an invocation
  *   carries one pair of slots, param1 = pair << 24 | the first slot's colour,
  *   param2 = the second slot's, so a palette is three invocations. Press
- *   only; no release is sent or needed. The central's run queue
- *   (CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE, 5 by default) must
- *   hold a whole palette for every half, PAIRS x the peripheral count: a set
- *   from the port queues every half's three in one go, and ZMK's own thread
- *   drains the queue with one GATT write each, which blocks while the
- *   Bluetooth buffers are full; a put into a full queue waits 100 ms and then
- *   drops the oldest command (app/src/split/bluetooth/central.c,
- *   split_bt_invoke_behavior_payload), the first half's slots 0-1, the ones
- *   seen. With the whole palette fitting, no set or resend depends on how
- *   fast the writes go out. Asserted at build time; a consumer with two
- *   halves sets 6 (canon's config/imprint_dongle.conf). A resend is one
- *   half's three.
+ *   only; no release is sent or needed. ZMK's central puts each command into
+ *   its run queue (CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE, 5 by
+ *   default) from the caller's thread, here the system work queue, and
+ *   drains it on its own preemptible thread, one GATT write without response
+ *   per command, which blocks only while the ATT TX pool
+ *   (CONFIG_BT_ATT_TX_COUNT, shared by both halves) is empty; a put into a
+ *   full queue waits up to 100 ms for the drain and then drops the oldest
+ *   queued command (app/src/split/bluetooth/central.c,
+ *   split_bt_invoke_behavior_payload). A set from the port queues every
+ *   half's three in one go, 6 for two halves. The queue is asserted to hold
+ *   a whole palette for every half, PAIRS x the peripheral count (a consumer
+ *   with two halves sets 6, canon's config/imprint_dongle.conf): a set that
+ *   starts on an empty queue then goes in without waiting, and a drain
+ *   stalled for 100 ms (a half that stopped acknowledging) drops commands
+ *   queued before the set, never the set's own, where ZMK's 5 would drop
+ *   the first half's slots 0-1, the ones seen (read 2026-10-19, ZMK
+ *   4dd95d78; on an idle link 5 drops nothing either, the drain takes the
+ *   first command while the sixth put waits). A resend is one half's three.
  * - Settings: "lantern/palette/colours", the six colours as one value, saved
  *   when a colour changed or the first palette arrived and not otherwise; a
  *   value of another size (stored by a build with another slot count) is
@@ -86,7 +92,7 @@
  * - Delivery is not confirmed: zmk_behavior_invoke_binding() returns the
  *   local handler's result and ignores the transport's, and the transport
  *   itself drops a command for a half that is not connected or still in
- *   discovery, or when its queue of five overflows. The next battery report
+ *   discovery, or when its queue overflows (above). The next battery report
  *   of the half resends the whole palette; on a half whose level does not
  *   move (full, on a charger) that can be hours. canon's call (t-0967): the
  *   palette is a toy, optimistic is fine.
