@@ -6,6 +6,9 @@ on and ZMK's underglow lights every key; on battery the underglow is off and
 the rail is off, so the LEDs cost the battery nothing; on the cable, five
 minutes without a key (ZMK's idle state) turn them off until the next one. At
 boot the LEDs light for a second, cable or not, and then the rule applies.
+The colour comes from the host: a palette of four colours handed to the
+keyboard's split central over USB, kept by every half across boots, whose
+slot 0 the LEDs show (the palette, below).
 
 Built for the **Cyboard Imprint** of
 [akira-toriyama/canon](https://github.com/akira-toriyama/canon), whose halves
@@ -26,7 +29,13 @@ itself; lit through a boot on the cable. The idle rule
 (`CONFIG_LANTERN_OFF_WHEN_IDLE`): seen on the right half on 2026-10-19, in
 canon's logging build with a 20 s `CONFIG_ZMK_IDLE_TIMEOUT`: `dark: idle` once
 the half had sat untouched on the cable, `lit: usb powered` at the next key;
-the five-minute product images are canon's (its t-0y3a).
+the five-minute product images are canon's (its t-0y3a). The palette, on
+hardware 2026-10-19 with canon's logging images of this module on both halves
+and the Imprint Dongle: one `dongle.py palette` changed both halves over the
+split (each logged `stored` and `applied`); a half rebooted on the cable
+applied slot 0 from its settings at 0.3 s and took the central's resend at
+1.8 s; a half flashed fresh, with no palette stored, had it 1.7 s after boot
+from the resend; and the central's reboot resent it to both halves within 2 s.
 
 ## What it does
 
@@ -56,6 +65,37 @@ the five-minute product images are canon's (its t-0y3a).
 - Not reconciled: an underglow change the module did not make. A `&rgb_ug`
   key pressed on battery, or ZMK's idle auto-off (asserted off), would run the
   strip with the rail off; keep such keys off a half that runs on battery.
+
+## The palette
+
+Four colours (`0xRRGGBB`, slots 0..3) that the host hands the keyboard's split
+central and that the central and every half keep in their settings
+(`lantern/palette/colours`); slot 0 is the hue and saturation ZMK's underglow
+paints the key LEDs with on a half, applied when it arrives and at every boot,
+at the brightness the half has (the consumer's
+`CONFIG_ZMK_RGB_UNDERGLOW_BRT_START`): a grey or black slot 0 paints white.
+The other slots change nothing yet; effects to come read them.
+
+- The host writes a text line on the central's USB CDC ACM port (canon:
+  `scripts/dongle.py palette`): `palette RRGGBB [RRGGBB [RRGGBB [RRGGBB]]]`
+  sets slots 0.. and leaves the rest, answered with `palette ok` and the four
+  slots as stored; `palette` or `palette?` is answered with the four slots, or
+  `palette none` before any; a bad line gets `palette error: <reason>`
+  ([src/palette_port.c](src/palette_port.c) is the grammar). The central's code
+  invokes the `lantern,behavior-palette` node, which ZMK's split transport
+  carries to every half by the node's name, one pair of slots per invocation
+  ([src/palette.c](src/palette.c)); nothing is bound to a key.
+- A half that was away when the host wrote, or that lost its settings, gets
+  the palette when it is back: the central resends it a second after each
+  battery report of a half, the first of which follows every (re)connection.
+  A half writes its flash only when a colour changed.
+- `CONFIG_LANTERN_PALETTE` is on wherever the node exists (the consumer's
+  keymap or an overlay, named `palette` on every device of the split, the
+  central included: that name is what the transport carries) and
+  `CONFIG_LANTERN_PALETTE_PORT` on a split central with a CDC ACM port. A
+  split central needs `CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING=y`
+  (asserted at build time). `CONFIG_ZMK_RGB_UNDERGLOW=n` on a device, such as
+  a dongle, keeps and forwards the palette without painting anything.
 
 ## Using it in a ZMK config
 
@@ -131,20 +171,42 @@ the five-minute product images are canon's (its t-0y3a).
    battery sampling, which ZMK pauses while idle; `CONFIG_LANTERN_OFF_WHEN_IDLE=n`
    keeps the LEDs lit on the cable whatever the activity.
 
+4. The palette's node, on every device of the split under the one name
+   (canon: in its keymap's behaviors; [config/palette.dtsi](config/palette.dtsi)
+   here, included from every overlay of the check build):
+
+   ```dts
+   / {
+       behaviors {
+           palette: palette {
+               compatible = "lantern,behavior-palette";
+               #binding-cells = <2>;
+           };
+       };
+   };
+   ```
+
+   The split central's conf needs
+   `CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING=y`; the port comes
+   with the central's CDC ACM port (`CONFIG_USB_CDC_ACM`).
+
 ## Building this repository
 
 ```sh
-./scripts/build.sh              # both halves, firmware/imprint_{left,right}.uf2
+./scripts/build.sh              # both halves and the dongle, firmware/<shield>.uf2
 ./scripts/build.sh --logging    # with USB logging; the module's lines are INFO
 ./scripts/build.sh --help       # every option
 ```
 
 Docker, a west workspace under `~/.cache/zmk-lantern`, the images in
-`firmware/`. They are the build check of Cyboard's stock Imprint config plus
-the module, not a keyboard's firmware: a consumer's keymap and roles are its
-own. CI builds the same targets on every pull request and weekly against the
+`firmware/`. They are the build check of Cyboard's stock Imprint config (both
+halves and the `imprint_dongle` shield) plus the module, not a keyboard's
+firmware: a consumer's keymap and roles are its own. CI builds the same targets on every pull request and weekly against the
 moving branches.
 
 Log lines (a `--logging` image, through canon's `dongle.py log` or any serial
 reader at 115200): `start: usb powered, boot light 1000 ms`, `lit: boot light`,
-`lit: usb powered`, `dark: on battery`, `dark: idle`.
+`lit: usb powered`, `dark: on battery`, `dark: idle`; the palette's:
+`slots 0-1 RRGGBB RRGGBB stored` (or `unchanged`), `slot 0 RRGGBB applied: hue H
+sat S brt B` on a half, and on the central `N colour(s) from <port>` and
+`resent to half N`.

@@ -1,11 +1,15 @@
 # Build matrix: the single source of board/shield pairs for CI
 # (.github/workflows/zmk-build.yml) and the local build (scripts/build.sh), in
 # ZMK's build.yaml include: form. Both halves of the Cyboard Imprint, the
-# targets of the one consumer (canon) that carry the module; the module has no
-# shield or board of its own.
+# targets of the one consumer (canon) that carry the module, and its Imprint
+# Dongle, the split central that carries the palette's central side
+# (src/palette.c, src/palette_port.c); the module has no shield or board of
+# its own.
 ---
 include:
   - board: assimilator-bt
     shield: imprint_left
   - board: assimilator-bt
     shield: imprint_right
+  - board: xiao_ble/nrf52840/zmk
+    shield: imprint_dongle

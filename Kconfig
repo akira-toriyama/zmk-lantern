@@ -53,4 +53,45 @@ config LANTERN_OFF_WHEN_IDLE
       consumer's line (canon's halves set 300000); a cable plugged into an
       idle device lights nothing until its next input (the source says why).
 
+config LANTERN_PALETTE
+    bool "Keep a palette of four colours, set from the split central's host; slot 0 colours the key LEDs"
+    default y
+    depends on DT_HAS_LANTERN_BEHAVIOR_PALETTE_ENABLED
+    depends on SETTINGS
+    help
+      Four colours (0xRRGGBB, slots 0..3) that the host hands the split
+      central (LANTERN_PALETTE_PORT) and that the central and every half keep
+      in their settings ("lantern/palette/colours"); slot 0 is the hue and
+      saturation ZMK's underglow paints the key LEDs with on a half, applied
+      when it arrives and at every boot, at the brightness the half has. The
+      other slots change nothing yet (an effects module may read them). The
+      central's code invokes the lantern,behavior-palette node, which ZMK's
+      split transport carries to every half by its name: the node is named
+      palette on every device (src/palette.c, the binding). On a split
+      central the palette is resent to a half at each of its battery
+      reports, the first of which follows every (re)connection, so a half
+      that was away gets it when it is back: that needs
+      CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING, asserted at build
+      time. Default y where the node is present: the node is the switch, as
+      the lantern,rail node is for LANTERN_ON_USB_POWER.
+
+config LANTERN_PALETTE_PORT
+    bool "Take palette commands on the split central's USB CDC ACM port"
+    default y
+    depends on LANTERN_PALETTE
+    depends on ZMK_SPLIT_ROLE_CENTRAL
+    depends on USB_CDC_ACM
+    select UART_INTERRUPT_DRIVEN
+    help
+      A text line "palette RRGGBB [RRGGBB [RRGGBB [RRGGBB]]]" on any CDC ACM
+      port of the split central sets slots 0.. on every half and on the
+      central, answered with "palette ok" and the four slots; "palette" or
+      "palette?" asks for them (src/palette_port.c is the whole grammar).
+      canon's scripts/dongle.py palette sends it to the Imprint Dongle. The
+      port's rate is untouched: 1200 baud is zmk-beacon's bootloader entry.
+      The reply is written without waiting for a reader; a line that does
+      not begin with "palette" gets none. It takes the UART interrupt
+      callback of every CDC ACM port, of which a device keeps one: a
+      consumer that gives a port to a shell or another reader sets this n.
+
 endmenu
