@@ -79,10 +79,13 @@ LOG_MODULE_REGISTER(lantern_palette_port, LOG_LEVEL_INF);
 #define WORD "palette"
 #define COLOUR_DIGITS 6
 /* "palette " and a slot's six digits and a space each: 49 characters for six
- * slots; the reply "palette ok " and the slots 53. */
+ * slots; the reply "palette ok " and the slots 52, the longest error reply
+ * ("not ready: ...") 58. */
 #define LINE_LIMIT (16 + 7 * LANTERN_PALETTE_SLOTS)
-#define REPLY_MAX (16 + 7 * LANTERN_PALETTE_SLOTS)
+#define REPLY_MAX 64
 #define LINES_WAITING 2
+
+BUILD_ASSERT(16 + 7 * LANTERN_PALETTE_SLOTS <= REPLY_MAX, "a reply with every slot must fit");
 
 /* The USB work queue's side: bytes into a line. */
 struct port {
