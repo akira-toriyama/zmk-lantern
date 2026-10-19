@@ -1,6 +1,7 @@
 // Both halves: ZMK takes the first user overlay whose name is a prefix of
 // the shield's, so this one serves imprint_left and imprint_right (a consumer
-// with per-half overlays includes a dtsi like this from each).
+// with per-half overlays includes a dtsi like this from each); the dongle has
+// imprint_dongle.overlay, which ZMK tries first for that shield.
 //
 // The LED rail (assimilator-bt P1.02) is the module's, not ZMK's ext_power
 // driver's: the board's EXT_POWER node stays disabled, and a gpio hog holds
@@ -10,6 +11,8 @@
 // boards/cyboard/assimilator-bt/assimilator-bt.dts).
 
 #include <zephyr/dt-bindings/gpio/gpio.h>
+
+#include "palette.dtsi"
 
 &{/EXT_POWER} {
     status = "disabled";

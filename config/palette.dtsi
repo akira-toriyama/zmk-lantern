@@ -1,0 +1,15 @@
+// The palette behavior's node (src/palette.c), the same on every device of
+// the split: ZMK's split transport names a behavior by its node name, so the
+// central and the halves carry it under one name. A consumer with a keymap of
+// its own puts it among the keymap's behaviors (canon:
+// config/imprint_behaviors.dtsi); this check build, on Cyboard's stock
+// keymaps, includes this file from every overlay.
+
+/ {
+    behaviors {
+        palette: palette {
+            compatible = "lantern,behavior-palette";
+            #binding-cells = <2>;
+        };
+    };
+};
