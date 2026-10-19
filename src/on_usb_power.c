@@ -3,11 +3,13 @@
  *
  * SPDX-License-Identifier: MIT
  *
- * Light the key LEDs while USB powers this half, and keep them dark and
- * unpowered on battery. Lit = the LED rail (the lantern,rail node's gpios)
- * on, then ZMK's underglow on; dark = the underglow off (a black frame), then
- * the rail off BLANK_MS later. At boot the LEDs light for
- * CONFIG_LANTERN_BOOT_LIGHT_MS whatever the power, then the rule applies.
+ * Light the key LEDs while USB powers this half and the half is in use, and
+ * keep them dark and unpowered otherwise: on battery, and once ZMK's activity
+ * state has left ACTIVE (CONFIG_LANTERN_OFF_WHEN_IDLE). Lit = the LED rail
+ * (the lantern,rail node's gpios) on, then ZMK's underglow on; dark = the
+ * underglow off (a black frame), then the rail off BLANK_MS later. At boot
+ * the LEDs light for CONFIG_LANTERN_BOOT_LIGHT_MS whatever the power, then
+ * the rule applies.
  *
  * - The rail is driven here, never by ZMK's zmk,ext-power-generic driver:
  *   its init turns the rail on, its settings handler restores a stored
@@ -18,11 +20,16 @@
  *   low from POST_KERNEL (before it the pin is in its reset state, an input)
  *   until lantern_init() configures it at APPLICATION; nothing reserves a
  *   hogged pin.
- * - Every state change runs on the system work queue: the USB listener (ZMK
- *   raises zmk_usb_conn_state_changed from a work item there, app/src/usb.c,
- *   and calls listeners in the raising thread), the delayed steps and the
- *   first evaluation, so the state below needs no lock. The settings commit
- *   handler runs on the main thread and only submits the work.
+ * - Every state change runs on the system work queue: the listener (ZMK
+ *   calls listeners in the raising thread, and raises both events from work
+ *   items on that queue: zmk_usb_conn_state_changed from app/src/usb.c, and
+ *   zmk_activity_state_changed from wherever activity is noted, the key
+ *   scan's message processor in app/src/physical_layouts.c, the sensor work
+ *   in app/src/sensors.c, the pointing input's note_activity_work, and from
+ *   the one-second idle check, activity_work, both in app/src/activity.c),
+ *   the delayed steps and the first evaluation, so the state below needs no
+ *   lock. The settings commit handler runs on the main thread and only
+ *   submits the work.
  * - The first evaluation starts from a settings commit handler at commit
  *   priority 1, not from SYS_INIT: settings_load() (ZMK app/src/main.c) runs
  *   after every init level, and its set phase restores ZMK's saved
@@ -51,6 +58,18 @@
  *   "awake", so it cannot light a half that boots on a cable; it is asserted
  *   off below, as is AUTO_OFF_IDLE, whose on()/off() on activity would run
  *   the strip against an unpowered rail on battery.
+ * - Idle: ZMK's activity state (app/src/activity.c), not a timer of this
+ *   module's. ZMK already counts what the half does (key positions, sensor
+ *   events, pointing input) and turns IDLE after CONFIG_ZMK_IDLE_TIMEOUT ms
+ *   without any, per device: a split half knows nothing of the other half's
+ *   keys, so each goes dark on its own. The timeout is the consumer's line
+ *   (canon's halves: 300000). SLEEP counts as idle (unreachable with
+ *   CONFIG_ZMK_SLEEP=n). A cable plugged into an idle half lights nothing
+ *   until its next input: USB is no activity to ZMK, and lighting on it would
+ *   leave the LEDs on with no idle event to follow. On battery the idle input
+ *   changes nothing (the rule is already false) and is only kept current.
+ *   In canon's halves the only other subscriber ZMK links is battery.c, which
+ *   pauses its sampling while idle (zmk.map, 2026-10-19).
  * - ZMK's underglow calls take no lock and block on nothing: on() starts the
  *   tick timer (a frame every 50 ms on ZMK's low priority work queue), off()
  *   queues a black frame there and stops the timer. settle-ms (the node)
@@ -83,7 +102,9 @@
 #include <zephyr/settings/settings.h>
 #include <zephyr/sys/util.h>
 
+#include <zmk/activity.h>
 #include <zmk/event_manager.h>
+#include <zmk/events/activity_state_changed.h>
 #include <zmk/events/usb_conn_state_changed.h>
 #include <zmk/rgb_underglow.h>
 #include <zmk/usb.h>
@@ -109,7 +130,8 @@ BUILD_ASSERT(!IS_ENABLED(CONFIG_ZMK_RGB_UNDERGLOW_AUTO_OFF_USB),
              "it calls the same on/off, and whichever listener runs last would win");
 BUILD_ASSERT(!IS_ENABLED(CONFIG_ZMK_RGB_UNDERGLOW_AUTO_OFF_IDLE),
              "CONFIG_ZMK_RGB_UNDERGLOW_AUTO_OFF_IDLE must be n with CONFIG_LANTERN_ON_USB_POWER: "
-             "its on()/off() on activity would run the strip against an unpowered rail on battery");
+             "its on()/off() on activity would run the strip against an unpowered rail on battery; "
+             "CONFIG_LANTERN_OFF_WHEN_IDLE darkens an idle half");
 BUILD_ASSERT(!IS_ENABLED(CONFIG_ZMK_RGB_UNDERGLOW_ON_START),
              "CONFIG_ZMK_RGB_UNDERGLOW_ON_START must be n with CONFIG_LANTERN_ON_USB_POWER: it "
              "would drive the strip at init with the rail off; CONFIG_LANTERN_BOOT_LIGHT_MS "
@@ -134,6 +156,7 @@ static enum phase phase = DARK;
 static bool started;
 static bool boot_light;
 static bool usb_powered;
+static bool idle; /* stays false without CONFIG_LANTERN_OFF_WHEN_IDLE */
 static bool want_lit;
 
 static void rail_set(bool on) {
@@ -146,14 +169,31 @@ static void rail_set(bool on) {
 static void step(struct k_work *work);
 static K_WORK_DELAYABLE_DEFINE(step_work, step);
 
+static bool read_idle(void) {
+    return IS_ENABLED(CONFIG_LANTERN_OFF_WHEN_IDLE) &&
+           zmk_activity_get_state() != ZMK_ACTIVITY_ACTIVE;
+}
+
+/* The rule: the boot light, or USB power with the half in use. */
+static bool rule(void) { return boot_light || (usb_powered && !idle); }
+
+/* An input changed: let the machine catch up. The boot light keeps the rule
+ * true, so only its own deadline is ever pending while it runs. */
+static void apply_rule(void) {
+    bool lit = rule();
+    if (lit == want_lit) {
+        return;
+    }
+    want_lit = lit;
+    k_work_reschedule(&step_work, K_NO_WAIT);
+}
+
 /* Rail on: light, and give the boot light its end. */
 static void light(void) {
     zmk_rgb_underglow_on();
     phase = LIT;
     LOG_INF("lit: %s", boot_light ? "boot light" : "usb powered");
     if (boot_light) {
-        /* Only this deadline ends the boot light: the USB listener does not
-         * reschedule while it runs. */
         k_work_reschedule(&step_work, K_MSEC(CONFIG_LANTERN_BOOT_LIGHT_MS));
     }
 }
@@ -169,8 +209,9 @@ static void blank(void) {
 static bool start(void) {
     started = true;
     usb_powered = zmk_usb_is_powered();
+    idle = read_idle();
     boot_light = CONFIG_LANTERN_BOOT_LIGHT_MS > 0;
-    want_lit = boot_light || usb_powered;
+    want_lit = rule();
     LOG_INF("start: usb %s, boot light %d ms", usb_powered ? "powered" : "absent",
             CONFIG_LANTERN_BOOT_LIGHT_MS);
 
@@ -220,7 +261,7 @@ static void step(struct k_work *work) {
     case LIT:
         if (boot_light) {
             boot_light = false;
-            want_lit = usb_powered;
+            want_lit = rule();
         }
         if (!want_lit) {
             blank();
@@ -234,31 +275,34 @@ static void step(struct k_work *work) {
         }
         rail_set(false);
         phase = DARK;
-        LOG_INF("dark: on battery");
+        LOG_INF("dark: %s", usb_powered ? "idle" : "on battery");
         break;
     }
 }
 
-static int usb_listener(const zmk_event_t *eh) {
-    if (as_zmk_usb_conn_state_changed(eh) == NULL) {
+static int lantern_listener(const zmk_event_t *eh) {
+    /* Before start() the inputs are read there. */
+    if (!started) {
         return ZMK_EV_EVENT_BUBBLE;
     }
 
-    bool powered = zmk_usb_is_powered();
-    if (!started || powered == usb_powered) {
+    if (as_zmk_usb_conn_state_changed(eh) != NULL) {
+        usb_powered = zmk_usb_is_powered();
+    } else if (as_zmk_activity_state_changed(eh) != NULL) {
+        idle = read_idle();
+    } else {
         return ZMK_EV_EVENT_BUBBLE;
     }
-    usb_powered = powered;
-    if (!boot_light) {
-        want_lit = powered;
-        k_work_reschedule(&step_work, K_NO_WAIT);
-    }
+    apply_rule();
 
     return ZMK_EV_EVENT_BUBBLE;
 }
 
-ZMK_LISTENER(lantern, usb_listener);
+ZMK_LISTENER(lantern, lantern_listener);
 ZMK_SUBSCRIPTION(lantern, zmk_usb_conn_state_changed);
+#if IS_ENABLED(CONFIG_LANTERN_OFF_WHEN_IDLE)
+ZMK_SUBSCRIPTION(lantern, zmk_activity_state_changed);
+#endif
 
 /* Nothing is saved under "lantern"; Zephyr calls h_set unchecked should a key
  * ever appear there, so refuse it rather than leave the pointer NULL. */

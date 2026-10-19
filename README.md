@@ -1,10 +1,11 @@
 # zmk-lantern
 
 A [ZMK](https://zmk.dev) module that lights a keyboard's key LEDs only while
-USB powers it. While a cable powers the half, its LED rail is on and ZMK's
-underglow lights every key; on battery the underglow is off and the rail is
-off, so the LEDs cost the battery nothing. At boot the LEDs light for a second,
-cable or not, and then the rule applies.
+USB powers it and it is in use. While a cable powers the half, its LED rail is
+on and ZMK's underglow lights every key; on battery the underglow is off and
+the rail is off, so the LEDs cost the battery nothing; on the cable, five
+minutes without a key (ZMK's idle state) turn them off until the next one. At
+boot the LEDs light for a second, cable or not, and then the rule applies.
 
 Built for the **Cyboard Imprint** of
 [akira-toriyama/canon](https://github.com/akira-toriyama/canon), whose halves
@@ -18,9 +19,11 @@ is the beacon.
 ## Status
 
 Builds for both Imprint halves against ZMK `main` and Cyboard's `zephyr-4.1`
-(CI, and canon's own tree with its patches, 2026-10-19). Not yet seen on
-hardware (2026-10-19): canon's pin of this module is where the first cable goes
-in, and this section says so once it has.
+(CI, and canon's own tree with its patches, 2026-10-19). On hardware, both
+halves of canon's Cyboard Imprint (canon #263, 2026-10-19): the boot light on
+battery, then dark; lit on plugging in and dark on unplugging, each half for
+itself; lit through a boot on the cable. The idle rule
+(`CONFIG_LANTERN_OFF_WHEN_IDLE`): not yet seen on hardware (2026-10-19).
 
 ## What it does
 
@@ -28,14 +31,20 @@ in, and this section says so once it has.
 | --- | --- | --- |
 | USB powers the half: a host, awake or asleep, or a charger | on | lit, with ZMK's underglow colour and effect |
 | the half runs on battery | off | dark |
+| USB powers the half, but ZMK's activity state is idle: `CONFIG_ZMK_IDLE_TIMEOUT` ms (the consumer's line) without a key, sensor or pointing input on this half | off | dark, until the next input |
 | the first `CONFIG_LANTERN_BOOT_LIGHT_MS` after boot (default 1000) | on | lit, cable or not |
 
-- Each half decides for itself, from its own USB port; nothing crosses the
-  split.
+- Each half decides for itself, from its own USB port and its own activity;
+  nothing crosses the split. Typing on one half alone leaves the other to go
+  dark.
 - Plugging in turns the rail on and, `settle-ms` later (100 ms on the Imprint),
   the underglow; unplugging turns the underglow off and drops the rail 100 ms
   after. A reset, a suspend (the host asleep) or a resume on the cable changes
-  nothing.
+  nothing. Idle and the next input switch the LEDs the same way; the boot
+  light is never cut short.
+- A cable plugged into an idle half lights nothing until its next key: USB is
+  no activity to ZMK, and lighting on it would leave the LEDs on with no idle
+  event to follow.
 - The colour, saturation, brightness and effect are ZMK's underglow settings
   (`CONFIG_ZMK_RGB_UNDERGLOW_{HUE,SAT,BRT,EFF}_START`). ZMK saves the
   underglow's state a minute after each change; the rule overrides it at every
@@ -104,12 +113,20 @@ in, and this section says so once it has.
    CONFIG_ZMK_RGB_UNDERGLOW_AUTO_OFF_USB=n
    CONFIG_ZMK_RGB_UNDERGLOW_AUTO_OFF_IDLE=n
    CONFIG_ZMK_RGB_UNDERGLOW_ON_START=n
+   CONFIG_ZMK_IDLE_TIMEOUT=300000
    ```
 
    `CONFIG_LANTERN_ON_USB_POWER` is on by default wherever the node exists;
    `CONFIG_LANTERN_BOOT_LIGHT_MS=0` drops the boot light. A missing or
    conflicting option fails the build with a message naming it. A target
    without the node (a dongle) builds none of the module.
+   `CONFIG_LANTERN_OFF_WHEN_IDLE` is on by default with it, and the idle
+   timeout is ZMK's `CONFIG_ZMK_IDLE_TIMEOUT` (default 30000 ms; 300000 is the
+   five minutes of canon's halves): the module has no timer of its own, ZMK's
+   activity state already counts keys, sensors and pointing input per device.
+   With `CONFIG_ZMK_SLEEP=n` the timeout moves nothing else in a half but the
+   battery sampling, which ZMK pauses while idle; `CONFIG_LANTERN_OFF_WHEN_IDLE=n`
+   keeps the LEDs lit on the cable whatever the activity.
 
 ## Building this repository
 
@@ -127,4 +144,4 @@ moving branches.
 
 Log lines (a `--logging` image, through canon's `dongle.py log` or any serial
 reader at 115200): `start: usb powered, boot light 1000 ms`, `lit: boot light`,
-`lit: usb powered`, `dark: on battery`.
+`lit: usb powered`, `dark: on battery`, `dark: idle`.
