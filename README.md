@@ -6,7 +6,7 @@ on and ZMK's underglow lights every key; on battery the underglow is off and
 the rail is off, so the LEDs cost the battery nothing; on the cable, five
 minutes without a key (ZMK's idle state) turn them off until the next one. At
 boot the LEDs light for a second, cable or not, and then the rule applies.
-The colour comes from the host: a palette of four colours handed to the
+The colour comes from the host: a palette of six colours handed to the
 keyboard's split central over USB, kept by every half across boots, whose
 slot 0 the LEDs show (the palette, below).
 
@@ -68,7 +68,7 @@ from the resend; and the central's reboot resent it to both halves within 2 s.
 
 ## The palette
 
-Four colours (`0xRRGGBB`, slots 0..3) that the host hands the keyboard's split
+Six colours (`0xRRGGBB`, slots 0..5) that the host hands the keyboard's split
 central and that the central and every half keep in their settings
 (`lantern/palette/colours`); slot 0 is the hue and saturation ZMK's underglow
 paints the key LEDs with on a half, applied when it arrives and at every boot,
@@ -77,9 +77,9 @@ at the brightness the half has (the consumer's
 The other slots change nothing yet; effects to come read them.
 
 - The host writes a text line on the central's USB CDC ACM port (canon:
-  `scripts/dongle.py palette`): `palette RRGGBB [RRGGBB [RRGGBB [RRGGBB]]]`
-  sets slots 0.. and leaves the rest, answered with `palette ok` and the four
-  slots as stored; `palette` or `palette?` is answered with the four slots, or
+  `scripts/dongle.py palette`): `palette RRGGBB [RRGGBB ...]` (one to six)
+  sets slots 0.. and leaves the rest, answered with `palette ok` and the six
+  slots as stored; `palette` or `palette?` is answered with the six slots, or
   `palette none` before any; a bad line gets `palette error: <reason>`
   ([src/palette_port.c](src/palette_port.c) is the grammar). The central's code
   invokes the `lantern,behavior-palette` node, which ZMK's split transport
@@ -88,7 +88,9 @@ The other slots change nothing yet; effects to come read them.
 - A half that was away when the host wrote, or that lost its settings, gets
   the palette when it is back: the central resends it a second after each
   battery report of a half, the first of which follows every (re)connection.
-  A half writes its flash only when a colour changed.
+  A half writes its flash only when a colour changed. A stored palette of
+  another slot count (a device flashed across the change from four slots to
+  six) is ignored at load: `palette none` until the host sends again.
 - `CONFIG_LANTERN_PALETTE` is on wherever the node exists (the consumer's
   keymap or an overlay, named `palette` on every device of the split, the
   central included: that name is what the transport carries) and
@@ -187,8 +189,11 @@ The other slots change nothing yet; effects to come read them.
    ```
 
    The split central's conf needs
-   `CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING=y`; the port comes
-   with the central's CDC ACM port (`CONFIG_USB_CDC_ACM`).
+   `CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING=y` and a run queue
+   that holds a whole palette for every half at once, three invocations
+   each: `CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE=6` for two halves
+   (ZMK's default is 5; both asserted at build time); the port comes with the
+   central's CDC ACM port (`CONFIG_USB_CDC_ACM`).
 
 ## Building this repository
 
