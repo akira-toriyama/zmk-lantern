@@ -7,12 +7,11 @@
  * one the consumer's lantern,keys node assigns to the key under it, so the
  * palette's colours fall on the keyboard in bands (canon t-69g7: slots 0..4
  * left to right across both halves); and the countdown to the idle dark
- * (CONFIG_LANTERN_COUNTDOWN, canon t-gsm2): from the half's last key, the lit
- * time is cut into as many stages as the palette has colours, stage 0 the
- * bands and stage k the whole half in colour k, so that the colour reads how
- * far the dark is (the bands shifted by k colours instead, tried beside it on
- * hardware on 2026-10-20, read as movement and not as time). This file is the
- * strip's one writer. A frame goes out when
+ * (CONFIG_LANTERN_COUNTDOWN, canon t-gsm2, t-x82q): from the half's last key
+ * to its idle dark, the picture changes every CONFIG_LANTERN_COUNTDOWN_STAGE_MS,
+ * a stage: the bands, then the whole half in each colour of the palette in
+ * turn, then the bands again. This file is the strip's one writer. A frame
+ * goes out when
  * something changed, never on a fixed tick: when the rail rule lights or
  * blanks the LEDs (src/on_usb_power.c), when the palette changes while they
  * are lit, and when the countdown moves a stage; effects to come (canon
@@ -36,26 +35,28 @@
  *   keycaps; 16 is what ZMK's underglow drove at canon's earlier settings,
  *   brightness 25 between 5 and 50). A grey has no hue and scales to white;
  *   so does black, which has no brightest channel, when it is slot 0.
- * - The countdown: the palette's shades in slot order are the stages, N of
- *   them (a cleared slot is slot 0's; two colours that scale to one shade, a
- *   hue at two brightnesses or two greys, are one: canon's sender fills its
- *   five slots from fewer colours by repeating them, and a stage nobody could
- *   tell from the last would only shorten the others), and a stage lasts
- *   CONFIG_ZMK_IDLE_TIMEOUT / N, so the last one ends where ZMK turns idle
- *   and the rail rule blanks the LEDs (ZMK checks once a second, so the last
- *   stage holds up to a second longer). The clock is this half's key
+ * - The countdown: the pictures are the bands and then the palette's shades
+ *   in slot order, N of them (a cleared slot is slot 0's; two colours that
+ *   scale to one shade, a hue at two brightnesses or two greys, are one:
+ *   canon's sender fills its five slots from fewer colours by repeating
+ *   them, and a picture nobody could tell from the last would only be a
+ *   skipped beat). Stage k, from k x CONFIG_LANTERN_COUNTDOWN_STAGE_MS after
+ *   the last key, shows picture k mod N, so the pictures cycle until ZMK
+ *   turns idle and the rail rule blanks the LEDs; one shade is the bands
+ *   alone. Up to 750f413 a stage was CONFIG_ZMK_IDLE_TIMEOUT / N and the last
+ *   shade held until the dark, so that the colour read how far the dark was;
+ *   on hardware a minute a colour read as still, and the user chose a ten
+ *   second cycle (canon t-x82q, 2026-10-20). The clock is this half's key
  *   positions (zmk_position_state_changed, which a split peripheral raises
  *   for its own keys, on the system work queue), kept while dark too, not
  *   ZMK's activity: ZMK keeps the time of its last input to itself and
  *   raises only the ACTIVE/IDLE transitions. A light does not restart the
  *   clock, so a cable plugged into a half that typed a while ago lights it
- *   into the stage its keys say, in step with ZMK's idle (Opus review,
- *   2026-10-20); only a clock already past the timeout restarts at a light,
- *   since then something this clock does not count woke ZMK, a sensor or
- *   pointing input (canon t-gsm2: the Imprint's trackballs are unused), and
- *   ZMK's clock restarted too. Such input while lit moves ZMK's idle alone,
- *   so the last stage then holds until ZMK idles. A key brings the bands back
- *   and restarts the clock. One shade, one stage: the bands until the dark.
+ *   into the stage its keys say (Opus review, 2026-10-20); only a clock
+ *   already past the idle timeout restarts at a light, since then something
+ *   this clock does not count woke ZMK, a sensor or pointing input (canon
+ *   t-gsm2: the Imprint's trackballs are unused), and ZMK's clock restarted
+ *   too. A key brings the bands back and restarts the clock.
  * - Threads: the frame is composed and written on ZMK's low priority work
  *   queue (zmk_workqueue_lowprio_work_q(), the one rgb_underglow.c used; the
  *   Kconfig selects it). led_strip_update_rgb() blocks for the SPI transfer
@@ -131,12 +132,6 @@ BUILD_ASSERT(KEY_COUNT == ZMK_KEYMAP_LEN,
 BUILD_ASSERT(KEY_COUNT <= 256, "lantern,keys: a key position is stored in a byte");
 BUILD_ASSERT(IS_ENABLED(CONFIG_LANTERN_ON_USB_POWER),
              "CONFIG_LANTERN_KEYS needs CONFIG_LANTERN_ON_USB_POWER: nothing else lights the LEDs");
-#if IS_ENABLED(CONFIG_LANTERN_COUNTDOWN)
-BUILD_ASSERT(CONFIG_ZMK_IDLE_TIMEOUT >= LANTERN_PALETTE_SLOTS,
-             "CONFIG_LANTERN_COUNTDOWN needs CONFIG_ZMK_IDLE_TIMEOUT of at least a millisecond a "
-             "palette slot: a stage is the timeout over the colour count");
-#endif
-
 #define POSITION_IN_RANGE(node_id, prop, idx)                                                     \
     BUILD_ASSERT(DT_PROP_BY_IDX(node_id, prop, idx) < KEY_COUNT,                                  \
                  "lantern,keys: a positions entry is no key position of slots");
@@ -164,7 +159,7 @@ static const uint8_t positions[LED_COUNT] = DT_INST_PROP(0, positions);
 static const uint8_t slots[KEY_COUNT] = DT_INST_PROP(0, slots);
 static struct led_rgb pixels[LED_COUNT];
 static atomic_t lit;
-static atomic_t stage; /* 0 the bands; k the whole half in shade k (clamped when painted) */
+static atomic_t stage; /* stages since the last key; the picture is stage mod the shade count */
 
 /* The 0xRRGGBB scaled so that its brightest channel is LEVEL; black to white. */
 static struct led_rgb scaled(uint32_t rgb) {
@@ -217,7 +212,7 @@ static void compose(size_t at) {
     uint8_t rank[LANTERN_PALETTE_SLOTS];
     size_t n = shades(shade, rank);
 
-    at = MIN(at, n - 1);
+    at %= n;
     for (size_t i = 0; i < LED_COUNT; i++) {
         pixels[i] = shade[at > 0 ? at : rank[slots[positions[i]]]];
     }
@@ -250,23 +245,17 @@ static uint32_t since;
 static void tick(struct k_work *work);
 static K_WORK_DELAYABLE_DEFINE(tick_work, tick);
 
-/* System work queue. Store the stage the clock and the palette give now and
- * arm the tick for the next boundary; true when the stage moved. */
+/* System work queue. Store the stage the clock gives now and arm the tick
+ * for the next boundary; true when the stage moved. */
 static bool countdown_step(void) {
-    struct led_rgb shade[LANTERN_PALETTE_SLOTS];
-    uint8_t rank[LANTERN_PALETTE_SLOTS];
-    size_t n = shades(shade, rank);
-    uint32_t period = CONFIG_ZMK_IDLE_TIMEOUT / n;
     uint32_t elapsed = k_uptime_get_32() - since;
-    size_t at = MIN(elapsed / period, n - 1);
+    size_t at = elapsed / CONFIG_LANTERN_COUNTDOWN_STAGE_MS;
 
-    if (at + 1 < n) {
-        k_work_reschedule(&tick_work, K_MSEC((at + 1) * period - elapsed));
-    }
+    k_work_reschedule(&tick_work, K_MSEC((at + 1) * CONFIG_LANTERN_COUNTDOWN_STAGE_MS - elapsed));
     if ((size_t)atomic_set(&stage, (atomic_val_t)at) == at) {
         return false;
     }
-    LOG_INF("stage %u of %u", (unsigned int)at, (unsigned int)n);
+    LOG_INF("stage %u", (unsigned int)at);
     return true;
 }
 
