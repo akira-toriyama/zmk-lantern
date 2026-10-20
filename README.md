@@ -5,10 +5,10 @@ USB powers it and it is in use, and paints them from a palette the host hands
 the keyboard. While a cable powers the half, its LED rail is on and every key
 shows its palette colour; on battery the LEDs are black and the rail is off,
 so they cost the battery nothing; on the cable, five minutes without a key
-(ZMK's idle state) turn them off until the next one, and the half counts down
-to that dark in the palette's colours, the whole half in the next colour at
-every stage. At boot the LEDs light for a second, cable or not, and then the
-rule applies. The palette: six
+(ZMK's idle state) turn them off until the next one, and on the way there the
+half cycles through the palette's colours, the whole half in one colour for
+ten seconds, then the next. At boot the LEDs light for a second, cable or
+not, and then the rule applies. The palette: six
 colours handed to the keyboard's split central over USB, kept by every half
 across boots, and shown on the keys in the bands the consumer's overlay draws
 (the palette, below).
@@ -43,12 +43,11 @@ reboot resent it to both halves within 2 s. The picture the module paints
 itself (the bands, `src/keys.c`): both halves on 2026-10-20 with canon #271's
 images, five bands from a palette the host set while the halves ran on
 battery, shown when each was plugged in (canon t-0967). The countdown
-(`CONFIG_LANTERN_COUNTDOWN`, `src/keys.c`): the left half on 2026-10-20 with
-canon's trial image of this change (a 50 s `CONFIG_ZMK_IDLE_TIMEOUT`, a
-palette of five colours): the bands, then the whole half in the next colour
-at 10.000, 20.000, 30.000 and 40.000 s from the last key, `dark: idle` at
-50.6 s, the bands back at a key; a cable plugged in after a boot lit the
-stage the keys' clock said (canon t-gsm2).
+(`CONFIG_LANTERN_COUNTDOWN`, `src/keys.c`): both halves on 2026-10-20 with
+canon's trial images (a palette of five colours): a new picture every
+10.000 s from the last key, the bands after every fifth, the bands back at a
+key, `dark: idle` at ZMK's timeout; a cable plugged in after a boot lit the
+stage the keys' clock said (canon t-gsm2, t-x82q).
 
 ## What it does
 
@@ -56,7 +55,7 @@ stage the keys' clock said (canon t-gsm2).
 | --- | --- | --- |
 | USB powers the half: a host, awake or asleep, or a charger | on | lit: the palette's picture |
 | the half runs on battery | off | black |
-| USB powers the half and its last key is a stage or more ago: `CONFIG_ZMK_IDLE_TIMEOUT` over the palette's colour count (`CONFIG_LANTERN_COUNTDOWN`) | on | lit: the whole half in the palette's next colour, a stage a colour |
+| USB powers the half and its last key is `CONFIG_LANTERN_COUNTDOWN_STAGE_MS` (10 s) or more ago (`CONFIG_LANTERN_COUNTDOWN`) | on | lit: the whole half in the palette's next colour, a new picture every stage, the bands again after the last colour |
 | USB powers the half, but ZMK's activity state is idle: `CONFIG_ZMK_IDLE_TIMEOUT` ms (the consumer's line) without a key, sensor or pointing input on this half | off | black, until the next input |
 | the first `CONFIG_LANTERN_BOOT_LIGHT_MS` after boot (default 1000) | on | lit, cable or not |
 
@@ -84,16 +83,15 @@ stage the keys' clock said (canon t-gsm2).
   LEDs light or go dark, when the palette changes while they are lit and when
   the countdown moves a stage; nothing ticks at a fixed rate.
 - The countdown (`CONFIG_LANTERN_COUNTDOWN`, on by default with the idle rule
-  and the palette): from the half's last key, the time to ZMK's idle is cut
-  into as many stages as the palette has distinct colours (a slot the host
-  left black is slot 0's colour; colours that paint alike at the device's
-  brightness count once). Stage 0 is the bands; stage k paints the whole half
-  in the palette's k-th colour, so the colour reads how far the dark is; the
-  last stage ends where ZMK turns idle and the LEDs go dark. A key brings the
-  bands back and restarts the clock; a cable plugged into a half that typed a
-  while ago lights the stage its keys say. The clock is the half's own keys:
-  a sensor or pointing input counts for ZMK's idle, not for the stages. One
-  colour, one stage: the bands until the dark.
+  and the palette): from the half's last key, the picture changes every
+  `CONFIG_LANTERN_COUNTDOWN_STAGE_MS` (default 10000): the bands, then the
+  whole half in each colour of the palette in turn (a slot the host left
+  black is slot 0's colour; colours that paint alike at the device's
+  brightness count once), then the bands again, until ZMK turns idle and the
+  LEDs go dark. A key brings the bands back and restarts the clock; a cable
+  plugged into a half that typed a while ago lights the stage its keys say.
+  The clock is the half's own keys: a sensor or pointing input counts for
+  ZMK's idle, not for the stages. One colour: the bands until the dark.
 
 ## The palette
 
@@ -221,7 +219,8 @@ to `0x000000`, which the LEDs show as slot 0.
    battery sampling, which ZMK pauses while idle; `CONFIG_LANTERN_OFF_WHEN_IDLE=n`
    keeps the LEDs lit on the cable whatever the activity.
    `CONFIG_LANTERN_COUNTDOWN` is on by default with the idle rule and the
-   palette: `=n` keeps the bands until the dark.
+   palette, a new picture every `CONFIG_LANTERN_COUNTDOWN_STAGE_MS` (10000):
+   `=n` keeps the bands until the dark.
 
 4. The palette's node, on every device of the split under the one name
    (canon: in its keymap's behaviors; [config/palette.dtsi](config/palette.dtsi)
@@ -263,7 +262,7 @@ targets on every pull request and weekly against the moving branches.
 Log lines (a `--logging` image, through canon's `dongle.py log` or any serial
 reader at 115200): `start: usb powered, boot light 1000 ms`, `lit: boot light`,
 `lit: usb powered`, `dark: on battery`, `dark: idle`, and the countdown's
-`stage N of M` at every move; the palette's:
+`stage N` at every move; the palette's:
 `slots 0-1 RRGGBB RRGGBB stored` (or `unchanged`) on every device, and on the
 central `N colour(s) from <port>` and `resent to half N`; the picture logs
 only a frame the strip refused (`frame not written`).

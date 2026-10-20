@@ -11,9 +11,11 @@ how to build. Usage: [README.md](README.md). English only.
   `CONFIG_LANTERN_BOOT_LIGHT_MS`; [src/on_usb_power.c](src/on_usb_power.c), binding
   `lantern,rail`); their picture, painted by the module itself, each LED the
   palette slot the consumer's node assigns to the key under it, and the
-  countdown to the idle dark in the palette's colours, a stage a colour
-  (`CONFIG_LANTERN_KEYS`, `CONFIG_LANTERN_BRIGHTNESS`, `CONFIG_LANTERN_COUNTDOWN`;
-  [src/keys.c](src/keys.c), binding `lantern,keys`); and the palette: six
+  countdown to the idle dark: the pictures cycling every ten seconds, the
+  bands and then each colour of the palette (`CONFIG_LANTERN_KEYS`,
+  `CONFIG_LANTERN_BRIGHTNESS`, `CONFIG_LANTERN_COUNTDOWN`,
+  `CONFIG_LANTERN_COUNTDOWN_STAGE_MS`; [src/keys.c](src/keys.c), binding
+  `lantern,keys`); and the palette: six
   colours the host hands the
   split central over its USB CDC ACM port, which the central and every half
   keep in their settings (`CONFIG_LANTERN_PALETTE`, `CONFIG_LANTERN_PALETTE_PORT`;
@@ -58,8 +60,8 @@ how to build. Usage: [README.md](README.md). English only.
   output, FLASH/RAM at its end), `zephyr/.config`, `zephyr/zephyr.dts`,
   `zephyr/zmk.map`, `zephyr/zmk.elf`. A half's build shows
   `CONFIG_LANTERN_KEYS=y`, `CONFIG_LANTERN_ON_USB_POWER=y`,
-  `CONFIG_LANTERN_COUNTDOWN=y` and `CONFIG_LANTERN_PALETTE=y` in `.config`
-  and no `CONFIG_ZMK_RGB_UNDERGLOW`,
+  `CONFIG_LANTERN_COUNTDOWN=y`, `CONFIG_LANTERN_COUNTDOWN_STAGE_MS=10000` and
+  `CONFIG_LANTERN_PALETTE=y` in `.config` and no `CONFIG_ZMK_RGB_UNDERGLOW`,
   a `lantern_keys` node with `compatible = "lantern,keys"`, a `lantern_rail`
   node with `compatible = "lantern,rail"` and a `palette` node with
   `compatible = "lantern,behavior-palette"` in `zephyr.dts`, the strip's
@@ -125,17 +127,18 @@ how to build. Usage: [README.md](README.md). English only.
 - **The idle timeout is ZMK's `CONFIG_ZMK_IDLE_TIMEOUT`, set by the consumer,
   and the dark is ZMK's idle state**: it already counts a half's keys,
   sensors and pointing input. The countdown (`CONFIG_LANTERN_COUNTDOWN`)
-  cuts the same timeout into stages for the picture, one per distinct shade
-  of the palette, from a clock of its own, the half's key positions
+  changes the picture every `CONFIG_LANTERN_COUNTDOWN_STAGE_MS` (10 s) from
+  a clock of its own, the half's key positions
   (`zmk_position_state_changed`), kept while dark too: ZMK keeps the time of
   its last input to itself. A light does not restart that clock (a cable
-  plugged into a half that typed a while ago lights the stage its keys say,
-  in step with ZMK's idle; Opus review 2026-10-20) unless it is already past
-  the timeout, the sign that a sensor or pointing input woke ZMK; such input
-  moves ZMK's idle and not this clock (canon t-gsm2: the Imprint's trackballs
-  are unused), so the last stage then holds until ZMK idles. A cable plugged
-  into an idle half lights nothing until its next key, by design (the source
-  says why).
+  plugged into a half that typed a while ago lights the stage its keys say;
+  Opus review 2026-10-20) unless it is already past the idle timeout, the
+  sign that a sensor or pointing input woke ZMK; such input moves ZMK's idle
+  and not this clock (canon t-gsm2: the Imprint's trackballs are unused). Up
+  to 750f413 a stage was the timeout over the colour count and the last
+  colour held until the dark; the user chose the ten-second cycle on
+  hardware (t-x82q). A cable plugged into an idle half lights nothing until
+  its next key, by design (the source says why).
 - A target without a `lantern,keys` node builds none of the painting
   (`CONFIG_LANTERN_KEYS` depends on `DT_HAS_LANTERN_KEYS_ENABLED`) and none of
   the rail (`CONFIG_LANTERN_ON_USB_POWER` depends on `LANTERN_KEYS` and on
@@ -206,8 +209,8 @@ how to build. Usage: [README.md](README.md). English only.
   rule and the boot light on both halves, canon #263, 2026-10-19; the idle
   rule: the right half, canon's logging build with a 20 s timeout,
   2026-10-19; the palette through the underglow, 2026-10-19; the bands on
-  both halves, canon #271, 2026-10-20; the countdown on the left half,
-  canon's trial image with a 50 s timeout, 2026-10-20).
+  both halves, canon #271, 2026-10-20; the countdown on both halves, canon's
+  trial images, 2026-10-20).
 
 ## Commits, pull requests, fleet files
 

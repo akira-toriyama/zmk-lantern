@@ -96,15 +96,26 @@ config LANTERN_COUNTDOWN
     depends on LANTERN_PALETTE
     help
       While the key LEDs are lit, each half counts the time since its last
-      key: CONFIG_ZMK_IDLE_TIMEOUT cut into as many stages as the palette has
-      distinct colours (a cleared slot is slot 0's colour; colours that paint
-      alike at LANTERN_BRIGHTNESS count once). Stage 0, from the last key, is
-      the picture (the bands); stage k paints the whole half in the palette's
-      k-th colour; the last stage ends where ZMK turns idle and
-      LANTERN_OFF_WHEN_IDLE blanks the LEDs. A key brings the bands back and
-      restarts the clock; a cable plugged in lights the stage the keys say
-      (src/keys.c). A sensor or pointing input counts for ZMK's idle and not
-      for this clock. One colour, one stage: the bands until the dark.
+      key in stages of LANTERN_COUNTDOWN_STAGE_MS and changes the picture at
+      each: the bands, then the whole half in each colour of the palette in
+      turn (a cleared slot is slot 0's colour; colours that paint alike at
+      LANTERN_BRIGHTNESS count once), then the bands again, until ZMK turns
+      idle and LANTERN_OFF_WHEN_IDLE blanks the LEDs. A key brings the bands
+      back and restarts the clock; a cable plugged in lights the stage the
+      keys say (src/keys.c). A sensor or pointing input counts for ZMK's idle
+      and not for this clock. One colour: the bands until the dark.
+
+config LANTERN_COUNTDOWN_STAGE_MS
+    int "Milliseconds between two pictures of the countdown"
+    range 100 3600000
+    default 10000
+    depends on LANTERN_COUNTDOWN
+    help
+      How long each picture of the countdown shows before the next: the
+      bands, then each colour of the palette, then the bands again, until
+      ZMK's idle blanks the LEDs. Ten seconds is what canon's user chose on
+      hardware (2026-10-20, t-x82q); a minute a colour, with the colours
+      running out at the idle timeout, read as still.
 
 config LANTERN_PALETTE
     bool "Keep a palette of six colours, set from the split central's host; the key LEDs show them"
