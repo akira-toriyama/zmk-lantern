@@ -9,10 +9,12 @@ how to build. Usage: [README.md](README.md). English only.
   and ZMK's activity state is active, dark and unpowered on battery and while
   idle, a boot light (`CONFIG_LANTERN_ON_USB_POWER`, `CONFIG_LANTERN_OFF_WHEN_IDLE`,
   `CONFIG_LANTERN_BOOT_LIGHT_MS`; [src/on_usb_power.c](src/on_usb_power.c), binding
-  `lantern,rail`), and their colour: a palette of six colours the host hands
-  the split central over its USB CDC ACM port, which the central and every
-  half keep in their settings and whose slot 0 the underglow paints
-  (`CONFIG_LANTERN_PALETTE`, `CONFIG_LANTERN_PALETTE_PORT`;
+  `lantern,rail`); their picture, painted by the module itself, each LED the
+  palette slot the consumer's node assigns to the key under it
+  (`CONFIG_LANTERN_KEYS`, `CONFIG_LANTERN_BRIGHTNESS`; [src/keys.c](src/keys.c),
+  binding `lantern,keys`); and the palette: six colours the host hands the
+  split central over its USB CDC ACM port, which the central and every half
+  keep in their settings (`CONFIG_LANTERN_PALETTE`, `CONFIG_LANTERN_PALETTE_PORT`;
   [src/palette.c](src/palette.c), [src/palette_port.c](src/palette_port.c),
   binding `lantern,behavior-palette`). Each source's header carries its design
   and every reason.
@@ -29,6 +31,8 @@ how to build. Usage: [README.md](README.md). English only.
   `config/palette.dtsi`). With Cyboard's stock roles the left half is a split
   central (canon's is a peripheral): the check build compiles the palette's
   central side on the left half and the dongle, its half side on both halves.
+  Its `lantern,keys` node takes the chain in key order (`positions`), a
+  placeholder a consumer replaces with its measurement.
 - The one consumer, [canon](https://github.com/akira-toriyama/canon), pins
   this repository by commit SHA in its `config/west.yml` and carries the real
   overlays and confs; a merge here reaches the halves with canon's pin bump,
@@ -51,17 +55,21 @@ how to build. Usage: [README.md](README.md). English only.
 - Per build directory (`$ZMK_WS/ws/build/<image name>/`): `build.log` (west's
   output, FLASH/RAM at its end), `zephyr/.config`, `zephyr/zephyr.dts`,
   `zephyr/zmk.map`, `zephyr/zmk.elf`. A half's build shows
-  `CONFIG_LANTERN_ON_USB_POWER=y` and `CONFIG_LANTERN_PALETTE=y` in `.config`,
-  a `lantern_rail` node with `compatible = "lantern,rail"` and a `palette` node
-  with `compatible = "lantern,behavior-palette"` in `zephyr.dts`, and
-  `on_usb_power.c.obj` and `palette.c.obj` in `zmk.map`; a split central's
-  (the dongle, the stock left half) `CONFIG_LANTERN_PALETTE_PORT=y` and
-  `palette_port.c.obj` too, the dongle's nothing of the rail.
+  `CONFIG_LANTERN_KEYS=y`, `CONFIG_LANTERN_ON_USB_POWER=y` and
+  `CONFIG_LANTERN_PALETTE=y` in `.config` and no `CONFIG_ZMK_RGB_UNDERGLOW`,
+  a `lantern_keys` node with `compatible = "lantern,keys"`, a `lantern_rail`
+  node with `compatible = "lantern,rail"` and a `palette` node with
+  `compatible = "lantern,behavior-palette"` in `zephyr.dts`, the strip's
+  `chain-length = < 0x1d >` (29), and `keys.c.obj`, `on_usb_power.c.obj` and
+  `palette.c.obj` in `zmk.map`; a split central's (the dongle, the stock left
+  half) `CONFIG_LANTERN_PALETTE_PORT=y` and `palette_port.c.obj` too, the
+  dongle's nothing of the rail or the keys.
 - Kconfig merge order, later wins: board defconfig → ZMK `app/prj.conf` → the
   shield's confs → the consumer's `config/<prefix>.conf` files →
   `EXTRA_CONF_FILE` fragments (build.sh: logging, `--kconfig`) → `-DCONFIG_*`.
-  ZMK's `app/Kconfig.defaults` sets `ZMK_RGB_UNDERGLOW_EXT_POWER=y` whenever
-  the underglow is on: the consumer's conf must say `=n`.
+  Cyboard's `boards/shields/imprint/Kconfig.defconfig` defaults
+  `ZMK_RGB_UNDERGLOW=y` for every target in the manifest: the consumer's conf
+  must say `=n` (`src/keys.c` asserts it on a half).
 - ZMK tracks `main` and Cyboard's module `zephyr-4.1`, as canon does (its
   CLAUDE.md says why); the weekly run of `build.yml` warns early of an
   upstream break.
@@ -76,37 +84,58 @@ how to build. Usage: [README.md](README.md). English only.
 ## Invariants
 
 - **Never give the LED rail back to ZMK's `ext_power` driver**: the consumer's
-  EXT_POWER node stays `status = "disabled"`, with
-  `CONFIG_ZMK_RGB_UNDERGLOW_EXT_POWER=n`. The driver turns the rail on at init
-  and restores a stored `ext_power/state/EXT_POWER` at settings load (a stored
-  off kept canon's left half dark, 2026-10-19), and with `CONFIG_ZMK_SLEEP=n`
-  nothing turns the rail off again. The module drives the node's `gpios`
-  itself; the hog holds the pin low from POST_KERNEL until it does.
-- **`CONFIG_ZMK_RGB_UNDERGLOW_AUTO_OFF_USB`, `_AUTO_OFF_IDLE` and `_ON_START`
-  stay off** (the source asserts the three, and the three prerequisites): the
-  first calls the same on/off and whichever listener runs last wins, the
-  second runs the strip on activity against an unpowered rail on battery, the
-  third drives the strip at init with the rail off. The boot light is the
-  module's. `&rgb_ug` keys on a battery half are the same hazard, unasserted.
+  EXT_POWER node stays `status = "disabled"`. The driver turns the rail on at
+  init and restores a stored `ext_power/state/EXT_POWER` at settings load (a
+  stored off kept canon's left half dark, 2026-10-19), and with
+  `CONFIG_ZMK_SLEEP=n` nothing turns the rail off again. The module drives the
+  node's `gpios` itself; the hog holds the pin low from POST_KERNEL until it
+  does.
+- **ZMK's underglow stays off on a half (`CONFIG_ZMK_RGB_UNDERGLOW=n`, asserted
+  in `src/keys.c`): the module is the strip's one writer.** `rgb_underglow.c`
+  repaints every LED with its one colour and effect at each 50 ms tick while
+  on, and saves and restores its on/colour state across boots, so a per-LED
+  picture cannot share the strip with it (up to 2406809 the module lit the
+  LEDs through it and overrode that saved state at every boot). With it off
+  a frame is written only when something changed, from one work item on ZMK's
+  low priority work queue (`src/keys.c`); `&rgb_ug` keys have no driver and
+  do nothing.
 - **The first evaluation runs from the settings commit handler (commit priority
-  1), never from SYS_INIT**: ZMK's saved `rgb/underglow/state` is restored in
-  `settings_load()` after every init level and would undo an earlier decision.
-  Every `zmk_rgb_underglow_on()/off()` saves the state 60 s later; the module
-  overrides it at every boot and powers the rail before the restored tick's
-  first frames reach the LEDs (the only way to DARK is through BLANKING), so
-  the saved value is harmless and never trusted.
-- **All state lives on the system work queue** (the USB and activity events,
-  the steps, the first evaluation); a new entry point submits work there,
-  never touches the state.
+  1), never from SYS_INIT**: `settings_load()` (ZMK `app/src/main.c`) runs
+  after every init level and restores the palette in its set phase, so a boot
+  light started from the commit phase paints the palette's picture; from
+  SYS_INIT it would paint white and the palette's own commit would have to
+  repaint. The frame reads the palette's atomics when it is composed, so the
+  order of the two commit handlers does not matter.
+- **All rail state lives on the system work queue** (the USB and activity
+  events, the steps, the first evaluation); a new entry point submits work
+  there, never touches the state. **The picture is composed and written on
+  ZMK's low priority work queue** (`src/keys.c`: one work item, the wanted
+  state an atomic, two submissions coalesce): `led_strip_update_rgb()` blocks
+  for the SPI transfer and stays off the system work queue, where ZMK
+  processes key events, and off the Bluetooth receive queue, where a half
+  runs the palette behavior. Callers say lit, dark or changed and never touch
+  a pixel.
 - **The idle timeout is ZMK's `CONFIG_ZMK_IDLE_TIMEOUT`, set by the consumer;
   the module keeps no timer**: ZMK's activity state already counts a half's
-  keys, sensors and pointing input, and the consumer's later effects module
-  (canon t-6ttk) reads the same state. A cable plugged into an idle half
+  keys, sensors and pointing input, and the consumer's later effects
+  (canon t-6ttk) read the same state. A cable plugged into an idle half
   lights nothing until its next key, by design (the source says why).
-- A target without a `lantern,rail` node (canon's dongles) builds none of the
-  rail: `CONFIG_LANTERN_ON_USB_POWER` depends on `DT_HAS_LANTERN_RAIL_ENABLED`;
-  one without a `lantern,behavior-palette` node (canon's Prospector Dongle)
-  none of the palette. Exactly one node of each per target (BUILD_ASSERT).
+- A target without a `lantern,keys` node builds none of the painting
+  (`CONFIG_LANTERN_KEYS` depends on `DT_HAS_LANTERN_KEYS_ENABLED`) and none of
+  the rail (`CONFIG_LANTERN_ON_USB_POWER` depends on `LANTERN_KEYS` and on
+  `DT_HAS_LANTERN_RAIL_ENABLED`: the rail rule has nothing to show without
+  the picture); one without a `lantern,behavior-palette` node (canon's
+  Prospector Dongle) none of the palette. Exactly one node of each per target
+  (BUILD_ASSERT).
+- **`positions` and `chain-length` are the consumer's measurement, `slots` its
+  picture**: `src/keys.c` asserts the lengths (`positions` as many as the
+  strip's `chain-length`, `slots` as many as `ZMK_KEYMAP_LEN`) and the ranges
+  (a position below the key count, a slot below `LANTERN_PALETTE_SLOTS`), and
+  nothing about the order: a wrong order paints the right colours on the
+  wrong keys, which only the hardware shows (canon t-69g7 measures it one LED
+  at a time). The driver sends and buffers the whole `chain-length` at every
+  frame (Cyboard's overlay says 150, a placeholder), so the consumer sets the
+  real count.
 - **The palette's node is named `palette` on every device of a split, and the
   two parameters of an invocation are a wire format**: ZMK's split transport
   carries a behavior by its node name (at most 8 characters: the Bluetooth
@@ -116,11 +145,11 @@ how to build. Usage: [README.md](README.md). English only.
   0xRRGGBB, param2 = the second's). A change to either is a change on every
   device at once (canon flashes all four targets at a pin bump).
 - **Every palette change goes through the behavior**, on the central too: the
-  port only parses and replies (`lantern_palette_send()`), and the central
-  stores its copy by the same handler the halves run. Slot 0 reaches the
-  underglow from that handler and from the subtree's settings commit at
-  commit priority 1 (after ZMK restored its own `rgb/underglow/state`);
-  only hue and saturation change, the brightness stays the device's.
+  port only parses and replies (`lantern_palette_send()`, which clears the
+  slots it is not given), and the central stores its copy by the same handler
+  the halves run. The handler repaints the key LEDs when a pair changed, only
+  while they are lit; at boot the first frame reads the palette itself. A
+  black slot other than 0 paints slot 0; a grey or black slot 0 paints white.
 - **The central's run queue holds a whole palette for every half at once**
   (`CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE` at least three
   invocations a half, 6 for two halves, asserted in `src/palette.c`): a set
@@ -150,14 +179,18 @@ how to build. Usage: [README.md](README.md). English only.
   commands: a line shaped like a reply is ignored, so an echoing host cannot
   start a loop; before the settings have loaded a command gets an error.
 - Remove or rename a Kconfig symbol together with the canon change that stops
-  setting it: Kconfig aborts on an assignment to an undefined symbol.
+  setting it: Kconfig aborts on an assignment to an undefined symbol (the
+  five `CONFIG_ZMK_RGB_UNDERGLOW_*` lines the halves carried up to 2406809
+  left canon's confs with the switch to `src/keys.c`).
 - Hardware verification is canon's: flash with canon's `scripts/flash-dongle.sh
   imprint_left` / `imprint_right` (a data cable, USB power), read a `--logging`
   image's lines with its `dongle.py log`, set and ask the palette with its
   `dongle.py palette`. Hardware claims here, in README and
   in task bodies carry a date; README "Status" holds what was seen (the USB
   rule and the boot light on both halves, canon #263, 2026-10-19; the idle
-  rule: the right half, canon's logging build with a 20 s timeout, 2026-10-19).
+  rule: the right half, canon's logging build with a 20 s timeout,
+  2026-10-19; the palette through the underglow, 2026-10-19; the module's
+  own picture: not yet).
 
 ## Commits, pull requests, fleet files
 

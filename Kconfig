@@ -5,29 +5,64 @@
 
 menu "Lantern"
 
+config LANTERN_KEYS
+    bool "Paint the key LEDs from the palette, the strip and the keys from the lantern,keys node"
+    default y
+    depends on DT_HAS_LANTERN_KEYS_ENABLED
+    select LED_STRIP
+    select ZMK_LOW_PRIORITY_WORK_QUEUE
+    help
+      On a device with a lantern,keys node (a split half of the Cyboard
+      Imprint in canon): the module is the one writer of the node's strip
+      (src/keys.c). Each LED shows the palette slot the node assigns to the
+      key under it (positions: the key under each LED, in chain order;
+      slots: the slot of each key position), so the palette's colours fall
+      on the keyboard in bands; a slot that is 0x000000 shows slot 0, and a
+      device without a palette shows white. A frame is written when the LEDs
+      light or go dark (LANTERN_ON_USB_POWER) and when the palette changes,
+      on ZMK's low priority work queue, which this selects.
+
+      CONFIG_ZMK_RGB_UNDERGLOW must be n on such a device (asserted): its
+      tick would repaint the strip. The strip's chain-length must be the LED
+      count, one positions entry each, and slots has one entry per key
+      position of the keymap (both asserted). Default y where the node is
+      present: the node is the switch, and a target without one (a dongle)
+      builds none of the painting.
+
+config LANTERN_BRIGHTNESS
+    int "Brightness of the key LEDs: the brightest channel of every colour, in percent of full scale"
+    range 1 100
+    default 16
+    depends on LANTERN_KEYS
+    help
+      Every palette colour is scaled so that its brightest channel is this
+      percentage of full scale (255), which keeps its hue and saturation; a
+      grey or black scales to white at that level. 16 is what ZMK's underglow
+      drove on canon's halves before this module painted the strip
+      (brightness 25 between Cyboard's 5 and 50).
+
 config LANTERN_ON_USB_POWER
     bool "Light the key LEDs while USB powers this half, dark and unpowered on battery"
     default y
     depends on DT_HAS_LANTERN_RAIL_ENABLED
+    depends on LANTERN_KEYS
     depends on GPIO
     help
       On a device with a lantern,rail node (a split half of the Cyboard
       Imprint in canon): while USB powers the device, the LED rail is on and
-      ZMK's underglow is on; on battery the underglow is off and the rail is
-      off, so the LEDs draw nothing from the battery (src/on_usb_power.c).
-      The rail is the node's gpios, the pin ZMK's zmk,ext-power-generic node
-      would drive as control-gpios; that node stays disabled in the
-      consumer's overlay (the source says why), and a gpio hog may hold the
-      pin low from reset until the module takes it.
+      the key LEDs show the palette's picture (LANTERN_KEYS); on battery the
+      LEDs are black and the rail is off, so they draw nothing from the
+      battery (src/on_usb_power.c). The rail is the node's gpios, the pin
+      ZMK's zmk,ext-power-generic node would drive as control-gpios; that
+      node stays disabled in the consumer's overlay (the source says why),
+      and a gpio hog may hold the pin low from reset until the module takes
+      it.
 
-      Needs CONFIG_ZMK_RGB_UNDERGLOW=y with CONFIG_ZMK_RGB_UNDERGLOW_EXT_POWER=n
-      (ZMK's Kconfig.defaults sets it y with the underglow),
-      CONFIG_ZMK_RGB_UNDERGLOW_AUTO_OFF_USB=n, CONFIG_ZMK_RGB_UNDERGLOW_AUTO_OFF_IDLE=n
-      and CONFIG_ZMK_RGB_UNDERGLOW_ON_START=n, CONFIG_USB_DEVICE_STACK (ZMK's
-      default on nRF52840, the split peripheral included) and CONFIG_SETTINGS;
-      the source asserts each at build time, so a wrong conf fails the build
-      with a message. Default y where the node is present: the node is the
-      switch, and a target without one (a dongle) builds none of the module.
+      Needs CONFIG_USB_DEVICE_STACK (ZMK's default on nRF52840, the split
+      peripheral included) and CONFIG_SETTINGS; the source asserts each at
+      build time, so a wrong conf fails the build with a message. Default y
+      where the node is present: the node is the switch, and a target without
+      one (a dongle) builds none of the module.
 
 config LANTERN_BOOT_LIGHT_MS
     int "Light the key LEDs at boot for this many milliseconds (0 = no boot light)"
@@ -35,10 +70,11 @@ config LANTERN_BOOT_LIGHT_MS
     default 1000
     depends on LANTERN_ON_USB_POWER
     help
-      At boot the rail goes on and the underglow lights for this long from
-      its first frame, on USB and on battery alike; then LANTERN_ON_USB_POWER's
-      rule applies: on USB the LEDs stay lit, on battery they go dark and the
-      rail off. 0: no boot light, the rule applies at once.
+      At boot the rail goes on and the key LEDs show the palette's picture
+      for this long from its frame, on USB and on battery alike; then
+      LANTERN_ON_USB_POWER's rule applies: on USB the LEDs stay lit, on
+      battery they go black and the rail off. 0: no boot light, the rule
+      applies at once.
 
 config LANTERN_OFF_WHEN_IDLE
     bool "Dark once ZMK's activity state leaves ACTIVE, lit again on activity"
@@ -54,21 +90,22 @@ config LANTERN_OFF_WHEN_IDLE
       idle device lights nothing until its next input (the source says why).
 
 config LANTERN_PALETTE
-    bool "Keep a palette of six colours, set from the split central's host; slot 0 colours the key LEDs"
+    bool "Keep a palette of six colours, set from the split central's host; the key LEDs show them"
     default y
     depends on DT_HAS_LANTERN_BEHAVIOR_PALETTE_ENABLED
     depends on SETTINGS
     help
       Six colours (0xRRGGBB, slots 0..5) that the host hands the split
       central (LANTERN_PALETTE_PORT) and that the central and every half keep
-      in their settings ("lantern/palette/colours"); slot 0 is the hue and
-      saturation ZMK's underglow paints the key LEDs with on a half, applied
-      when it arrives and at every boot, at the brightness the half has. The
-      other slots change nothing yet (an effects module may read them). The
-      central's code invokes the lantern,behavior-palette node, which ZMK's
-      split transport carries to every half by its name: the node is named
-      palette on every device (src/palette.c, the binding), one pair of
-      slots an invocation. On a split central the palette is resent to a
+      in their settings ("lantern/palette/colours"); a half's key LEDs show
+      them in the bands its lantern,keys node draws (LANTERN_KEYS), repainted
+      when a palette arrives while they are lit and shown at every boot. A
+      set of fewer than six colours clears the rest to 0x000000, which the
+      LEDs show as slot 0. The central's code invokes the
+      lantern,behavior-palette node, which ZMK's split transport carries to
+      every half by its name: the node is named palette on every device
+      (src/palette.c, the binding), one pair of slots an invocation, three
+      a palette. On a split central the palette is resent to a
       half at each of its battery reports, the first of which follows every
       (re)connection, so a half that was away gets it when it is back: that
       needs CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING, asserted at
@@ -88,7 +125,8 @@ config LANTERN_PALETTE_PORT
     help
       A text line "palette RRGGBB [RRGGBB ...]" (one to six colours) on any
       CDC ACM port of the split central sets slots 0.. on every half and on
-      the central, answered with "palette ok" and the six slots; "palette" or
+      the central and clears the rest, answered with "palette ok" and the six
+      slots; "palette" or
       "palette?" asks for them (src/palette_port.c is the whole grammar).
       canon's scripts/dongle.py palette sends it to the Imprint Dongle. The
       port's rate is untouched: 1200 baud is zmk-beacon's bootloader entry.

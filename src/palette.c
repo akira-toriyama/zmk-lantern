@@ -6,9 +6,9 @@
  * The palette: six colours (0xRRGGBB, slots 0..5: five from the day's sprite
  * and a spare, canon t-0967) that the host hands the keyboard's split central
  * (src/palette_port.c), which every half and the central keep in their
- * settings across boots, and whose slot 0 is the colour ZMK's underglow
- * paints the key LEDs with on a half. The other slots are kept for effects to
- * come (canon t-69g7, t-6ttk) and change nothing yet.
+ * settings across boots, and which a half's key LEDs show in the bands its
+ * lantern,keys node draws (src/keys.c: slots 0..4 left to right across
+ * canon's halves; effects to come, canon t-6ttk, read the same slots).
  *
  * - One path for every change, the behavior `lantern,behavior-palette`: the
  *   central's code invokes it with zmk_behavior_invoke_binding(), whose
@@ -46,23 +46,19 @@
  *   ignored at load, and the device has no palette until the host sends one:
  *   the central resends the palette at every battery report of a half
  *   (below), and a half must not rewrite its flash for a palette it already
- *   holds. Slot 0 reaches the underglow from the handler and, at boot, from
- *   this subtree's commit handler at commit priority 1: settings_load() (ZMK
- *   app/src/main.c) restores ZMK's own "rgb/underglow/state", colour
- *   included, in its set phase, and the commit phase runs after it, priority
- *   0 first, so the palette has the last word (zephyr
- *   subsys/settings/src/settings.c). The underglow saves its state a minute
- *   after each on/off (src/on_usb_power.c switches it), which stores slot 0's
- *   hue and saturation a second time; harmless, and overridden at every boot.
- *   Zephyr hands a key to the handler whose name matches most of it, so this
- *   subtree and on_usb_power.c's "lantern" (which refuses every key) coexist.
- * - What slot 0 changes: the underglow's hue and saturation. Its brightness
- *   stays what the device has (the consumer's CONFIG_ZMK_RGB_UNDERGLOW_BRT_START,
- *   or ZMK's saved state), read back through zmk_rgb_underglow_calc_brt(0),
- *   which returns the current colour unchanged: ZMK's public API has no other
- *   getter. A grey or black colour therefore paints white (saturation 0) at
- *   that brightness. zmk_rgb_underglow_set_hsb() only sets the colour; a lit
- *   half repaints at its next 50 ms tick, a dark one at its next on.
+ *   holds. The key LEDs are repainted from the handler when a pair changed
+ *   (src/keys.c, only while they are lit); at boot the first frame reads the
+ *   palette directly after settings_load() restored it (src/on_usb_power.c
+ *   starts from a commit handler), so this subtree's commit handler only
+ *   marks the load done, and the order of the two commit handlers does not
+ *   matter. Zephyr hands a key to the handler whose name matches most of
+ *   it, so this subtree and on_usb_power.c's "lantern" (which refuses every
+ *   key) coexist.
+ * - What the slots change: the picture src/keys.c paints, each key its
+ *   slot's colour, at the device's brightness (CONFIG_LANTERN_BRIGHTNESS); a
+ *   grey or black paints white, and a black slot other than 0 paints slot 0.
+ *   A device without the keys node (canon's Imprint Dongle) keeps and
+ *   forwards the palette and paints nothing.
  * - Resend (a split central, CONFIG_ZMK_SPLIT_ROLE_CENTRAL): a half that was
  *   away when the host set the palette, or that lost its settings, gets it at
  *   its next battery report. ZMK's split central raises
@@ -82,7 +78,8 @@
  *   central the system work queue (the port's line, src/palette_port.c, and
  *   the resend); the settings handlers run on the main thread inside
  *   settings_load(); the port's reply and lantern_palette_get() read on the
- *   system work queue. The colours and the two flags are atomics, read and
+ *   system work queue, and src/keys.c reads on ZMK's low priority work
+ *   queue. The colours and the two flags are atomics, read and
  *   written one at a time, so no lock; a reader between the two slots of a
  *   pair sees one old slot, which the next invocation or boot settles. The
  *   save is a work item on the system work queue: a settings write is a flash
@@ -117,10 +114,6 @@
 #include <drivers/behavior.h>
 #include <zmk/behavior.h>
 
-#if IS_ENABLED(CONFIG_ZMK_RGB_UNDERGLOW)
-#include <zmk/rgb_underglow.h>
-#endif
-
 #if IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
 #include <zmk/event_manager.h>
 #include <zmk/events/battery_state_changed.h>
@@ -129,6 +122,10 @@
 #endif
 
 #include "palette.h"
+
+#if IS_ENABLED(CONFIG_LANTERN_KEYS)
+#include "keys.h"
+#endif
 
 LOG_MODULE_REGISTER(lantern_palette, LOG_LEVEL_INF);
 
@@ -191,48 +188,11 @@ static void save(struct k_work *work) {
 
 static K_WORK_DEFINE(save_work, save);
 
-#if IS_ENABLED(CONFIG_ZMK_RGB_UNDERGLOW)
-
-/* Hue 0..359 and saturation 0..100 of an 0xRRGGBB, with the brightness given;
- * a grey has saturation 0 and hue 0. */
-static struct zmk_led_hsb hue_sat(uint32_t rgb, uint8_t brightness) {
-    int r = (rgb >> 16) & 0xFF, g = (rgb >> 8) & 0xFF, b = rgb & 0xFF;
-    int max = MAX(r, MAX(g, b)), min = MIN(r, MIN(g, b)), range = max - min;
-    struct zmk_led_hsb hsb = {.h = 0, .s = 0, .b = brightness};
-
-    if (max > 0) {
-        hsb.s = (uint8_t)(range * 100 / max);
-    }
-    if (range > 0) {
-        int h;
-        if (max == r) {
-            h = 60 * (g - b) / range;
-        } else if (max == g) {
-            h = 120 + 60 * (b - r) / range;
-        } else {
-            h = 240 + 60 * (r - g) / range;
-        }
-        hsb.h = (uint16_t)((h + 360) % 360);
-    }
-    return hsb;
+static void repaint(void) {
+#if IS_ENABLED(CONFIG_LANTERN_KEYS)
+    lantern_keys_refresh();
+#endif
 }
-
-static void apply(void) {
-    uint32_t rgb = (uint32_t)atomic_get(&colours[0]);
-    struct zmk_led_hsb hsb = hue_sat(rgb, zmk_rgb_underglow_calc_brt(0).b);
-    int rc = zmk_rgb_underglow_set_hsb(hsb);
-    if (rc < 0) {
-        LOG_ERR("slot 0 %06x not applied: %d", rgb, rc);
-        return;
-    }
-    LOG_INF("slot 0 %06x applied: hue %u sat %u brt %u", rgb, hsb.h, hsb.s, hsb.b);
-}
-
-#else
-
-static void apply(void) {}
-
-#endif /* IS_ENABLED(CONFIG_ZMK_RGB_UNDERGLOW) */
 
 static int on_binding_pressed(struct zmk_behavior_binding *binding,
                               struct zmk_behavior_binding_event event) {
@@ -252,8 +212,8 @@ static int on_binding_pressed(struct zmk_behavior_binding *binding,
         k_work_submit(&save_work);
     }
     LOG_INF("slots %u-%u %06x %06x %s", first, first + 1, a, b, changed || new ? "stored" : "unchanged");
-    if (pair == 0) {
-        apply();
+    if (changed || new) {
+        repaint();
     }
     return ZMK_BEHAVIOR_OPAQUE;
 }
@@ -297,16 +257,10 @@ static int on_set(const char *name, size_t len, settings_read_cb read_cb, void *
 
 static int on_commit(void) {
     atomic_set(&settings_loaded, 1);
-    if (atomic_get(&have_palette)) {
-        apply();
-    }
     return 0;
 }
 
-/* Commit priority 1: after ZMK's priority 0 handlers, the underglow's set
- * phase among them (the header). */
-SETTINGS_STATIC_HANDLER_DEFINE_WITH_CPRIO(lantern_palette, SUBTREE, NULL, on_set, on_commit, NULL,
-                                          1);
+SETTINGS_STATIC_HANDLER_DEFINE(lantern_palette, SUBTREE, NULL, on_set, on_commit, NULL);
 
 #if IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
 
@@ -334,19 +288,15 @@ int lantern_palette_send(const uint32_t *in, size_t count) {
     if (!atomic_get(&settings_loaded)) {
         return -EAGAIN;
     }
-    uint32_t next[LANTERN_PALETTE_SLOTS];
-    for (size_t i = 0; i < LANTERN_PALETTE_SLOTS; i++) {
-        if (i < count) {
-            if (in[i] > LANTERN_PALETTE_RGB_MAX) {
-                return -EINVAL;
-            }
-            next[i] = in[i];
-        } else {
-            next[i] = (uint32_t)atomic_get(&colours[i]);
+    uint32_t next[LANTERN_PALETTE_SLOTS] = {0};
+    for (size_t i = 0; i < count; i++) {
+        if (in[i] > LANTERN_PALETTE_RGB_MAX) {
+            return -EINVAL;
         }
+        next[i] = in[i];
     }
     int rc = 0;
-    for (uint32_t pair = 0; pair < PAIRS && 2 * pair < count; pair++) {
+    for (uint32_t pair = 0; pair < PAIRS; pair++) {
         struct zmk_behavior_binding binding = pair_binding(pair, next[2 * pair], next[2 * pair + 1]);
         int err = zmk_behavior_invoke_binding(&binding, local_event(), true);
         if (err < 0 && rc == 0) {

@@ -9,6 +9,14 @@
 // (src/on_usb_power.c says why). The lantern,rail node copies the board's control-gpios and its
 // init-delay-ms as settle-ms (zmk-keyboards
 // boards/cyboard/assimilator-bt/assimilator-bt.dts).
+//
+// The key LEDs are the module's too (src/keys.c): the lantern,keys node names
+// Cyboard's strip (its chain-length set to the real LED count, 29 a half;
+// the shield's 150 is a placeholder) and tells the key under each LED and
+// the palette slot each key shows. This check build, on Cyboard's stock
+// keymap (imprint_function_row, 76 keys), takes the chain in key order for
+// positions, which a consumer measures on its hardware instead (canon
+// t-69g7), and paints slots 0..4 left to right in five bands.
 
 #include <zephyr/dt-bindings/gpio/gpio.h>
 
@@ -26,10 +34,34 @@
     };
 };
 
+&led_strip {
+    chain-length = <29>;
+};
+
 / {
     lantern_rail: lantern_rail {
         compatible = "lantern,rail";
         gpios = <&gpio1 2 GPIO_ACTIVE_HIGH>;
         settle-ms = <100>;
+    };
+
+    lantern_keys: lantern_keys {
+        compatible = "lantern,keys";
+        strip = <&led_strip>;
+        positions = <
+             0  1  2  3  4  5  6  7  8  9
+            10 11 12 13 14 15 16 17 18 19
+            20 21 22 23 24 25 26 27 28
+        >;
+        slots = <
+            0 0 0 1 1 1          3 3 3 4 4 4
+            0 0 0 1 1 1          3 3 3 4 4 4
+            0 0 0 1 1 1          3 3 3 4 4 4
+            0 0 0 1 1 1          3 3 3 4 4 4
+            0 0 0 1 1 1          3 3 3 4 4 4
+                  1 1                3 3
+                      2 2 2    2 2 2
+                      2 2 2    2 2 2
+        >;
     };
 };

@@ -6,10 +6,11 @@
  * Light the key LEDs while USB powers this half and the half is in use, and
  * keep them dark and unpowered otherwise: on battery, and once ZMK's activity
  * state has left ACTIVE (CONFIG_LANTERN_OFF_WHEN_IDLE). Lit = the LED rail
- * (the lantern,rail node's gpios) on, then ZMK's underglow on; dark = the
- * underglow off (a black frame), then the rail off BLANK_MS later. At boot
- * the LEDs light for CONFIG_LANTERN_BOOT_LIGHT_MS whatever the power, then
- * the rule applies.
+ * (the lantern,rail node's gpios) on, then the palette's picture
+ * (lantern_keys_light(), src/keys.c); dark = a black frame
+ * (lantern_keys_blank()), then the rail off BLANK_MS later. At boot the LEDs
+ * light for CONFIG_LANTERN_BOOT_LIGHT_MS whatever the power, then the rule
+ * applies.
  *
  * - The rail is driven here, never by ZMK's zmk,ext-power-generic driver:
  *   its init turns the rail on, its settings handler restores a stored
@@ -32,19 +33,11 @@
  *   submits the work.
  * - The first evaluation starts from a settings commit handler at commit
  *   priority 1, not from SYS_INIT: settings_load() (ZMK app/src/main.c) runs
- *   after every init level, and its set phase restores ZMK's saved
- *   "rgb/underglow/state", starting the underglow tick when that state was
- *   on; the commit phase follows, priority 0 handlers (ZMK's own) first, so
- *   this one has the last word. The saved state is ZMK's: every
- *   zmk_rgb_underglow_on()/off() saves the whole state 60 s later
- *   (CONFIG_ZMK_SETTINGS_SAVE_DEBOUNCE), so a half that boots on battery
- *   after a plugged minute restores on, and its first frames are already
- *   queued on ZMK's low priority work queue when start() runs (main, at
- *   priority 0, has not let that queue's thread, at 10, run). Nothing cancels
- *   that static work item, so start() turns the rail on first: the frames
- *   meet LEDs that are powering up, and the machine then lights or blanks
- *   them as the rule says. On battery that is a flash of the saved colour
- *   for about BLANK_MS, boot light or not.
+ *   after every init level, and the palette (src/palette.c) is restored in
+ *   its set phase, so a boot light that starts from the commit phase shows
+ *   the palette's picture, not a white frame that the palette's own commit
+ *   then repaints. Nothing else writes the strip (src/keys.c asserts ZMK's
+ *   underglow off), so the first frame is this machine's.
  * - USB: zmk_usb_is_powered() is false for USB_DC_UNKNOWN and DISCONNECTED
  *   and true for the rest (CONNECTED, RESET, CONFIGURED, SUSPEND, RESUME,
  *   ...), so a host asleep and a charger both count as powered, and only a
@@ -53,11 +46,7 @@
  *   driver re-raises the latched power-ready event through its own work
  *   queue (zephyr drivers/usb/device/usb_dc_nrfx.c), so the first evaluation
  *   may run before or after that status, and the listener covers the first
- *   case. ZMK's own CONFIG_ZMK_RGB_UNDERGLOW_AUTO_OFF_USB reads the USB state
- *   at init (APPLICATION 90, before USB is up) and its listener starts from
- *   "awake", so it cannot light a half that boots on a cable; it is asserted
- *   off below, as is AUTO_OFF_IDLE, whose on()/off() on activity would run
- *   the strip against an unpowered rail on battery.
+ *   case.
  * - Idle: ZMK's activity state (app/src/activity.c), not a timer of this
  *   module's. ZMK already counts what the half does (key positions, sensor
  *   events, pointing input) and turns IDLE after CONFIG_ZMK_IDLE_TIMEOUT ms
@@ -70,22 +59,15 @@
  *   changes nothing (the rule is already false) and is only kept current.
  *   In canon's halves the only other subscriber ZMK links is battery.c, which
  *   pauses its sampling while idle (zmk.map, 2026-10-19).
- * - ZMK's underglow calls take no lock and block on nothing: on() starts the
- *   tick timer (a frame every 50 ms on ZMK's low priority work queue), off()
- *   queues a black frame there and stops the timer. settle-ms (the node)
- *   covers the LEDs' power-up before the first frame, as the ext-power node's
- *   init-delay-ms did; BLANK_MS covers the black frame before the rail drops
- *   (a 29-LED frame at 4 MHz takes 1.4 ms, 7 ms at the Cyboard overlay's
- *   chain-length of 150). The only way to DARK is through BLANKING, so no
- *   frame the machine knows of meets an unpowered strip. Two ZMK details stay:
- *   an on() right after an off() may see that black frame land after its
- *   first frame, and the next tick repaints; off() queues the black frame
- *   before it stops the timer, so a tick in between puts a coloured frame
- *   behind it, which the rail's drop ends.
- * - Not reconciled: an underglow change the module did not make. A &rgb_ug
- *   key pressed on battery, or ZMK's idle auto-off, runs or stops the strip
- *   behind the module's back; a consumer keeps such keys off a half that
- *   runs on battery (canon's reach the halves through no dongle anyway).
+ * - The frames: lantern_keys_light() and lantern_keys_blank() take no lock
+ *   and block on nothing; each queues one frame on ZMK's low priority work
+ *   queue (src/keys.c). settle-ms (the node) covers the LEDs' power-up before
+ *   the first frame, as the ext-power node's init-delay-ms did; BLANK_MS
+ *   covers the black frame before the rail drops (a 29-LED frame at 4 MHz
+ *   takes 1.4 ms, 7 ms at the Cyboard overlay's chain-length of 150). The
+ *   only way to DARK is through BLANKING, so no frame the machine knows of
+ *   meets an unpowered strip, and a palette that arrives while dark is kept
+ *   for the next light (src/keys.c repaints only while lit).
  */
 
 #define DT_DRV_COMPAT lantern_rail
@@ -106,38 +88,21 @@
 #include <zmk/event_manager.h>
 #include <zmk/events/activity_state_changed.h>
 #include <zmk/events/usb_conn_state_changed.h>
-#include <zmk/rgb_underglow.h>
 #include <zmk/usb.h>
+
+#include "keys.h"
 
 LOG_MODULE_REGISTER(lantern, LOG_LEVEL_INF);
 
 BUILD_ASSERT(DT_NUM_INST_STATUS_OKAY(DT_DRV_COMPAT) == 1,
              "CONFIG_LANTERN_ON_USB_POWER needs exactly one lantern,rail node");
-BUILD_ASSERT(IS_ENABLED(CONFIG_ZMK_RGB_UNDERGLOW),
-             "CONFIG_LANTERN_ON_USB_POWER needs CONFIG_ZMK_RGB_UNDERGLOW=y: the LEDs are lit "
-             "through ZMK's underglow");
 BUILD_ASSERT(IS_ENABLED(CONFIG_USB_DEVICE_STACK),
              "CONFIG_LANTERN_ON_USB_POWER needs CONFIG_USB_DEVICE_STACK: the USB state comes "
              "from ZMK's usb.c");
 BUILD_ASSERT(IS_ENABLED(CONFIG_SETTINGS),
              "CONFIG_LANTERN_ON_USB_POWER needs CONFIG_SETTINGS: the first evaluation runs "
              "from settings_load()");
-BUILD_ASSERT(!IS_ENABLED(CONFIG_ZMK_RGB_UNDERGLOW_EXT_POWER),
-             "CONFIG_ZMK_RGB_UNDERGLOW_EXT_POWER must be n with CONFIG_LANTERN_ON_USB_POWER: "
-             "the module drives the rail, and the ext_power device is disabled");
-BUILD_ASSERT(!IS_ENABLED(CONFIG_ZMK_RGB_UNDERGLOW_AUTO_OFF_USB),
-             "CONFIG_ZMK_RGB_UNDERGLOW_AUTO_OFF_USB must be n with CONFIG_LANTERN_ON_USB_POWER: "
-             "it calls the same on/off, and whichever listener runs last would win");
-BUILD_ASSERT(!IS_ENABLED(CONFIG_ZMK_RGB_UNDERGLOW_AUTO_OFF_IDLE),
-             "CONFIG_ZMK_RGB_UNDERGLOW_AUTO_OFF_IDLE must be n with CONFIG_LANTERN_ON_USB_POWER: "
-             "its on()/off() on activity would run the strip against an unpowered rail on battery; "
-             "CONFIG_LANTERN_OFF_WHEN_IDLE darkens an idle half");
-BUILD_ASSERT(!IS_ENABLED(CONFIG_ZMK_RGB_UNDERGLOW_ON_START),
-             "CONFIG_ZMK_RGB_UNDERGLOW_ON_START must be n with CONFIG_LANTERN_ON_USB_POWER: it "
-             "would drive the strip at init with the rail off; CONFIG_LANTERN_BOOT_LIGHT_MS "
-             "lights at boot");
-
-/* The black frame zmk_rgb_underglow_off() queues on ZMK's low priority work
+/* The black frame lantern_keys_blank() queues on ZMK's low priority work
  * queue must reach the LEDs before the rail drops (the header). */
 #define BLANK_MS 100
 #define SETTLE_MS DT_INST_PROP(0, settle_ms)
@@ -145,10 +110,10 @@ BUILD_ASSERT(!IS_ENABLED(CONFIG_ZMK_RGB_UNDERGLOW_ON_START),
 static const struct gpio_dt_spec rail = GPIO_DT_SPEC_INST_GET(0, gpios);
 
 enum phase {
-    DARK,     /* rail off, underglow off */
-    RAIL_UP,  /* rail on, the LEDs powering up: no frame of ours yet */
-    LIT,      /* rail on, underglow on */
-    BLANKING, /* underglow off, its black frame on its way, rail still on */
+    DARK,     /* rail off, the LEDs black */
+    RAIL_UP,  /* rail on, the LEDs powering up: no frame yet */
+    LIT,      /* rail on, the palette's picture */
+    BLANKING, /* the black frame on its way, rail still on */
 };
 
 /* System work queue only (the header). */
@@ -188,9 +153,9 @@ static void apply_rule(void) {
     k_work_reschedule(&step_work, K_NO_WAIT);
 }
 
-/* Rail on: light, and give the boot light its end. */
+/* Rail on and settled: the picture, and the boot light's end. */
 static void light(void) {
-    zmk_rgb_underglow_on();
+    lantern_keys_light();
     phase = LIT;
     LOG_INF("lit: %s", boot_light ? "boot light" : "usb powered");
     if (boot_light) {
@@ -198,15 +163,15 @@ static void light(void) {
     }
 }
 
-/* Rail on: blank, and drop the rail once the black frame is out. */
+/* Rail on: the black frame, and the rail off once it is out. */
 static void blank(void) {
-    zmk_rgb_underglow_off();
+    lantern_keys_blank();
     phase = BLANKING;
     k_work_reschedule(&step_work, K_MSEC(BLANK_MS));
 }
 
-/* The first run. Returns true when it has set the machine going itself. */
-static bool start(void) {
+/* The first run: the inputs, then the machine runs from DARK. */
+static void start(void) {
     started = true;
     usb_powered = zmk_usb_is_powered();
     idle = read_idle();
@@ -214,29 +179,13 @@ static bool start(void) {
     want_lit = rule();
     LOG_INF("start: usb %s, boot light %d ms", usb_powered ? "powered" : "absent",
             CONFIG_LANTERN_BOOT_LIGHT_MS);
-
-    bool on;
-    if (zmk_rgb_underglow_get_state(&on) < 0 || !on) {
-        return false;
-    }
-
-    /* A saved on restored the tick, and its frames are queued (the header):
-     * power the LEDs for them, then light or blank them as the rule says. */
-    rail_set(true);
-    if (want_lit) {
-        phase = RAIL_UP;
-        k_work_reschedule(&step_work, K_MSEC(SETTLE_MS));
-    } else {
-        blank();
-    }
-    return true;
 }
 
 static void step(struct k_work *work) {
     ARG_UNUSED(work);
 
-    if (!started && start()) {
-        return;
+    if (!started) {
+        start();
     }
 
     switch (phase) {
@@ -253,7 +202,7 @@ static void step(struct k_work *work) {
         if (want_lit) {
             light();
         } else {
-            /* Through BLANKING even here: a restored tick may be running. */
+            /* Through BLANKING even here: the first frame may be out. */
             blank();
         }
         break;
@@ -319,8 +268,7 @@ static int on_commit(void) {
     return 0;
 }
 
-/* Commit priority 1: after ZMK's priority 0 handlers, the underglow's among
- * them (the header). */
+/* Commit priority 1: after ZMK's priority 0 handlers (the header). */
 SETTINGS_STATIC_HANDLER_DEFINE_WITH_CPRIO(lantern, "lantern", NULL, on_set, on_commit, NULL, 1);
 
 static int lantern_init(void) {
