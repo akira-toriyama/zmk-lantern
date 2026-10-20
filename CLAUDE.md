@@ -15,7 +15,11 @@ how to build. Usage: [README.md](README.md). English only.
   bands and then each colour of the palette (`CONFIG_LANTERN_KEYS`,
   `CONFIG_LANTERN_BRIGHTNESS`, `CONFIG_LANTERN_COUNTDOWN`,
   `CONFIG_LANTERN_COUNTDOWN_STAGE_MS`; [src/keys.c](src/keys.c), binding
-  `lantern,keys`); and the palette: six
+  `lantern,keys`); the effects that move the picture after a key, the press
+  glow first (`CONFIG_LANTERN_PRESS_GLOW`, off by default while canon t-6ttk
+  tries them one image at a time; src/keys.c); the split link's peripheral
+  latency, 0 while USB powers a split peripheral and the central's on battery
+  (`CONFIG_LANTERN_USB_LATENCY`; [src/latency.c](src/latency.c)); and the palette: six
   colours the host hands the
   split central over its USB CDC ACM port, which the central and every half
   keep in their settings (`CONFIG_LANTERN_PALETTE`, `CONFIG_LANTERN_PALETTE_PORT`;
@@ -66,9 +70,12 @@ how to build. Usage: [README.md](README.md). English only.
   node with `compatible = "lantern,rail"` and a `palette` node with
   `compatible = "lantern,behavior-palette"` in `zephyr.dts`, the strip's
   `chain-length = < 0x1d >` (29), and `keys.c.obj`, `on_usb_power.c.obj` and
-  `palette.c.obj` in `zmk.map`; a split central's (the dongle, the stock left
-  half) `CONFIG_LANTERN_PALETTE_PORT=y` and `palette_port.c.obj` too, the
-  dongle's nothing of the rail or the keys.
+  `palette.c.obj` in `zmk.map`; a split peripheral half's (canon's both, the
+  stock right) `CONFIG_LANTERN_USB_LATENCY=y` and `latency.c.obj` too; a split
+  central's (the dongle, the stock left half) `CONFIG_LANTERN_PALETTE_PORT=y`
+  and `palette_port.c.obj`, never the latency, the dongle's nothing of the
+  rail or the keys. `--kconfig CONFIG_LANTERN_PRESS_GLOW=y` adds
+  `CONFIG_LANTERN_EFFECTS=y`.
 - Kconfig merge order, later wins: board defconfig → ZMK `app/prj.conf` → the
   shield's confs → the consumer's `config/<prefix>.conf` files →
   `EXTRA_CONF_FILE` fragments (build.sh: logging, `--kconfig`) → `-DCONFIG_*`.
@@ -197,6 +204,26 @@ how to build. Usage: [README.md](README.md). English only.
   frames do not fit the USB queue's stack with margin). Replies are never
   commands: a line shaped like a reply is ignored, so an echoing host cannot
   start a loop; before the settings have loaded a command gets an error.
+- **An effect never dims the picture, and a frame draws at most CAP**
+  (`src/keys.c`): an effect pulls an LED from the picture toward its colour,
+  and the cap takes any excess out of the effects' brightening alone. CAP is
+  the white picture plus two keys white at full scale (`CAP_KEYS`), about
+  380 mA by estimate: a cap at the white picture alone left a white or grey
+  band no room (Opus review, 2026-10-20). The press glow goes to full scale
+  because twice the picture's brightness was not seen under the keycaps on
+  hardware (canon t-6ttk, 2026-10-21). Effects
+  run on ZMK's low priority queue, whose 768-byte stack ZMK's battery
+  sampling shares and no MPU guard protects on a half: integers only, and
+  anything large static.
+- **The split link's latency is the half's rule, never ZMK's `PREF_*` on a
+  half** (`src/latency.c`): those symbols exist on a central only, so the
+  battery latency is the one the link had at connection. A request may be a
+  synchronous HCI command and runs on the module's own work queue, never the
+  system work queue. On USB the half gives up after a few refused requests
+  (latency 0 is a nicety); on battery it keeps asking until the link agrees,
+  since a half left at latency 0 on battery listens at every event. A
+  request Zephyr holds through a connection's first 5 s is asked over when
+  the power changes meanwhile.
 - Remove or rename a Kconfig symbol together with the canon change that stops
   setting it: Kconfig aborts on an assignment to an undefined symbol (the
   five `CONFIG_ZMK_RGB_UNDERGLOW_*` lines the halves carried up to 2406809

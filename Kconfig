@@ -117,6 +117,46 @@ config LANTERN_COUNTDOWN_STAGE_MS
       hardware (2026-10-20, t-x82q); a minute a colour, with the colours
       running out at the idle timeout, read as still.
 
+config LANTERN_EFFECTS
+    bool
+    help
+      The effects' engine in src/keys.c: the ring of the half's last
+      presses, the frame every 30 ms while an effect moves, the pull from
+      the picture toward an effect's colour and the cap on a frame's draw.
+      Each effect selects it; nothing to set.
+
+config LANTERN_PRESS_GLOW
+    bool "Light a pressed key's LED brighter in its band's colour, back to the picture in half a second"
+    depends on LANTERN_KEYS
+    select LANTERN_EFFECTS
+    help
+      While the key LEDs are lit, the LED of a key this half presses jumps
+      to its band's colour at full brightness (so the build refuses a
+      LANTERN_BRIGHTNESS of 100, where there is no step up) and falls back
+      to the picture over 500 ms (src/keys.c). Pressing every key of a half
+      shows which LED sits under which key, one key at a time, where the
+      bands show it only band by band. The press that lights an idle half
+      shows the picture alone. Default n while canon t-6ttk tries the
+      effects one image at a time.
+
+config LANTERN_USB_LATENCY
+    bool "Ask the split central for peripheral latency 0 while USB powers this half"
+    default y
+    depends on LANTERN_ON_USB_POWER
+    depends on ZMK_SPLIT_BLE
+    depends on !ZMK_SPLIT_ROLE_CENTRAL
+    help
+      On a split peripheral whose key LEDs light on USB power: while USB
+      powers it, the half asks the central for peripheral latency 0 on
+      their link, so what the central sends it (a palette, a relayed key
+      press) arrives at the next connection event, not up to 31 events
+      later (232.5 ms at ZMK's 7.5 ms interval and latency 30); on battery
+      it asks for the latency the link had at connection, the central's,
+      so the battery pays nothing. The interval and the timeout stay the
+      link's. Zephyr holds a peripheral's request for the first
+      CONFIG_BT_CONN_PARAM_UPDATE_TIMEOUT ms of a connection (5 s), and the
+      central's host accepts it; src/latency.c says why and how.
+
 config LANTERN_PALETTE
     bool "Keep a palette of six colours, set from the split central's host; the key LEDs show them"
     default y

@@ -8,7 +8,7 @@
  * (src/palette_port.c), which every half and the central keep in their
  * settings across boots, and which a half's key LEDs show in the bands its
  * lantern,keys node draws (src/keys.c: slots 0..4 left to right across
- * canon's halves; effects to come, canon t-6ttk, read the same slots).
+ * canon's halves; its effects, canon t-6ttk, paint from the same slots).
  *
  * - One path for every change, the behavior `lantern,behavior-palette`: the
  *   central's code invokes it with zmk_behavior_invoke_binding(), whose

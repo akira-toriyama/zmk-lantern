@@ -80,8 +80,9 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
   which keeps its hue and saturation; a grey or black scales to white. The
   module is the strip's one writer: ZMK's underglow stays off on such a half
   (`CONFIG_ZMK_RGB_UNDERGLOW=n`, asserted), and a frame goes out only when the
-  LEDs light or go dark, when the palette changes while they are lit and when
-  the countdown moves a stage; nothing ticks at a fixed rate.
+  LEDs light or go dark, when the palette changes while they are lit, when
+  the countdown moves a stage, and every 30 ms while an effect moves; a still
+  picture ticks at no rate.
 - The countdown (`CONFIG_LANTERN_COUNTDOWN`, on by default with the idle rule
   and the palette): from the half's last key, the picture changes every
   `CONFIG_LANTERN_COUNTDOWN_STAGE_MS` (default 10000): the bands, then the
@@ -92,6 +93,31 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
   plugged into a half that typed a while ago lights the stage its keys say.
   The clock is the half's own keys: a sensor or pointing input counts for
   ZMK's idle, not for the stages. One colour: the bands until the dark.
+- The press glow (`CONFIG_LANTERN_PRESS_GLOW`, off by default while canon
+  tries the effects one at a time): while the LEDs are lit, the LED of a key
+  this half presses jumps to its band's colour at full brightness and falls
+  back to the picture over 500 ms. Pressing every key of a half shows which
+  LED sits under which key, one key at a time. An effect pulls an LED toward
+  its colour and never dims the picture; a frame draws at most what every
+  LED white plus two keys white at full brightness would (an estimate of
+  280 + 100 mA at 16 %, unmeasured), so more keys glowing at once on a white
+  picture share that and glow less. The brightness must stay below 100 % for
+  an effect to show (asserted).
+
+## The split link
+
+While USB powers a half, the half asks the split central for peripheral
+latency 0 on their link; on battery it asks for the link's own latency again,
+the central's (ZMK's 30). A half with latency 30 may skip 30 connection
+events while it has nothing to send, so whatever the central sends it waits
+up to 232.5 ms at ZMK's 7.5 ms interval; at 0 it arrives at the next event.
+The LEDs are lit only on USB, where listening at every event costs the
+battery nothing, so what the central relays to a lit half shows at once.
+`CONFIG_LANTERN_USB_LATENCY` is on by default on a split peripheral whose
+LEDs light on USB power ([src/latency.c](src/latency.c)); the interval and
+the supervision timeout stay the central's. Zephyr holds a peripheral's
+request for the first 5 s of a connection, and the central's host accepts it
+(neither ZMK nor this module registers a callback that could refuse it).
 
 ## The palette
 
@@ -220,7 +246,9 @@ to `0x000000`, which the LEDs show as slot 0.
    keeps the LEDs lit on the cable whatever the activity.
    `CONFIG_LANTERN_COUNTDOWN` is on by default with the idle rule and the
    palette, a new picture every `CONFIG_LANTERN_COUNTDOWN_STAGE_MS` (10000):
-   `=n` keeps the bands until the dark.
+   `=n` keeps the bands until the dark. `CONFIG_LANTERN_PRESS_GLOW=y` adds
+   the press glow. On a split peripheral `CONFIG_LANTERN_USB_LATENCY` is on
+   by default with the rail; `=n` leaves the link at the central's latency.
 
 4. The palette's node, on every device of the split under the one name
    (canon: in its keymap's behaviors; [config/palette.dtsi](config/palette.dtsi)
