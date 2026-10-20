@@ -43,8 +43,12 @@ reboot resent it to both halves within 2 s. The picture the module paints
 itself (the bands, `src/keys.c`): both halves on 2026-10-20 with canon #271's
 images, five bands from a palette the host set while the halves ran on
 battery, shown when each was plugged in (canon t-0967). The countdown
-(`CONFIG_LANTERN_COUNTDOWN`, `src/keys.c`) is not yet seen on hardware (canon
-t-gsm2).
+(`CONFIG_LANTERN_COUNTDOWN`, `src/keys.c`): the left half on 2026-10-20 with
+canon's trial image of this change (a 50 s `CONFIG_ZMK_IDLE_TIMEOUT`, a
+palette of five colours): the bands, then the whole half in the next colour
+at 10.000, 20.000, 30.000 and 40.000 s from the last key, `dark: idle` at
+50.6 s, the bands back at a key; a cable plugged in after a boot lit the
+stage the keys' clock said (canon t-gsm2).
 
 ## What it does
 

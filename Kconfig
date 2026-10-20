@@ -106,14 +106,6 @@ config LANTERN_COUNTDOWN
       (src/keys.c). A sensor or pointing input counts for ZMK's idle and not
       for this clock. One colour, one stage: the bands until the dark.
 
-config LANTERN_COUNTDOWN_ROTATE
-    bool "Countdown trial: stage k shows the bands shifted by k colours in place of one colour"
-    default n
-    depends on LANTERN_COUNTDOWN
-    help
-      canon t-gsm2 looks at both on hardware; the one not kept leaves with
-      this option.
-
 config LANTERN_PALETTE
     bool "Keep a palette of six colours, set from the split central's host; the key LEDs show them"
     default y

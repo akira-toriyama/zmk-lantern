@@ -205,8 +205,9 @@ how to build. Usage: [README.md](README.md). English only.
   in task bodies carry a date; README "Status" holds what was seen (the USB
   rule and the boot light on both halves, canon #263, 2026-10-19; the idle
   rule: the right half, canon's logging build with a 20 s timeout,
-  2026-10-19; the palette through the underglow, 2026-10-19; the module's
-  own picture: not yet).
+  2026-10-19; the palette through the underglow, 2026-10-19; the bands on
+  both halves, canon #271, 2026-10-20; the countdown on the left half,
+  canon's trial image with a 50 s timeout, 2026-10-20).
 
 ## Commits, pull requests, fleet files
 

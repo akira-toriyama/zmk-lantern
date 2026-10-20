@@ -10,7 +10,9 @@
  * (CONFIG_LANTERN_COUNTDOWN, canon t-gsm2): from the half's last key, the lit
  * time is cut into as many stages as the palette has colours, stage 0 the
  * bands and stage k the whole half in colour k, so that the colour reads how
- * far the dark is. This file is the strip's one writer. A frame goes out when
+ * far the dark is (the bands shifted by k colours instead, tried beside it on
+ * hardware on 2026-10-20, read as movement and not as time). This file is the
+ * strip's one writer. A frame goes out when
  * something changed, never on a fixed tick: when the rail rule lights or
  * blanks the LEDs (src/on_usb_power.c), when the palette changes while they
  * are lit, and when the countdown moves a stage; effects to come (canon
@@ -217,13 +219,7 @@ static void compose(size_t at) {
 
     at = MIN(at, n - 1);
     for (size_t i = 0; i < LED_COUNT; i++) {
-        size_t r = rank[slots[positions[i]]];
-        if (IS_ENABLED(CONFIG_LANTERN_COUNTDOWN_ROTATE)) {
-            r = (r + at) % n;
-        } else if (at > 0) {
-            r = at;
-        }
-        pixels[i] = shade[r];
+        pixels[i] = shade[at > 0 ? at : rank[slots[positions[i]]]];
     }
 }
 
