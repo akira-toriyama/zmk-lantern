@@ -1,0 +1,42 @@
+# Copyright (c) 2026 akira-toriyama
+# SPDX-License-Identifier: MIT
+
+description: |
+  The key LEDs zmk-lantern paints (CONFIG_LANTERN_KEYS, src/keys.c): the LED
+  strip under the keys, the key each LED sits under and the palette slot each
+  key shows. Exactly one per target with key LEDs (a split half); a target
+  without one (a dongle) builds none of the painting. ZMK's underglow stays
+  off on such a target: this module is the strip's one writer.
+
+compatible: "lantern,keys"
+
+include: base.yaml
+
+properties:
+  strip:
+    type: phandle
+    required: true
+    description: |
+      The LED strip device (a worldsemi,ws2812-spi node, or any Zephyr
+      led_strip driver). Its chain-length is the LED count: the consumer sets
+      it to the real number of LEDs (the WS2812 SPI driver sends and buffers
+      the whole chain-length at every frame), and positions has one entry
+      per LED.
+
+  positions:
+    type: array
+    required: true
+    description: |
+      One entry per LED, in the chain's order: the key position the LED sits
+      under, an index into the keymap (the chosen matrix transform's map,
+      global across a split) and into slots. Measured on the hardware, one
+      LED at a time (canon t-69g7).
+
+  slots:
+    type: array
+    required: true
+    description: |
+      One entry per key position, in position order (the whole keymap, both
+      halves of a split): the palette slot, 0 to 5, the key's LED shows. The
+      length is the keymap's length (asserted), so a table written in the
+      keymap's shape reads as the picture.

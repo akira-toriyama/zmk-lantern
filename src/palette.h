@@ -4,9 +4,10 @@
  * SPDX-License-Identifier: MIT
  *
  * The palette's in-memory copy and the central's entry point (src/palette.c),
- * for the port (src/palette_port.c). Layer contract: the port parses and
- * replies, and never stores or applies a colour itself; every change goes
- * through the palette behavior, on the central and the halves alike.
+ * for the port (src/palette_port.c) and the key LEDs (src/keys.c). Layer
+ * contract: the port parses and replies, and never stores or paints a colour
+ * itself; every change goes through the palette behavior, on the central and
+ * the halves alike; the key LEDs only read.
  */
 
 #pragma once
@@ -22,11 +23,11 @@
  * set on this device, and colours[] is then left alone. */
 bool lantern_palette_get(uint32_t colours[LANTERN_PALETTE_SLOTS]);
 
-/* Split central only: set slots 0..count-1 on every half and on this device;
- * the slots from count on keep their colours. count is 1..LANTERN_PALETTE_SLOTS
- * and every colour at most LANTERN_PALETTE_RGB_MAX, else -EINVAL; -EAGAIN until
- * the settings have loaded at boot. 0 means this device stored the colours and
- * handed the halves' invocations to ZMK's split transport, which confirms
- * nothing: a half that is away gets the palette when it is back
- * (src/palette.c). */
+/* Split central only: set slots 0..count-1 on every half and on this device,
+ * and clear the slots from count on to 0x000000 (the key LEDs show such a slot
+ * as slot 0). count is 1..LANTERN_PALETTE_SLOTS and every colour at most
+ * LANTERN_PALETTE_RGB_MAX, else -EINVAL; -EAGAIN until the settings have
+ * loaded at boot. 0 means this device stored the colours and handed the
+ * halves' invocations to ZMK's split transport, which confirms nothing: a
+ * half that is away gets the palette when it is back (src/palette.c). */
 int lantern_palette_send(const uint32_t *colours, size_t count);

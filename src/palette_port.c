@@ -8,7 +8,7 @@
  * scripts/dongle.py palette writes it). Lines, ASCII, ended by LF or CR:
  *
  *   palette RRGGBB [RRGGBB ...]   set slots 0.. (one to LANTERN_PALETTE_SLOTS,
- *                                 six, colours; the rest stay)
+ *                                 six, colours; the rest are cleared to 000000)
  *     -> palette ok RRGGBB RRGGBB RRGGBB RRGGBB RRGGBB RRGGBB   the six slots as stored
  *     -> palette error: <reason>
  *   palette  or  palette?         ask
