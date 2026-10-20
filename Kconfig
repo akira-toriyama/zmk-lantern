@@ -89,6 +89,23 @@ config LANTERN_OFF_WHEN_IDLE
       consumer's line (canon's halves set 300000); a cable plugged into an
       idle device lights nothing until its next input (the source says why).
 
+config LANTERN_COUNTDOWN
+    bool "Count down to the idle dark in the palette's colours, a stage a colour"
+    default y
+    depends on LANTERN_OFF_WHEN_IDLE
+    depends on LANTERN_PALETTE
+    help
+      While the key LEDs are lit, each half counts the time since its last
+      key: CONFIG_ZMK_IDLE_TIMEOUT cut into as many stages as the palette has
+      distinct colours (a cleared slot is slot 0's colour; colours that paint
+      alike at LANTERN_BRIGHTNESS count once). Stage 0, from the last key, is
+      the picture (the bands); stage k paints the whole half in the palette's
+      k-th colour; the last stage ends where ZMK turns idle and
+      LANTERN_OFF_WHEN_IDLE blanks the LEDs. A key brings the bands back and
+      restarts the clock; a cable plugged in lights the stage the keys say
+      (src/keys.c). A sensor or pointing input counts for ZMK's idle and not
+      for this clock. One colour, one stage: the bands until the dark.
+
 config LANTERN_PALETTE
     bool "Keep a palette of six colours, set from the split central's host; the key LEDs show them"
     default y

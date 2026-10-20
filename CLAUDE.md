@@ -10,9 +10,11 @@ how to build. Usage: [README.md](README.md). English only.
   idle, a boot light (`CONFIG_LANTERN_ON_USB_POWER`, `CONFIG_LANTERN_OFF_WHEN_IDLE`,
   `CONFIG_LANTERN_BOOT_LIGHT_MS`; [src/on_usb_power.c](src/on_usb_power.c), binding
   `lantern,rail`); their picture, painted by the module itself, each LED the
-  palette slot the consumer's node assigns to the key under it
-  (`CONFIG_LANTERN_KEYS`, `CONFIG_LANTERN_BRIGHTNESS`; [src/keys.c](src/keys.c),
-  binding `lantern,keys`); and the palette: six colours the host hands the
+  palette slot the consumer's node assigns to the key under it, and the
+  countdown to the idle dark in the palette's colours, a stage a colour
+  (`CONFIG_LANTERN_KEYS`, `CONFIG_LANTERN_BRIGHTNESS`, `CONFIG_LANTERN_COUNTDOWN`;
+  [src/keys.c](src/keys.c), binding `lantern,keys`); and the palette: six
+  colours the host hands the
   split central over its USB CDC ACM port, which the central and every half
   keep in their settings (`CONFIG_LANTERN_PALETTE`, `CONFIG_LANTERN_PALETTE_PORT`;
   [src/palette.c](src/palette.c), [src/palette_port.c](src/palette_port.c),
@@ -55,8 +57,9 @@ how to build. Usage: [README.md](README.md). English only.
 - Per build directory (`$ZMK_WS/ws/build/<image name>/`): `build.log` (west's
   output, FLASH/RAM at its end), `zephyr/.config`, `zephyr/zephyr.dts`,
   `zephyr/zmk.map`, `zephyr/zmk.elf`. A half's build shows
-  `CONFIG_LANTERN_KEYS=y`, `CONFIG_LANTERN_ON_USB_POWER=y` and
-  `CONFIG_LANTERN_PALETTE=y` in `.config` and no `CONFIG_ZMK_RGB_UNDERGLOW`,
+  `CONFIG_LANTERN_KEYS=y`, `CONFIG_LANTERN_ON_USB_POWER=y`,
+  `CONFIG_LANTERN_COUNTDOWN=y` and `CONFIG_LANTERN_PALETTE=y` in `.config`
+  and no `CONFIG_ZMK_RGB_UNDERGLOW`,
   a `lantern_keys` node with `compatible = "lantern,keys"`, a `lantern_rail`
   node with `compatible = "lantern,rail"` and a `palette` node with
   `compatible = "lantern,behavior-palette"` in `zephyr.dts`, the strip's
@@ -114,12 +117,25 @@ how to build. Usage: [README.md](README.md). English only.
   for the SPI transfer and stays off the system work queue, where ZMK
   processes key events, and off the Bluetooth receive queue, where a half
   runs the palette behavior. Callers say lit, dark or changed and never touch
-  a pixel.
-- **The idle timeout is ZMK's `CONFIG_ZMK_IDLE_TIMEOUT`, set by the consumer;
-  the module keeps no timer**: ZMK's activity state already counts a half's
-  keys, sensors and pointing input, and the consumer's later effects
-  (canon t-6ttk) read the same state. A cable plugged into an idle half
-  lights nothing until its next key, by design (the source says why).
+  a pixel. **The countdown's clock and tick live on the system work queue**
+  too (`src/keys.c`: the time of the half's last key, a delayable work item
+  that computes the stage and arms itself for the next boundary; the stage
+  crosses to the painter as one atomic), so the light and the blank are
+  system work queue calls, the refresh any thread's.
+- **The idle timeout is ZMK's `CONFIG_ZMK_IDLE_TIMEOUT`, set by the consumer,
+  and the dark is ZMK's idle state**: it already counts a half's keys,
+  sensors and pointing input. The countdown (`CONFIG_LANTERN_COUNTDOWN`)
+  cuts the same timeout into stages for the picture, one per distinct shade
+  of the palette, from a clock of its own, the half's key positions
+  (`zmk_position_state_changed`), kept while dark too: ZMK keeps the time of
+  its last input to itself. A light does not restart that clock (a cable
+  plugged into a half that typed a while ago lights the stage its keys say,
+  in step with ZMK's idle; Opus review 2026-10-20) unless it is already past
+  the timeout, the sign that a sensor or pointing input woke ZMK; such input
+  moves ZMK's idle and not this clock (canon t-gsm2: the Imprint's trackballs
+  are unused), so the last stage then holds until ZMK idles. A cable plugged
+  into an idle half lights nothing until its next key, by design (the source
+  says why).
 - A target without a `lantern,keys` node builds none of the painting
   (`CONFIG_LANTERN_KEYS` depends on `DT_HAS_LANTERN_KEYS_ENABLED`) and none of
   the rail (`CONFIG_LANTERN_ON_USB_POWER` depends on `LANTERN_KEYS` and on
@@ -189,8 +205,9 @@ how to build. Usage: [README.md](README.md). English only.
   in task bodies carry a date; README "Status" holds what was seen (the USB
   rule and the boot light on both halves, canon #263, 2026-10-19; the idle
   rule: the right half, canon's logging build with a 20 s timeout,
-  2026-10-19; the palette through the underglow, 2026-10-19; the module's
-  own picture: not yet).
+  2026-10-19; the palette through the underglow, 2026-10-19; the bands on
+  both halves, canon #271, 2026-10-20; the countdown on the left half,
+  canon's trial image with a 50 s timeout, 2026-10-20).
 
 ## Commits, pull requests, fleet files
 
