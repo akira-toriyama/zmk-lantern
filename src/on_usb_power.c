@@ -58,7 +58,9 @@
  *   leave the LEDs on with no idle event to follow. On battery the idle input
  *   changes nothing (the rule is already false) and is only kept current.
  *   In canon's halves the only other subscriber ZMK links is battery.c, which
- *   pauses its sampling while idle (zmk.map, 2026-10-19).
+ *   pauses its sampling while idle (zmk.map, 2026-10-19). The countdown
+ *   (src/keys.c) cuts the same timeout into stages for the picture, from its
+ *   own clock of the half's keys; the dark stays this rule's.
  * - The frames: lantern_keys_light() and lantern_keys_blank() take no lock
  *   and block on nothing; each queues one frame on ZMK's low priority work
  *   queue (src/keys.c). settle-ms (the node) covers the LEDs' power-up before
