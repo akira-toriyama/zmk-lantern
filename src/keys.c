@@ -46,6 +46,10 @@
  *   the queue when it returns, and the rail drops BLANK_MS later
  *   (src/on_usb_power.c); lantern_keys_light() is called with the rail up and
  *   settled, so the frame meets powered LEDs.
+ * - Two frames in a row: the handler ends with the data line low for LATCH_US
+ *   (the code says why), so a frame that follows the last straight away, as
+ *   the three pairs of a palette do, is latched and not lost (Opus review,
+ *   2026-10-20).
  */
 
 #define DT_DRV_COMPAT lantern_keys
@@ -85,6 +89,9 @@ BUILD_ASSERT(LED_COUNT == DT_PROP(STRIP, chain_length),
              "lantern,keys: positions needs one entry per LED, the strip's chain-length");
 BUILD_ASSERT(KEY_COUNT == ZMK_KEYMAP_LEN,
              "lantern,keys: slots needs one entry per key position of the keymap");
+BUILD_ASSERT(KEY_COUNT <= 256, "lantern,keys: a key position is stored in a byte");
+BUILD_ASSERT(IS_ENABLED(CONFIG_LANTERN_ON_USB_POWER),
+             "CONFIG_LANTERN_KEYS needs CONFIG_LANTERN_ON_USB_POWER: nothing else lights the LEDs");
 
 #define POSITION_IN_RANGE(node_id, prop, idx)                                                     \
     BUILD_ASSERT(DT_PROP_BY_IDX(node_id, prop, idx) < KEY_COUNT,                                  \
@@ -98,6 +105,15 @@ DT_FOREACH_PROP_ELEM(NODE, slots, SLOT_IN_RANGE)
 
 /* The brightest channel of every colour painted. */
 #define LEVEL ((255 * CONFIG_LANTERN_BRIGHTNESS + 50) / 100)
+
+/* The data line low for this long after a frame, so that the LEDs latch it:
+ * a WS2812B needs at least 280 us (its V5 datasheet's RES; the older part
+ * 50 us), and a frame that arrives sooner reads as more pixels of the last
+ * one and falls off the chain's end. The driver's own pause after a transfer
+ * is the strip node's reset-delay, 8 us unless the consumer sets it (zephyr
+ * drivers/led_strip/ws2812_spi.c), and a submission during the handler runs
+ * it again straight away, with only that pause between the frames. */
+#define LATCH_US 300
 
 static const struct device *const strip = DEVICE_DT_GET(STRIP);
 static const uint8_t positions[LED_COUNT] = DT_INST_PROP(0, positions);
@@ -147,6 +163,7 @@ static void paint(struct k_work *work) {
     if (rc < 0) {
         LOG_ERR("frame not written: %d", rc);
     }
+    k_usleep(LATCH_US);
 }
 
 static K_WORK_DEFINE(paint_work, paint);
