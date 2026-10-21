@@ -103,6 +103,14 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
   280 + 100 mA at 16 %, unmeasured), so more keys glowing at once on a white
   picture share that and glow less. The brightness must stay below 100 % for
   an effect to show (asserted).
+- The thin ring (`CONFIG_LANTERN_THIN_RING`, off by default likewise): from
+  each key this half presses a ring one key wide spreads at twelve key units
+  a second and fades out over a second, so it has crossed the half when it
+  is gone; each press takes the palette's next colour, at full brightness
+  within the frame's cap (above), and a key under two rings shows the
+  stronger one's colour. It measures the board from the node's `coords`,
+  each key's x and y in hundredths of a key unit (canon's `imprint.json`
+  times 100).
 
 ## The split link
 
@@ -203,6 +211,7 @@ to `0x000000`, which the LEDs show as slot 0.
            strip = <&led_strip>;
            positions = < 17 29 5 16 28 40 /* ... one entry per LED, in chain order: the key under it */ >;
            slots = < 0 0 0 1 1 1 /* ... one entry per key position: the slot its LED shows */ >;
+           coords = < 0 200 100 200 /* ... an x and a y per key position, hundredths of a key unit */ >;
        };
    };
    ```
@@ -219,9 +228,12 @@ to `0x000000`, which the LEDs show as slot 0.
    `positions` is measured on the hardware, one LED at a time (canon's t-69g7
    probe); `slots` has one entry per key position of the chosen matrix
    transform (asserted), so a table in the keymap's shape reads as the
-   picture, 0 to 5 each. A consumer with per-half overlays puts `slots` in a
-   shared dtsi and each half's `positions` and `chain-length` in its own
-   overlay (canon's `config/lantern_keys.dtsi`).
+   picture, 0 to 5 each; `coords` has an x and a y per key position, in
+   hundredths of a key unit on the whole board (canon: `imprint.json` times
+   100), for the effects that measure the board, which assert it. A consumer
+   with per-half overlays puts `slots` and `coords` in a shared dtsi and each
+   half's `positions` and `chain-length` in its own overlay (canon's
+   `config/lantern_keys.dtsi`).
 
 3. The half's conf ([config/imprint.conf](config/imprint.conf)):
 
@@ -247,7 +259,8 @@ to `0x000000`, which the LEDs show as slot 0.
    `CONFIG_LANTERN_COUNTDOWN` is on by default with the idle rule and the
    palette, a new picture every `CONFIG_LANTERN_COUNTDOWN_STAGE_MS` (10000):
    `=n` keeps the bands until the dark. `CONFIG_LANTERN_PRESS_GLOW=y` adds
-   the press glow. On a split peripheral `CONFIG_LANTERN_USB_LATENCY` is on
+   the press glow, `CONFIG_LANTERN_THIN_RING=y` the thin ring (it needs
+   `coords`). On a split peripheral `CONFIG_LANTERN_USB_LATENCY` is on
    by default with the rail; `=n` leaves the link at the central's latency.
 
 4. The palette's node, on every device of the split under the one name

@@ -87,11 +87,12 @@
  *   the three pairs of a palette do, is latched and not lost (Opus review,
  *   2026-10-20).
  * - Effects (CONFIG_LANTERN_EFFECTS, which each effect selects): the half's
- *   own presses go into a ring of the last HITS, each a key position and the
- *   low 24 bits of the press's uptime in one atomic, written on the system
+ *   own presses go into a ring of the last HITS, each a key position, the
+ *   press's number (the count of presses, cycling) and the low 18 bits of
+ *   the press's uptime in one atomic, written on the system
  *   work queue (the key listener, while lit; a full ring drops the oldest)
  *   and read by the frame, which clears each hit that has run its course, so
- *   a 24-bit time never wraps into a live one; the blank clears them all, and
+ *   an 18-bit time never wraps into a live one; the blank clears them all, and
  *   a press that lights an idle half shows no effect. While one moves, the
  *   frame arms frame_work, a delayable item on the same queue that runs the
  *   same handler, FRAME_MS ahead; a black frame cancels it, so no frame
@@ -117,6 +118,22 @@
  *   twice LEVEL, the first try, was not seen on hardware: under the keycaps
  *   16 % to 32 % for half a second read as no change (canon t-6ttk,
  *   2026-10-21).
+ * - The thin ring (CONFIG_LANTERN_THIN_RING): from a pressed key a ring one
+ *   key wide spreads at RING_SPEED key units a second and fades out over
+ *   RING_MS, so it has crossed the half when it is gone; each press takes
+ *   the palette's next shade (the press's number mod the shade count), at
+ *   HI_LEVEL, and an LED under two rings shows the stronger one's colour at
+ *   their summed strength. The idea is zmk-rgb-matrix's ripple, written from
+ *   its description (its code is no clean room, its author says). Distances
+ *   come from the consumer's coords, each key position's x and y in
+ *   hundredths of a key unit (canon: imprint.json, keymap-drawer's physical
+ *   layout, each key's top left corner; every key is one unit, so the offset
+ *   to the centre cancels), so the ring is round on the board, not in the
+ *   matrix. An integer square root a hit an LED a frame, 8 x 29 of them every
+ *   FRAME_MS, costs a few percent of the CPU at most with eight live hits
+ *   (about 0.7 ms a frame from the disassembly, Opus review 2026-10-21;
+ *   unmeasured) on the preemptible low priority thread, and keeps the FPU
+ *   out of it (above).
  */
 
 #define DT_DRV_COMPAT lantern_keys
@@ -188,25 +205,59 @@ BUILD_ASSERT(HI_LEVEL > LEVEL, "CONFIG_LANTERN_BRIGHTNESS 100 leaves an effect n
  * LEDs white at HI_LEVEL instead (the header). */
 #define CAP_KEYS 2
 #define CAP (3 * (LED_COUNT * LEVEL + CAP_KEYS * (HI_LEVEL - LEVEL)))
-/* A hit's time: the low 24 bits of k_uptime_get_32(), in ms. */
-#define HIT_TIME 0xFFFFFFu
+/* A hit in one atomic: (position + 1) << 24 | seq << HIT_SEQ_SHIFT | the
+ * press's time, the low 18 bits of k_uptime_get_32() in ms (262 s). seq is
+ * the count of presses mod HIT_SEQ_CYCLE: an effect that gives each press the
+ * palette's next shade reads seq mod the shade count, which skips no shade at
+ * the wrap while the cycle is a multiple of every count 1..6. */
+#define HIT_TIME 0x3FFFFu
+#define HIT_SEQ_SHIFT 18
+#define HIT_SEQ_MASK 0x3Fu
+#define HIT_SEQ_CYCLE 60
 BUILD_ASSERT(KEY_COUNT <= 255, "lantern,keys: a hit stores its key position + 1 in a byte");
+BUILD_ASSERT(HIT_SEQ_CYCLE <= HIT_SEQ_MASK + 1, "a hit's seq is stored in 6 bits");
+BUILD_ASSERT(LANTERN_PALETTE_SLOTS == 6 && HIT_SEQ_CYCLE % 60 == 0,
+             "HIT_SEQ_CYCLE must be a multiple of every shade count, 1 to LANTERN_PALETTE_SLOTS");
 #endif
 
+/* Each effect's life, how long after the press it still draws; 0 when it is
+ * not built. A hit lives the longest. */
 #if IS_ENABLED(CONFIG_LANTERN_PRESS_GLOW)
 #define GLOW_MS 500
+#else
+#define GLOW_MS 0
 #endif
-
-/* How long a hit lives: the longest effect's. */
-#if IS_ENABLED(CONFIG_LANTERN_PRESS_GLOW)
-#define HIT_LIFE_MS GLOW_MS
+#if IS_ENABLED(CONFIG_LANTERN_THIN_RING)
+#define RING_MS 1000
+/* Key units a second the ring's radius grows: at 12 it has crossed a half of
+ * the Imprint (8.75 units at most) in under a second. */
+#define RING_SPEED 12
+/* Hundredths of a key unit from the radius at which the ring is gone: full
+ * on the radius, one key wide at half strength. */
+#define RING_WIDTH 100
+#else
+#define RING_MS 0
 #endif
+#define HIT_LIFE_MS MAX(GLOW_MS, RING_MS)
 
 #if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
-#ifndef HIT_LIFE_MS
-#error "CONFIG_LANTERN_EFFECTS without an effect: an effect sets HIT_LIFE_MS"
-#endif
+BUILD_ASSERT(HIT_LIFE_MS > 0, "CONFIG_LANTERN_EFFECTS without an effect: an effect sets its life");
 BUILD_ASSERT(HIT_LIFE_MS <= UINT16_MAX, "a hit's age is kept in 16 bits");
+BUILD_ASSERT(HIT_LIFE_MS < HIT_TIME / 2, "a hit's age must be told from a wrapped time");
+#endif
+
+#if IS_ENABLED(CONFIG_LANTERN_THIN_RING)
+BUILD_ASSERT(DT_INST_NODE_HAS_PROP(0, coords),
+             "CONFIG_LANTERN_THIN_RING needs lantern,keys coords: the ring is measured in key units");
+BUILD_ASSERT(COND_CODE_1(DT_INST_NODE_HAS_PROP(0, coords), (DT_INST_PROP_LEN(0, coords)), (0)) ==
+                 2 * KEY_COUNT,
+             "lantern,keys: coords needs an x and a y per key position of slots");
+/* 30000 keeps a squared distance, 2 x 30000^2, inside 32 bits. */
+#define COORD_IN_RANGE(node_id, prop, idx)                                                        \
+    BUILD_ASSERT(DT_PROP_BY_IDX(node_id, prop, idx) <= 30000,                                     \
+                 "lantern,keys: a coords entry is at most 30000 hundredths of a key unit");
+COND_CODE_1(DT_INST_NODE_HAS_PROP(0, coords), (DT_FOREACH_PROP_ELEM(NODE, coords, COORD_IN_RANGE)),
+            ())
 #endif
 
 /* The data line low for this long after a frame, so that the LEDs latch it:
@@ -221,6 +272,10 @@ BUILD_ASSERT(HIT_LIFE_MS <= UINT16_MAX, "a hit's age is kept in 16 bits");
 static const struct device *const strip = DEVICE_DT_GET(STRIP);
 static const uint8_t positions[LED_COUNT] = DT_INST_PROP(0, positions);
 static const uint8_t slots[KEY_COUNT] = DT_INST_PROP(0, slots);
+#if IS_ENABLED(CONFIG_LANTERN_THIN_RING)
+/* Each key position's x and y, in hundredths of a key unit (the header). */
+static const uint16_t coords[2 * KEY_COUNT] = DT_INST_PROP(0, coords);
+#endif
 static struct led_rgb pixels[LED_COUNT];
 static atomic_t lit;
 static atomic_t stage; /* stages since the last key; the picture is stage mod the shade count */
@@ -253,46 +308,61 @@ static uint32_t slot_rgb(const uint32_t palette[LANTERN_PALETTE_SLOTS], bool hav
 }
 
 /* The shades a frame is made of: the palette's colours at LEVEL, the distinct
- * ones in slot order, and each slot's rank among them (a cleared slot ranks as
- * slot 0; without a palette one white). Returns how many,
- * 1..LANTERN_PALETTE_SLOTS. */
-static size_t shades(const uint32_t palette[LANTERN_PALETTE_SLOTS], bool have,
-                     struct led_rgb shade[LANTERN_PALETTE_SLOTS],
-                     uint8_t rank[LANTERN_PALETTE_SLOTS]) {
-    size_t n = 0;
+ * ones in slot order (a cleared slot is slot 0's; without a palette one
+ * white), each with the 0xRRGGBB it was scaled from, for an effect that paints
+ * it at another level, and each slot's rank among them. */
+struct shades {
+    size_t n; /* 1..LANTERN_PALETTE_SLOTS */
+    struct led_rgb at_level[LANTERN_PALETTE_SLOTS];
+    uint32_t rgb[LANTERN_PALETTE_SLOTS];
+    uint8_t rank[LANTERN_PALETTE_SLOTS];
+};
 
+static void shades(const uint32_t palette[LANTERN_PALETTE_SLOTS], bool have, struct shades *sh) {
+    sh->n = 0;
     for (size_t s = 0; s < LANTERN_PALETTE_SLOTS; s++) {
-        struct led_rgb c = scale(slot_rgb(palette, have, s), LEVEL);
+        uint32_t rgb = slot_rgb(palette, have, s);
+        struct led_rgb c = scale(rgb, LEVEL);
         size_t r = 0;
-        while (r < n && !same(&shade[r], &c)) {
+        while (r < sh->n && !same(&sh->at_level[r], &c)) {
             r++;
         }
-        if (r == n) {
-            shade[n++] = c;
+        if (r == sh->n) {
+            sh->at_level[sh->n] = c;
+            sh->rgb[sh->n] = rgb;
+            sh->n++;
         }
-        rank[s] = (uint8_t)r;
+        sh->rank[s] = (uint8_t)r;
     }
-    return n;
 }
+
+/* The frame's thread: the shades of the frame being composed. */
+static struct shades frame_shades;
 
 #if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
 
-/* The ring of the last HITS presses (the header): (position + 1) << 24 | the
- * press's HIT_TIME; 0 is no hit. Set on the system work queue; the frame
- * clears a spent hit with a compare-and-set. */
+/* The ring of the last HITS presses (the header), packed as HIT_TIME says; 0
+ * is no hit. Set on the system work queue; the frame clears a spent hit with
+ * a compare-and-set. */
 static atomic_t hits[HITS];
 static size_t hit_next;
 
 struct hit {
     uint8_t key;  /* a key position */
+    uint8_t seq;  /* the press's number, mod HIT_SEQ_CYCLE */
     uint16_t age; /* ms since the press, below HIT_LIFE_MS */
 };
 
+/* System work queue: the count of presses noted, mod HIT_SEQ_CYCLE. */
+static uint8_t hit_seq;
+
 /* System work queue. A full ring drops the oldest. */
 static void hit_note(uint32_t position) {
-    uint32_t v = ((position + 1) << 24) | (k_uptime_get_32() & HIT_TIME);
+    uint32_t v = ((position + 1) << 24) | ((uint32_t)hit_seq << HIT_SEQ_SHIFT) |
+                 (k_uptime_get_32() & HIT_TIME);
     atomic_set(&hits[hit_next], (atomic_val_t)v);
     hit_next = (hit_next + 1) % HITS;
+    hit_seq = (hit_seq + 1) % HIT_SEQ_CYCLE;
 }
 
 /* System work queue. */
@@ -321,9 +391,16 @@ static size_t hits_read(struct hit live[HITS]) {
             (void)atomic_cas(&hits[j], v, 0);
             continue;
         }
-        live[n++] = (struct hit){.key = (uint8_t)(((uint32_t)v >> 24) - 1), .age = (uint16_t)age};
+        live[n++] = (struct hit){.key = (uint8_t)(((uint32_t)v >> 24) - 1),
+                                 .seq = (uint8_t)(((uint32_t)v >> HIT_SEQ_SHIFT) & HIT_SEQ_MASK),
+                                 .age = (uint16_t)age};
     }
     return n;
+}
+
+/* Shade r at HI_LEVEL. */
+static struct led_rgb shade_hi(const struct shades *sh, size_t r) {
+    return scale(sh->rgb[r], HI_LEVEL);
 }
 
 /* a pulled toward b by w / 256. */
@@ -375,8 +452,7 @@ static void hold_to_cap(void) {
 /* Each pressed key's LED pulled toward its band's colour at HI_LEVEL, all the
  * way at the press and not at all GLOW_MS later; the freshest press of a key
  * wins. */
-static void press_glow(const uint32_t palette[LANTERN_PALETTE_SLOTS], bool have,
-                       const struct hit live[], size_t n) {
+static void press_glow(const struct shades *sh, const struct hit live[], size_t n) {
     for (size_t i = 0; i < LED_COUNT; i++) {
         unsigned int w = 0;
         for (size_t h = 0; h < n; h++) {
@@ -385,28 +461,90 @@ static void press_glow(const uint32_t palette[LANTERN_PALETTE_SLOTS], bool have,
             }
         }
         if (w > 0) {
-            struct led_rgb hi = scale(slot_rgb(palette, have, slots[positions[i]]), HI_LEVEL);
-            pixels[i] = mix(pixels[i], hi, w);
+            pixels[i] = mix(pixels[i], shade_hi(sh, sh->rank[slots[positions[i]]]), w);
         }
     }
 }
 
 #endif /* IS_ENABLED(CONFIG_LANTERN_PRESS_GLOW) */
 
+#if IS_ENABLED(CONFIG_LANTERN_THIN_RING)
+
+/* The integer square root of v, rounded down, bit by bit. */
+static uint32_t isqrt(uint32_t v) {
+    uint32_t root = 0, bit = 1u << 30;
+
+    while (bit > v) {
+        bit >>= 2;
+    }
+    while (bit != 0) {
+        if (v >= root + bit) {
+            v -= root + bit;
+            root = (root >> 1) + bit;
+        } else {
+            root >>= 1;
+        }
+        bit >>= 2;
+    }
+    return root;
+}
+
+/* Hundredths of a key unit between key positions a and b. */
+static uint32_t distance(uint8_t a, uint8_t b) {
+    int32_t dx = (int32_t)coords[2 * a] - (int32_t)coords[2 * b];
+    int32_t dy = (int32_t)coords[2 * a + 1] - (int32_t)coords[2 * b + 1];
+
+    return isqrt((uint32_t)(dx * dx + dy * dy));
+}
+
+/* Each hit's ring (the header): its radius RING_SPEED x the hit's age, full
+ * on the radius and gone RING_WIDTH from it, fading out over RING_MS, in the
+ * shade the hit's number picks. An LED under several rings takes the
+ * strongest one's colour at their summed strength. */
+static void thin_ring(const struct shades *sh, const struct hit live[], size_t n) {
+    for (size_t i = 0; i < LED_COUNT; i++) {
+        unsigned int w = 0, strongest = 0;
+        size_t pick = 0;
+
+        for (size_t h = 0; h < n; h++) {
+            if (live[h].age >= RING_MS) {
+                continue;
+            }
+            /* ms x units/s / 1000 x 100 hundredths */
+            uint32_t r = (uint32_t)live[h].age * RING_SPEED / 10;
+            uint32_t d = distance(positions[i], live[h].key);
+            uint32_t off = d > r ? d - r : r - d;
+            if (off >= RING_WIDTH) {
+                continue;
+            }
+            unsigned int s = (RING_WIDTH - off) * 256 / RING_WIDTH;
+            s = s * (RING_MS - live[h].age) / RING_MS;
+            if (s > strongest) {
+                strongest = s;
+                pick = h;
+            }
+            w += s;
+        }
+        if (w > 0) {
+            pixels[i] = mix(pixels[i], shade_hi(sh, live[pick].seq % sh->n), MIN(w, 256));
+        }
+    }
+}
+
+#endif /* IS_ENABLED(CONFIG_LANTERN_THIN_RING) */
+
 /* The frame: the picture of stage at, the effects over it and the cap; true
  * while an effect still moves. The low priority work queue only: it writes
- * pixels and picture and clears spent hits (the palette and the hits are
- * atomics, read from there). */
+ * frame_shades, pixels and picture and clears spent hits (the palette and the
+ * hits are atomics, read from there). */
 static bool compose(size_t at) {
     uint32_t palette[LANTERN_PALETTE_SLOTS] = {0};
     bool have = IS_ENABLED(CONFIG_LANTERN_PALETTE) && lantern_palette_get(palette);
-    struct led_rgb shade[LANTERN_PALETTE_SLOTS];
-    uint8_t rank[LANTERN_PALETTE_SLOTS];
-    size_t n = shades(palette, have, shade, rank);
 
-    at %= n;
+    shades(palette, have, &frame_shades);
+    at %= frame_shades.n;
     for (size_t i = 0; i < LED_COUNT; i++) {
-        pixels[i] = shade[at > 0 ? at : rank[slots[positions[i]]]];
+        pixels[i] = frame_shades.at_level[at > 0 ? at : frame_shades.rank[slots[positions[i]]]];
     }
 
 #if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
@@ -415,7 +553,10 @@ static bool compose(size_t at) {
 
     memcpy(picture, pixels, sizeof(pixels));
 #if IS_ENABLED(CONFIG_LANTERN_PRESS_GLOW)
-    press_glow(palette, have, live, moving);
+    press_glow(&frame_shades, live, moving);
+#endif
+#if IS_ENABLED(CONFIG_LANTERN_THIN_RING)
+    thin_ring(&frame_shades, live, moving);
 #endif
     hold_to_cap();
     return moving > 0;

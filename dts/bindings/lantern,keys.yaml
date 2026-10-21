@@ -40,3 +40,15 @@ properties:
       halves of a split): the palette slot, 0 to 5, the key's LED shows. The
       length is the keymap's length (asserted), so a table written in the
       keymap's shape reads as the picture.
+
+  coords:
+    type: array
+    description: |
+      Two entries per key position, in position order: the key's x and then
+      its y in hundredths of a key unit, on the whole board (both halves of a
+      split, so a distance reads the same from either), at most 30000 each.
+      canon: imprint.json, keymap-drawer's physical layout, times 100 (each
+      key's top left corner; every key is one unit, so the offset to the
+      centre cancels). For the effects that measure the board
+      (CONFIG_LANTERN_THIN_RING), which assert it present and twice the
+      length of slots; a target without them needs none.

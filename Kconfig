@@ -139,6 +139,21 @@ config LANTERN_PRESS_GLOW
       shows the picture alone. Default n while canon t-6ttk tries the
       effects one image at a time.
 
+config LANTERN_THIN_RING
+    bool "Spread a thin ring of the palette's next colour from each pressed key"
+    depends on LANTERN_KEYS
+    select LANTERN_EFFECTS
+    help
+      While the key LEDs are lit, a ring one key wide spreads from each key
+      this half presses at twelve key units a second and fades out over a
+      second, so it has crossed the half when it is gone; each press takes
+      the palette's next colour, at full brightness (so the build refuses a
+      LANTERN_BRIGHTNESS of 100), and a key under two rings shows the
+      stronger one's colour. Needs the lantern,keys node's coords, each key
+      position's x and y in hundredths of a key unit (asserted): src/keys.c
+      measures the ring on the board. Default n while canon t-6ttk tries the
+      effects one image at a time.
+
 config LANTERN_USB_LATENCY
     bool "Ask the split central for peripheral latency 0 while USB powers this half"
     default y
