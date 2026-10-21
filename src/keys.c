@@ -147,6 +147,21 @@
  *   as under two rings. A hit lives DISC_MS, long enough for the rim to cross
  *   a half of the Imprint and the last LED to fade; the cap (above) holds a
  *   disc, which covers many LEDs at once, harder than it holds a ring.
+ * - The stain (CONFIG_LANTERN_STAIN): the thin ring dyes the keys it passes.
+ *   An LED within STAIN_REACH of the press keeps the ring's shade as its
+ *   picture colour, at LEVEL like a band, from the frame in which the ring's
+ *   crest reaches it, so the half is painted over in the day's colours as the
+ *   user types; zmk-pk-underglow's rainbow ripple, from its idea. The reach is
+ *   where the crest still has STAIN_LEAST of full strength (the ring fades as
+ *   it spreads), the design's 0.6; it is judged by the crest's position, not
+ *   by the strength a frame happens to sample, because the crest is narrow
+ *   and frames FRAME_MS apart miss it beyond about three units (Opus review,
+ *   2026-10-21). The newest ring to have passed an LED dyes it. The dye is
+ *   the frame thread's alone (stains[], written where the ring is drawn) and
+ *   goes when the countdown moves the picture (the next key brings the bands
+ *   back, and its ring dyes them afresh) and when the LEDs blank. It indexes
+ *   the shades, so a new palette recolours the dye with it, and a dye past
+ *   the new shade count shows the band.
  */
 
 #define DT_DRV_COMPAT lantern_keys
@@ -263,6 +278,18 @@ BUILD_ASSERT(LANTERN_PALETTE_SLOTS == 6 && HIT_SEQ_CYCLE % 60 == 0,
 #define DISC_MS 0
 #endif
 #define HIT_LIFE_MS MAX(GLOW_MS, MAX(RING_MS, DISC_MS))
+#if IS_ENABLED(CONFIG_LANTERN_STAIN)
+/* The least strength, of 256, a ring's crest must still have to dye: the
+ * design's 0.6. */
+#define STAIN_LEAST 154
+/* How far the crest keeps that strength, in hundredths of a key unit: it
+ * reaches distance d at age d x 10 / RING_SPEED, with 256 x (RING_MS - age)
+ * / RING_MS of its strength (the header). */
+#define STAIN_REACH ((RING_MS - (RING_MS * STAIN_LEAST + 255) / 256) * RING_SPEED / 10)
+BUILD_ASSERT(IS_ENABLED(CONFIG_LANTERN_THIN_RING),
+             "CONFIG_LANTERN_STAIN dyes with the thin ring (its Kconfig selects it)");
+BUILD_ASSERT(STAIN_REACH > 0, "STAIN_LEAST leaves the ring no reach");
+#endif
 
 #if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
 BUILD_ASSERT(HIT_LIFE_MS > 0, "CONFIG_LANTERN_EFFECTS without an effect: an effect sets its life");
@@ -362,6 +389,14 @@ static void shades(const uint32_t palette[LANTERN_PALETTE_SLOTS], bool have, str
 
 /* The frame's thread: the shades of the frame being composed. */
 static struct shades frame_shades;
+
+#if IS_ENABLED(CONFIG_LANTERN_STAIN)
+/* The frame's thread: each LED's dye, a shade's rank + 1, 0 for none (the
+ * header), and the stage (before the modulo: with one shade the modulo would
+ * never move) the last frame showed, whose move clears the dye. */
+static uint8_t stains[LED_COUNT];
+static size_t stained_at;
+#endif
 
 #if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
 
@@ -533,6 +568,9 @@ static void thin_ring(const struct shades *sh, const struct hit live[], size_t n
     for (size_t i = 0; i < LED_COUNT; i++) {
         unsigned int w = 0, strongest = 0;
         size_t pick = 0;
+#if IS_ENABLED(CONFIG_LANTERN_STAIN)
+        size_t dye = 0; /* the newest hit whose crest has reached this LED within STAIN_REACH, + 1 */
+#endif
 
         for (size_t h = 0; h < n; h++) {
             if (live[h].age >= RING_MS) {
@@ -541,6 +579,11 @@ static void thin_ring(const struct shades *sh, const struct hit live[], size_t n
             /* ms x units/s / 1000 x 100 hundredths */
             uint32_t r = (uint32_t)live[h].age * RING_SPEED / 10;
             uint32_t d = distance(positions[i], live[h].key);
+#if IS_ENABLED(CONFIG_LANTERN_STAIN)
+            if (r >= d && d <= STAIN_REACH && (dye == 0 || live[h].age < live[dye - 1].age)) {
+                dye = h + 1;
+            }
+#endif
             uint32_t off = d > r ? d - r : r - d;
             if (off >= RING_WIDTH) {
                 continue;
@@ -556,6 +599,11 @@ static void thin_ring(const struct shades *sh, const struct hit live[], size_t n
         if (w > 0) {
             pixels[i] = mix(pixels[i], shade_hi(sh, live[pick].seq % sh->n), MIN(w, 256));
         }
+#if IS_ENABLED(CONFIG_LANTERN_STAIN)
+        if (dye != 0) {
+            stains[i] = (uint8_t)(live[dye - 1].seq % sh->n + 1);
+        }
+#endif
     }
 }
 
@@ -614,10 +662,24 @@ static bool compose(size_t at) {
     bool have = IS_ENABLED(CONFIG_LANTERN_PALETTE) && lantern_palette_get(palette);
 
     shades(palette, have, &frame_shades);
+#if IS_ENABLED(CONFIG_LANTERN_STAIN)
+    if (at != stained_at) {
+        memset(stains, 0, sizeof(stains));
+        stained_at = at;
+    }
+#endif
     at %= frame_shades.n;
     for (size_t i = 0; i < LED_COUNT; i++) {
         pixels[i] = frame_shades.at_level[at > 0 ? at : frame_shades.rank[slots[positions[i]]]];
     }
+
+#if IS_ENABLED(CONFIG_LANTERN_STAIN)
+    for (size_t i = 0; i < LED_COUNT; i++) {
+        if (stains[i] != 0 && stains[i] <= frame_shades.n) {
+            pixels[i] = frame_shades.at_level[stains[i] - 1];
+        }
+    }
+#endif
 
 #if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
     struct hit live[HITS];
@@ -657,6 +719,9 @@ static void paint(struct k_work *work) {
         moving = compose((size_t)atomic_get(&stage));
     } else {
         memset(pixels, 0, sizeof(pixels));
+#if IS_ENABLED(CONFIG_LANTERN_STAIN)
+        memset(stains, 0, sizeof(stains));
+#endif
     }
     int rc = led_strip_update_rgb(strip, pixels, LED_COUNT);
     if (rc < 0) {

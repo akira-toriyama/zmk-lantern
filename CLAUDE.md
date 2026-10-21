@@ -16,10 +16,11 @@ how to build. Usage: [README.md](README.md). English only.
   `CONFIG_LANTERN_BRIGHTNESS`, `CONFIG_LANTERN_COUNTDOWN`,
   `CONFIG_LANTERN_COUNTDOWN_STAGE_MS`; [src/keys.c](src/keys.c), binding
   `lantern,keys`); the effects that move the picture after a key, the press
-  glow, the thin ring and the disc (`CONFIG_LANTERN_PRESS_GLOW`,
-  `CONFIG_LANTERN_THIN_RING`, `CONFIG_LANTERN_DISC`, off by default while
-  canon t-6ttk tries them one image at a time; src/keys.c, the node's
-  `coords` through `CONFIG_LANTERN_GEOMETRY`); the split link's peripheral
+  glow, the thin ring, the disc and the stain (`CONFIG_LANTERN_PRESS_GLOW`,
+  `CONFIG_LANTERN_THIN_RING`, `CONFIG_LANTERN_DISC`, `CONFIG_LANTERN_STAIN`,
+  off by default while canon t-6ttk tries them one image at a time;
+  src/keys.c, the node's `coords` through `CONFIG_LANTERN_GEOMETRY`); the
+  split link's peripheral
   latency, 0 while USB powers a split peripheral and the central's on battery
   (`CONFIG_LANTERN_USB_LATENCY`; [src/latency.c](src/latency.c)); and the palette: six
   colours the host hands the
@@ -78,7 +79,8 @@ how to build. Usage: [README.md](README.md). English only.
   and `palette_port.c.obj`, never the latency, the dongle's nothing of the
   rail or the keys. `--kconfig CONFIG_LANTERN_PRESS_GLOW=y`,
   `CONFIG_LANTERN_THIN_RING=y` or `CONFIG_LANTERN_DISC=y` adds
-  `CONFIG_LANTERN_EFFECTS=y`, the last two `CONFIG_LANTERN_GEOMETRY=y` too.
+  `CONFIG_LANTERN_EFFECTS=y`, the last two `CONFIG_LANTERN_GEOMETRY=y` too;
+  `CONFIG_LANTERN_STAIN=y` adds `CONFIG_LANTERN_THIN_RING=y`.
 - Kconfig merge order, later wins: board defconfig → ZMK `app/prj.conf` → the
   shield's confs → the consumer's `config/<prefix>.conf` files →
   `EXTRA_CONF_FILE` fragments (build.sh: logging, `--kconfig`) → `-DCONFIG_*`.
@@ -225,7 +227,10 @@ how to build. Usage: [README.md](README.md). English only.
   effects' distances through an integer square root), and anything large
   static. A hit carries the press's number (mod 60, a multiple of every
   shade count) so that an effect can give each press the palette's next
-  shade without skipping one at the wrap.
+  shade without skipping one at the wrap. **The stain's dye is the frame
+  thread's alone** (`stains[]`, written where the ring is drawn, applied to
+  the picture before the effects, cleared when the stage moves and at a
+  blank): nothing else reads or writes it.
 - **The split link's latency is the half's rule, never ZMK's `PREF_*` on a
   half** (`src/latency.c`): those symbols exist on a central only, so the
   battery latency is the one the link had at connection. A request may be a

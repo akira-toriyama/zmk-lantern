@@ -181,6 +181,24 @@ config LANTERN_DISC
       does. Default n while canon t-6ttk tries the effects one image at a
       time.
 
+config LANTERN_STAIN
+    bool "Let the thin ring dye the keys it passes in its colour, until the countdown moves the picture"
+    depends on LANTERN_KEYS
+    select LANTERN_THIN_RING
+    help
+      The thin ring (LANTERN_THIN_RING, selected) leaves its colour behind: a
+      key within about 4.8 key units of the press, where the ring's crest
+      still has 0.6 of its full strength (it fades as it spreads), keeps the
+      ring's colour at the picture's brightness from the moment the crest
+      reaches it (where two rings have passed, the newer press's colour), so
+      the half is painted over in the day's colours as you
+      type, each press in the palette's next colour. The dye goes when the
+      countdown changes the picture (LANTERN_COUNTDOWN_STAGE_MS after the
+      last key; the next key brings the bands back and its ring dyes them
+      afresh) and whenever the LEDs light; without the countdown it stays
+      until the LEDs go dark. Default n while canon t-6ttk tries the effects
+      one image at a time.
+
 config LANTERN_USB_LATENCY
     bool "Ask the split central for peripheral latency 0 while USB powers this half"
     default y

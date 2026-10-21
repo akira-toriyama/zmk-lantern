@@ -119,6 +119,15 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
   order as it fades: brightest at the rim, dark behind it, the day's colours
   passing inside. A key under two discs shows the stronger one's colour. It
   measures the board as the thin ring does.
+- The stain (`CONFIG_LANTERN_STAIN`, off by default likewise; it brings the
+  thin ring): a key within about 4.8 key units of the press, where the ring's
+  crest still has 0.6 of its full strength, keeps the ring's colour at the
+  picture's brightness from the moment the crest reaches it (where two rings
+  have passed, the newer press's colour), so the half is painted over in the
+  day's colours as you type, each press in the next colour. The dye goes when
+  the countdown changes the picture (the next key
+  brings the bands back and its ring dyes them afresh) and whenever the LEDs
+  light; without the countdown it stays until the LEDs go dark.
 
 ## The split link
 
@@ -267,8 +276,9 @@ to `0x000000`, which the LEDs show as slot 0.
    `CONFIG_LANTERN_COUNTDOWN` is on by default with the idle rule and the
    palette, a new picture every `CONFIG_LANTERN_COUNTDOWN_STAGE_MS` (10000):
    `=n` keeps the bands until the dark. `CONFIG_LANTERN_PRESS_GLOW=y` adds
-   the press glow, `CONFIG_LANTERN_THIN_RING=y` the thin ring and
-   `CONFIG_LANTERN_DISC=y` the disc (both need `coords`). On a split
+   the press glow, `CONFIG_LANTERN_THIN_RING=y` the thin ring,
+   `CONFIG_LANTERN_DISC=y` the disc and `CONFIG_LANTERN_STAIN=y` the stain,
+   the ring that dyes (the three need `coords`). On a split
    peripheral `CONFIG_LANTERN_USB_LATENCY` is on
    by default with the rail; `=n` leaves the link at the central's latency.
 
