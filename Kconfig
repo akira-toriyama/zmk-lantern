@@ -14,10 +14,11 @@ config LANTERN_KEYS
     help
       On a device with a lantern,keys node (a split half of the Cyboard
       Imprint in canon): the module is the one writer of the node's strip
-      (src/keys.c). Each LED shows the palette slot the node assigns to the
-      key under it (positions: the key under each LED, in chain order;
-      slots: the slot of each key position), so the palette's colours fall
-      on the keyboard in bands; a slot that is 0x000000 shows slot 0, and a
+      (src/keys.c). Each LED shows a palette slot: in the bands, the default
+      picture (LANTERN_PICTURE), the one the node assigns to the key under
+      it (positions: the key under each LED, in chain order; slots: the slot
+      of each key position), so the palette's colours fall on the keyboard
+      in bands; a slot that is 0x000000 shows slot 0, and a
       device without a palette shows white. A frame is written when the LEDs
       light or go dark (LANTERN_ON_USB_POWER) and when the palette changes,
       on ZMK's low priority work queue, which this selects.
@@ -117,21 +118,45 @@ config LANTERN_COUNTDOWN_STAGE_MS
       hardware (2026-10-20, t-x82q); a minute a colour, with the colours
       running out at the idle timeout, read as still.
 
+choice LANTERN_PICTURE
+    prompt "The key LEDs' picture, under the countdown and the effects"
+    default LANTERN_BANDS
+    depends on LANTERN_KEYS
+    help
+      What the LEDs show while lit, the countdown's first picture and the
+      one the effects draw over (src/keys.c). The bands by default; canon
+      t-skdt tries the others one image at a time.
+
+config LANTERN_BANDS
+    bool "Each key in the slot the lantern,keys node's slots give it"
+    help
+      Each LED shows the palette slot the node's slots table gives the key
+      under it, so the palette's colours fall on the keyboard in the bands
+      the consumer draws (canon: five, slots 0..4 left to right).
+
+config LANTERN_SOLID
+    bool "Every key in slot 0, the heaviest colour"
+    help
+      Every LED shows slot 0, the whole half in one colour. The countdown's
+      pictures are then the whole half in each distinct colour in turn
+      (colours that paint alike count once), slot 0's first. The node keeps
+      slots, which this picture does not read.
+
 config LANTERN_SCATTER
     bool "Throw the palette's slots over the keys at random, by the node's weights, a new throw every LANTERN_SCATTER_MS"
-    depends on LANTERN_KEYS
     depends on ENTROPY_HAS_DRIVER || TEST_RANDOM_GENERATOR
     help
-      The picture is the palette's slots thrown over the half's LEDs at
-      random instead of the bands: each slot on as many keys as its share
-      of the lantern,keys node's scatter-weights (one percentage per slot,
-      at most 100 in all, asserted; slots 1.. take their rounded share, slot
-      0, the heaviest colour, the rest), thrown again every LANTERN_SCATTER_MS
-      while the LEDs are lit, keys or no keys, and at every light. Each half
-      throws for itself. The node keeps slots for the bands. Needs a random
-      number source (Zephyr's sys_rand32_get: an entropy driver, as the
-      nRF52840's RNG, or the test generator). Default n while canon t-skdt
-      tries the pictures one image at a time.
+      The palette's slots thrown over the half's LEDs at random: each slot
+      on as many keys as its share of the lantern,keys node's
+      scatter-weights (one percentage per slot, at most 100 in all,
+      asserted; slots 1.. take their rounded share, slot 0, the heaviest
+      colour, the rest), thrown again every LANTERN_SCATTER_MS while the
+      LEDs are lit, keys or no keys, and at every light. Each half throws
+      for itself. The node keeps slots, which this picture does not read.
+      Needs a random number source (Zephyr's sys_rand32_get: an entropy
+      driver, as the nRF52840's RNG, or the test generator).
+
+endchoice
 
 config LANTERN_SCATTER_MS
     int "Milliseconds between two throws of the scatter"
@@ -151,13 +176,14 @@ config LANTERN_EFFECTS
       Each effect selects it; nothing to set.
 
 config LANTERN_PRESS_GLOW
-    bool "Light a pressed key's LED brighter in its band's colour, back to the picture in half a second"
+    bool "Light a pressed key's LED brighter in its colour in the picture, back to the picture in half a second"
     depends on LANTERN_KEYS
     select LANTERN_EFFECTS
     help
       While the key LEDs are lit, the LED of a key this half presses jumps
-      to its band's colour at full brightness (so the build refuses a
-      LANTERN_BRIGHTNESS of 100, where there is no step up) and falls back
+      to its colour in the picture (its band's in the bands) at full
+      brightness (so the build refuses a LANTERN_BRIGHTNESS of 100, where
+      there is no step up) and falls back
       to the picture over 500 ms (src/keys.c). Pressing every key of a half
       shows which LED sits under which key, one key at a time, where the
       bands show it only band by band. The press that lights an idle half
@@ -219,7 +245,7 @@ config LANTERN_STAIN
       the half is painted over in the day's colours as you
       type, each press in the palette's next colour. The dye goes when the
       countdown changes the picture (LANTERN_COUNTDOWN_STAGE_MS after the
-      last key; the next key brings the bands back and its ring dyes them
+      last key; the next key brings the picture back and its ring dyes it
       afresh) and whenever the LEDs light; without the countdown it stays
       until the LEDs go dark. Default n while canon t-6ttk tries the effects
       one image at a time.

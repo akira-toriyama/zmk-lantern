@@ -70,10 +70,11 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
 - A cable plugged into an idle half lights nothing until its next key: USB is
   no activity to ZMK, and lighting on it would leave the LEDs on with no idle
   event to follow.
-- The picture ([src/keys.c](src/keys.c)): each LED shows one palette slot, the
-  one the consumer's `lantern,keys` node assigns to the key under it, so the
-  palette's colours fall on the keyboard in bands. A slot the host left black
-  shows slot 0, so one colour paints a solid keyboard; without a palette every
+- The picture ([src/keys.c](src/keys.c)): each LED shows one palette slot, by
+  default (the bands) the one the consumer's `lantern,keys` node assigns to
+  the key under it, so the palette's colours fall on the keyboard in bands.
+  A slot the host left black shows slot 0, so one colour paints every key
+  alike; without a palette every
   key is white. Each colour is scaled so that its brightest channel is
   `CONFIG_LANTERN_BRIGHTNESS` percent of full scale (default 16, what ZMK's
   underglow drove on canon's halves before the module painted the strip),
@@ -83,6 +84,12 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
   LEDs light or go dark, when the palette changes while they are lit, when
   the countdown moves a stage, at each throw of the scatter, and every 30 ms
   while an effect moves; a still picture ticks at no rate.
+- The solid (`CONFIG_LANTERN_SOLID`, off by default while canon tries the
+  pictures one at a time): instead of the bands, every key in slot 0, the
+  whole half in one colour; the countdown's pictures are then the whole half
+  in each distinct colour in turn, slot 0's first. The bands, the solid and
+  the scatter are one Kconfig choice, `LANTERN_PICTURE`, set through its
+  members.
 - The scatter (`CONFIG_LANTERN_SCATTER`, off by default while canon tries the
   pictures one at a time): instead of the bands, the palette's slots thrown
   over the half's keys at random, each slot on as many keys as its share of
@@ -102,7 +109,8 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
   ZMK's idle, not for the stages. One colour: the bands until the dark.
 - The press glow (`CONFIG_LANTERN_PRESS_GLOW`, off by default while canon
   tries the effects one at a time): while the LEDs are lit, the LED of a key
-  this half presses jumps to its band's colour at full brightness and falls
+  this half presses jumps to its colour in the picture (its band's in the
+  bands) at full brightness and falls
   back to the picture over 500 ms. Pressing every key of a half shows which
   LED sits under which key, one key at a time. An effect pulls an LED toward
   its colour and never dims the picture; a frame draws at most what every
@@ -133,7 +141,7 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
   have passed, the newer press's colour), so the half is painted over in the
   day's colours as you type, each press in the next colour. The dye goes when
   the countdown changes the picture (the next key
-  brings the bands back and its ring dyes them afresh) and whenever the LEDs
+  brings the picture back and its ring dyes it afresh) and whenever the LEDs
   light; without the countdown it stays until the LEDs go dark.
 
 ## The split link
@@ -283,9 +291,12 @@ to `0x000000`, which the LEDs show as slot 0.
    keeps the LEDs lit on the cable whatever the activity.
    `CONFIG_LANTERN_COUNTDOWN` is on by default with the idle rule and the
    palette, a new picture every `CONFIG_LANTERN_COUNTDOWN_STAGE_MS` (10000):
-   `=n` keeps the bands until the dark. `CONFIG_LANTERN_SCATTER=y` throws the
-   slots over the keys at random instead of the bands (it needs
-   `scatter-weights`). `CONFIG_LANTERN_PRESS_GLOW=y` adds
+   `=n` keeps the picture until the dark (the scatter still throws anew
+   every `CONFIG_LANTERN_SCATTER_MS`). The picture is one Kconfig choice,
+   `LANTERN_PICTURE`, the bands (`CONFIG_LANTERN_BANDS`) by default:
+   `CONFIG_LANTERN_SOLID=y` paints every key in slot 0,
+   `CONFIG_LANTERN_SCATTER=y` throws the slots over the keys at random (it
+   needs `scatter-weights`). `CONFIG_LANTERN_PRESS_GLOW=y` adds
    the press glow, `CONFIG_LANTERN_THIN_RING=y` the thin ring,
    `CONFIG_LANTERN_DISC=y` the disc and `CONFIG_LANTERN_STAIN=y` the stain,
    the ring that dyes (the three need `coords`). On a split

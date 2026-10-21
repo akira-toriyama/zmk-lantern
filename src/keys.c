@@ -3,10 +3,11 @@
  *
  * SPDX-License-Identifier: MIT
  *
- * The key LEDs' picture: each LED shows one palette slot (src/palette.c), the
- * one the consumer's lantern,keys node assigns to the key under it, so the
- * palette's colours fall on the keyboard in bands (canon t-69g7: slots 0..4
- * left to right across both halves); and the countdown to the idle dark
+ * The key LEDs' picture: each LED shows one palette slot (src/palette.c), by
+ * default the one the consumer's lantern,keys node assigns to the key under
+ * it, so the palette's colours fall on the keyboard in bands (canon t-69g7:
+ * slots 0..4 left to right across both halves; the other pictures below);
+ * and the countdown to the idle dark
  * (CONFIG_LANTERN_COUNTDOWN, canon t-gsm2, t-x82q): from the half's last key
  * to its idle dark, the picture changes every CONFIG_LANTERN_COUNTDOWN_STAGE_MS,
  * a stage: the bands, then the whole half in each colour of the palette in
@@ -24,10 +25,12 @@
  *   boot, which the rail rule had to override every time (zmk-lantern up to
  *   2406809 lit the LEDs through it). With it off nothing else touches the
  *   strip, and a frame is written only when something changed.
- * - The picture: LED i shows the colour of slot slots[positions[i]]. A slot
+ * - The picture: LED i shows the colour of one slot, base_slot(i), which the
+ *   Kconfig choice LANTERN_PICTURE makes slots[positions[i]] (the bands, the
+ *   default), 0 (the solid) or the LED's throw (the scatter, both below). A slot
  *   that is 0x000000 shows slot 0 instead: the host clears the slots it does
- *   not send (lantern_palette_send()), so a palette of one colour is a solid
- *   one (canon t-0967 leaves dark colours out of a sprite's palette since
+ *   not send (lantern_palette_send()), so a palette of one colour paints every
+ *   LED alike (canon t-0967 leaves dark colours out of a sprite's palette since
  *   2026-10-20, so black arrives only as a cleared slot). Without a palette
  *   every LED is white. Each colour is scaled so that its brightest channel
  *   is CONFIG_LANTERN_BRIGHTNESS percent of full scale: hue and saturation
@@ -111,7 +114,7 @@
  *   sampling, and a thread that once uses the FPU keeps a larger context
  *   from then on.
  * - The press glow (CONFIG_LANTERN_PRESS_GLOW): a pressed key's LED jumps to
- *   its band's colour at HI_LEVEL and falls back to the picture over GLOW_MS,
+ *   its slot's colour at HI_LEVEL and falls back to the picture over GLOW_MS,
  *   QMK's SOLID_REACTIVE_SIMPLE written from its idea (QMK is GPL: nothing
  *   copied). Pressing every key of a half shows the chain order (positions)
  *   key by key, which the bands show only band by band. Full scale because
@@ -158,10 +161,14 @@
  *   and frames FRAME_MS apart miss it beyond about three units (Opus review,
  *   2026-10-21). The newest ring to have passed an LED dyes it. The dye is
  *   the frame thread's alone (stains[], written where the ring is drawn) and
- *   goes when the countdown moves the picture (the next key brings the bands
- *   back, and its ring dyes them afresh) and when the LEDs blank. It indexes
+ *   goes when the countdown moves the picture (the next key brings it back,
+ *   and its ring dyes it afresh) and when the LEDs blank. It indexes
  *   the shades, so a new palette recolours the dye with it, and a dye past
- *   the new shade count shows the band.
+ *   the new shade count shows the picture.
+ * - The solid (CONFIG_LANTERN_SOLID, canon t-skdt): every LED shows slot 0,
+ *   so the countdown's pictures are the whole half in each shade in turn,
+ *   shade 0's first, and the press glow brightens slot 0's shade. The node
+ *   still carries slots, unread.
  * - The scatter (CONFIG_LANTERN_SCATTER, canon t-skdt): the picture is the
  *   palette's slots thrown over this half's LEDs at random in place of the
  *   bands, each slot on as many LEDs as its share of the node's
@@ -178,8 +185,8 @@
  *   behind one still queued from a blank just before, which then shows the
  *   old throw for one frame. sys_rand32_get() is Zephyr's xoshiro128++ on a
  *   half (CONFIG_XOSHIRO_RANDOM_GENERATOR; thread context, the first call
- *   seeds from the nRF RNG). The node still carries slots: the bands, and
- *   the build without the scatter. Each half throws for itself: the two are
+ *   seeds from the nRF RNG). The node still carries slots, which only the
+ *   bands read. Each half throws for itself: the two are
  *   independent, with the same shares.
  */
 
@@ -344,8 +351,8 @@ COND_CODE_1(DT_INST_NODE_HAS_PROP(0, coords), (DT_FOREACH_PROP_ELEM(NODE, coords
 #define LATCH_US 300
 
 static const struct device *const strip = DEVICE_DT_GET(STRIP);
-/* An image with the scatter and no effect reads neither table (the asserts
- * above still check them). */
+/* An image whose picture is not the bands and that has no effect reads
+ * neither table (the asserts above still check them). */
 static const uint8_t positions[LED_COUNT] __maybe_unused = DT_INST_PROP(0, positions);
 static const uint8_t slots[KEY_COUNT] __maybe_unused = DT_INST_PROP(0, slots);
 #if IS_ENABLED(CONFIG_LANTERN_GEOMETRY)
@@ -438,12 +445,17 @@ static uint8_t stains[LED_COUNT];
 static size_t stained_at;
 #endif
 
-/* The slot LED i shows in the picture: its throw, or its key's band. */
+/* The slot LED i shows in the picture: its throw, slot 0, or its key's band. */
 static uint8_t base_slot(size_t i) {
 #if IS_ENABLED(CONFIG_LANTERN_SCATTER)
     return scatter[i];
-#else
+#elif IS_ENABLED(CONFIG_LANTERN_SOLID)
+    ARG_UNUSED(i);
+    return 0;
+#elif IS_ENABLED(CONFIG_LANTERN_BANDS)
     return slots[positions[i]];
+#else
+#error "base_slot(): a LANTERN_PICTURE member without its picture here"
 #endif
 }
 
@@ -584,7 +596,7 @@ static void hold_to_cap(void) {
 
 #if IS_ENABLED(CONFIG_LANTERN_PRESS_GLOW)
 
-/* Each pressed key's LED pulled toward its band's colour at HI_LEVEL, all the
+/* Each pressed key's LED pulled toward its slot's colour at HI_LEVEL, all the
  * way at the press and not at all GLOW_MS later; the freshest press of a key
  * wins. */
 static void press_glow(const struct shades *sh, const struct hit live[], size_t n) {

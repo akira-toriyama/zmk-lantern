@@ -15,10 +15,13 @@ how to build. Usage: [README.md](README.md). English only.
   bands and then each colour of the palette (`CONFIG_LANTERN_KEYS`,
   `CONFIG_LANTERN_BRIGHTNESS`, `CONFIG_LANTERN_COUNTDOWN`,
   `CONFIG_LANTERN_COUNTDOWN_STAGE_MS`; [src/keys.c](src/keys.c), binding
-  `lantern,keys`); the scatter, the slots thrown over the keys at random by
-  the node's `scatter-weights` and thrown again every ten seconds
-  (`CONFIG_LANTERN_SCATTER`, `CONFIG_LANTERN_SCATTER_MS`, off by default while
-  canon t-skdt tries the pictures one image at a time; src/keys.c); the
+  `lantern,keys`); the pictures in place of the bands, one Kconfig choice
+  (`LANTERN_PICTURE`, the bands `CONFIG_LANTERN_BANDS` by default while
+  canon t-skdt tries the others one image at a time; src/keys.c): the solid,
+  every key in slot 0 (`CONFIG_LANTERN_SOLID`), and the scatter, the slots
+  thrown over the keys at random by the node's `scatter-weights` and thrown
+  again every ten seconds (`CONFIG_LANTERN_SCATTER`,
+  `CONFIG_LANTERN_SCATTER_MS`); the
   effects that move the picture after a key, the press
   glow, the thin ring, the disc and the stain (`CONFIG_LANTERN_PRESS_GLOW`,
   `CONFIG_LANTERN_THIN_RING`, `CONFIG_LANTERN_DISC`, `CONFIG_LANTERN_STAIN`,
@@ -85,7 +88,10 @@ how to build. Usage: [README.md](README.md). English only.
   `CONFIG_LANTERN_THIN_RING=y` or `CONFIG_LANTERN_DISC=y` adds
   `CONFIG_LANTERN_EFFECTS=y`, the last two `CONFIG_LANTERN_GEOMETRY=y` too;
   `CONFIG_LANTERN_STAIN=y` adds `CONFIG_LANTERN_THIN_RING=y`;
-  `CONFIG_LANTERN_SCATTER=y` shows `CONFIG_LANTERN_SCATTER_MS=10000` too.
+  a half shows `CONFIG_LANTERN_BANDS=y`, or `CONFIG_LANTERN_SOLID=y` or
+  `CONFIG_LANTERN_SCATTER=y` in its place, the scatter with
+  `CONFIG_LANTERN_SCATTER_MS=10000` (the choice `LANTERN_PICTURE` has no
+  line of its own: a `--kconfig CONFIG_LANTERN_PICTURE=…` fails the build).
 - Kconfig merge order, later wins: board defconfig → ZMK `app/prj.conf` → the
   shield's confs → the consumer's `config/<prefix>.conf` files →
   `EXTRA_CONF_FILE` fragments (build.sh: logging, `--kconfig`) → `-DCONFIG_*`.
