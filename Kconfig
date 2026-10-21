@@ -31,14 +31,17 @@ config LANTERN_KEYS
       builds none of the painting.
 
 config LANTERN_BRIGHTNESS
-    int "Brightness of the key LEDs: the brightest channel of every colour, in percent of full scale"
+    int "Brightness of the key LEDs, in percent of full scale: the picture's unless LANTERN_PICTURE_BRIGHTNESS is lower, and the base of the frame's cap"
     range 1 100
     default 16
     depends on LANTERN_KEYS
     help
-      Every palette colour is scaled so that its brightest channel is this
-      percentage of full scale (255), which keeps its hue and saturation; a
-      grey or black scales to white at that level. 16 is what ZMK's underglow
+      Every palette colour is scaled so that its brightest channel is a
+      percentage of full scale (255), which keeps its hue and saturation, a
+      grey or black scaling to white: this one, unless
+      LANTERN_PICTURE_BRIGHTNESS sets the picture lower. Whatever the
+      picture, a frame draws at most every LED white at this percentage plus
+      two keys white at full scale (src/keys.c). 16 is what ZMK's underglow
       drove on canon's halves before this module painted the strip
       (brightness 25 between Cyboard's 5 and 50).
 
@@ -53,9 +56,11 @@ config LANTERN_PICTURE_BRIGHTNESS
       that the picture can be dimmer than the effects over it: an effect
       still brightens to full scale and a frame's cap stays the one
       LANTERN_BRIGHTNESS sets, so a dimmer picture leaves the effects as much
-      room or more. Default LANTERN_BRIGHTNESS; never above it (asserted: a
-      still picture could pass the cap). canon t-skdt tries half of it under
-      the disc.
+      room or more. Colours that paint alike at this brightness count once,
+      so a dimmer picture can merge two close colours: one picture fewer in
+      the countdown and one colour fewer in an effect's cycle. Default
+      LANTERN_BRIGHTNESS; never above it (asserted: a still picture could
+      pass the cap). canon t-skdt tries half of it under the disc.
 
 config LANTERN_ON_USB_POWER
     bool "Light the key LEDs while USB powers this half, dark and unpowered on battery"
@@ -111,15 +116,15 @@ config LANTERN_COUNTDOWN
     depends on LANTERN_OFF_WHEN_IDLE
     depends on LANTERN_PALETTE
     help
-      While the key LEDs are lit, each half counts the time since its last
-      key in stages of LANTERN_COUNTDOWN_STAGE_MS and changes the picture at
-      each: the bands, then the whole half in each colour of the palette in
-      turn (a cleared slot is slot 0's colour; colours that paint alike at
-      LANTERN_BRIGHTNESS count once), then the bands again, until ZMK turns
-      idle and LANTERN_OFF_WHEN_IDLE blanks the LEDs. A key brings the bands
-      back and restarts the clock; a cable plugged in lights the stage the
-      keys say (src/keys.c). A sensor or pointing input counts for ZMK's idle
-      and not for this clock. One colour: the bands until the dark.
+      While the key LEDs are lit, each half counts the time since its last key
+      in stages of LANTERN_COUNTDOWN_STAGE_MS and changes the picture at each:
+      the bands, then the whole half in each colour of the palette in turn (a
+      cleared slot is slot 0's colour; colours that paint alike at
+      LANTERN_PICTURE_BRIGHTNESS count once), then the bands again, until ZMK
+      turns idle and LANTERN_OFF_WHEN_IDLE blanks the LEDs. A key brings the
+      bands back and restarts the clock; a cable plugged in lights the stage
+      the keys say (src/keys.c). A sensor or pointing input counts for ZMK's
+      idle and not for this clock. One colour: the bands until the dark.
 
 config LANTERN_COUNTDOWN_STAGE_MS
     int "Milliseconds between two pictures of the countdown"
@@ -166,7 +171,8 @@ config LANTERN_GRADIENT
       the first distinct colour, the rightmost in the last, and each key
       between them the two colours around its place mixed in proportion, in
       slot order, so no two neighbours meet at an edge. A blend's brightest
-      channel is LANTERN_BRIGHTNESS, as a colour's (a blend of two hues
+      channel is the picture's brightness (LANTERN_PICTURE_BRIGHTNESS), as a
+      colour's (a blend of two hues
       lights more channels, so it can look brighter). The halves share the
       board: the left half shows the first stretch, the right half the last.
       A colour shows pure only on a key at its place; no key sits between
@@ -216,7 +222,7 @@ config LANTERN_PRESS_GLOW
       While the key LEDs are lit, the LED of a key this half presses jumps
       to its colour in the picture beneath any dye (its band's in the bands,
       its blend in the gradient) at full brightness (so the build refuses a
-      LANTERN_BRIGHTNESS of 100, where there is no step up) and falls back
+      LANTERN_BRIGHTNESS of 100) and falls back
       to what the key showed over 500 ms (src/keys.c). Pressing every key
       of a half shows which LED sits under which key, one key at a time,
       where the bands show it only band by band. The press that lights an

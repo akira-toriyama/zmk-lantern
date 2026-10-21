@@ -55,11 +55,12 @@
  *   matter. Zephyr hands a key to the handler whose name matches most of
  *   it, so this subtree and on_usb_power.c's "lantern" (which refuses every
  *   key) coexist.
- * - What the slots change: the picture src/keys.c paints, each key its
- *   slot's colour, at the device's brightness (CONFIG_LANTERN_BRIGHTNESS); a
- *   grey or black paints white, and a black slot other than 0 paints slot 0.
- *   A device without the keys node (canon's Imprint Dongle) keeps and
- *   forwards the palette and paints nothing.
+ * - What the slots change: the picture src/keys.c paints, each key its slot's
+ *   colour, at the picture's brightness (CONFIG_LANTERN_PICTURE_BRIGHTNESS,
+ *   CONFIG_LANTERN_BRIGHTNESS by default); a grey or black paints white, and
+ *   a black slot other than 0 paints slot 0. A device without the keys node
+ *   (canon's Imprint Dongle) keeps and forwards the palette and paints
+ *   nothing.
  * - Resend (a split central, CONFIG_ZMK_SPLIT_ROLE_CENTRAL): a half that was
  *   away when the host set the palette, or that lost its settings, gets it at
  *   its next battery report. ZMK's split central raises

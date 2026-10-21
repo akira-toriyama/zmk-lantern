@@ -73,20 +73,21 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
 - The picture ([src/keys.c](src/keys.c)): each LED shows its key's colour in
   the picture, by default (the bands) the palette slot the consumer's
   `lantern,keys` node assigns to the key under it, so the palette's colours
-  fall on the keyboard in bands.
-  A slot the host left black shows slot 0, so one colour paints every key
-  alike; without a palette every
-  key is white. Each colour is scaled so that its brightest channel is
+  fall on the keyboard in bands. A slot the host left black shows slot 0, so
+  one colour paints every key alike; without a palette every key is white.
+  Each colour is scaled so that its brightest channel is, by default,
   `CONFIG_LANTERN_BRIGHTNESS` percent of full scale (default 16, what ZMK's
   underglow drove on canon's halves before the module painted the strip),
   which keeps its hue and saturation; a grey or black scales to white. The
-  picture alone can be dimmer than the effects over it
-  (`CONFIG_LANTERN_PICTURE_BRIGHTNESS`, at most the brightness). The
-  module is the strip's one writer: ZMK's underglow stays off on such a half
-  (`CONFIG_ZMK_RGB_UNDERGLOW=n`, asserted), and a frame goes out only when the
-  LEDs light or go dark, when the palette changes while they are lit, when
-  the countdown moves a stage, at each throw of the scatter, and every 30 ms
-  while an effect moves; a still picture ticks at no rate.
+  picture's colours, with the countdown's other pictures and the stain's dye,
+  can be dimmed below the brightness (`CONFIG_LANTERN_PICTURE_BRIGHTNESS`, the
+  same by default) while the effects keep full scale and the frame's cap stays
+  counted from the brightness. The module is the strip's one writer: ZMK's
+  underglow stays off on such a half (`CONFIG_ZMK_RGB_UNDERGLOW=n`, asserted),
+  and a frame goes out only when the LEDs light or go dark, when the palette
+  changes while they are lit, when the countdown moves a stage, at each throw
+  of the scatter, and every 30 ms while an effect moves; a still picture ticks
+  at no rate.
 - The solid (`CONFIG_LANTERN_SOLID`, off by default while canon tries the
   pictures one at a time): instead of the bands, every key in slot 0, the
   whole half in one colour; the countdown's pictures are then the whole half
@@ -98,8 +99,8 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
   blended across the whole board by each key's x (the node's `coords`): the
   leftmost key in the first distinct colour (colours that paint alike count
   once), the rightmost in the last, each key between them the two colours
-  around its place mixed in proportion, so no band edges; a blend's
-  brightest channel is the brightness, as a colour's. The halves share the
+  around its place mixed in proportion, so no band edges; a blend's brightest
+  channel is the picture's brightness, as a colour's. The halves share the
   board: the left half shows the first stretch, the right half the last. A
   colour shows pure only on a key at its place; no key sits between the
   halves, so a colour whose place lies there never does.
@@ -114,7 +115,7 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
   and the palette): from the half's last key, the picture changes every
   `CONFIG_LANTERN_COUNTDOWN_STAGE_MS` (default 10000): the bands, then the
   whole half in each colour of the palette in turn (a slot the host left
-  black is slot 0's colour; colours that paint alike at the device's
+  black is slot 0's colour; colours that paint alike at the picture's
   brightness count once), then the bands again, until ZMK turns idle and the
   LEDs go dark. A key brings the bands back and restarts the clock; a cable
   plugged into a half that typed a while ago lights the stage its keys say.
@@ -129,8 +130,8 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
   LED toward its colour and never dims the picture; a frame draws at most what
   every LED white plus two keys white at full brightness would (an estimate of
   280 + 100 mA at 16 %, unmeasured), so more keys glowing at once on a white
-  picture share that and glow less. The brightness must stay below 100 % for
-  an effect to show (asserted).
+  picture at the brightness share that and glow less. The brightness must
+  stay below 100 % with an effect (asserted).
 - The thin ring (`CONFIG_LANTERN_THIN_RING`, off by default likewise): from
   each key this half presses a ring one key wide spreads at twelve key units
   a second and fades out over a second, so it has crossed the half when it
@@ -291,36 +292,35 @@ than six colours clears the rest to `0x000000`, which the LEDs show as slot
    ```
 
    `CONFIG_LANTERN_KEYS` and `CONFIG_LANTERN_ON_USB_POWER` are on by default
-   wherever their nodes exist; `CONFIG_LANTERN_BRIGHTNESS` (default 16) is
-   the LEDs' brightness and `CONFIG_LANTERN_PICTURE_BRIGHTNESS` (at most
-   that, the same by default) the picture's alone, dimmer under the effects
-   when lower; `CONFIG_LANTERN_BOOT_LIGHT_MS=0` drops the boot
-   light. ZMK's underglow must be off on such a half (its tick would repaint
-   the strip; Cyboard's module defaults it to y for every target). A missing
-   or conflicting option fails the build with a message naming it. A target
-   without the nodes (a dongle) builds none of the painting or the rail.
-   `CONFIG_LANTERN_OFF_WHEN_IDLE` is on by default with the rail, and the idle
-   timeout is ZMK's `CONFIG_ZMK_IDLE_TIMEOUT` (default 30000 ms; 300000 is the
-   five minutes of canon's halves): the module has no timer of its own, ZMK's
-   activity state already counts keys, sensors and pointing input per device.
-   With `CONFIG_ZMK_SLEEP=n` the timeout moves nothing else in a half but the
-   battery sampling, which ZMK pauses while idle; `CONFIG_LANTERN_OFF_WHEN_IDLE=n`
-   keeps the LEDs lit on the cable whatever the activity.
-   `CONFIG_LANTERN_COUNTDOWN` is on by default with the idle rule and the
-   palette, a new picture every `CONFIG_LANTERN_COUNTDOWN_STAGE_MS` (10000):
-   `=n` keeps the picture until the dark (the scatter still throws anew
-   every `CONFIG_LANTERN_SCATTER_MS`). The picture is one Kconfig choice,
-   `LANTERN_PICTURE`, the bands (`CONFIG_LANTERN_BANDS`) by default:
-   `CONFIG_LANTERN_SOLID=y` paints every key in slot 0,
-   `CONFIG_LANTERN_GRADIENT=y` blends the colours across the board by the
-   keys' x (it needs `coords`), `CONFIG_LANTERN_SCATTER=y` throws the slots
-   over the keys at random (it needs `scatter-weights`).
-   `CONFIG_LANTERN_PRESS_GLOW=y` adds
-   the press glow, `CONFIG_LANTERN_THIN_RING=y` the thin ring,
-   `CONFIG_LANTERN_DISC=y` the disc and `CONFIG_LANTERN_STAIN=y` the stain,
-   the ring that dyes (the three need `coords`). On a split
-   peripheral `CONFIG_LANTERN_USB_LATENCY` is on
-   by default with the rail; `=n` leaves the link at the central's latency.
+   wherever their nodes exist; `CONFIG_LANTERN_BRIGHTNESS` (default 16) sets
+   the frame's cap and, by default, the picture's brightness, which
+   `CONFIG_LANTERN_PICTURE_BRIGHTNESS` (at most it) lowers alone;
+   `CONFIG_LANTERN_BOOT_LIGHT_MS=0` drops the boot light. ZMK's underglow must
+   be off on such a half (its tick would repaint the strip; Cyboard's module
+   defaults it to y for every target). A missing or conflicting option fails
+   the build with a message naming it. A target without the nodes (a dongle)
+   builds none of the painting or the rail. `CONFIG_LANTERN_OFF_WHEN_IDLE` is
+   on by default with the rail, and the idle timeout is ZMK's
+   `CONFIG_ZMK_IDLE_TIMEOUT` (default 30000 ms; 300000 is the five minutes of
+   canon's halves): the module has no timer of its own, ZMK's activity state
+   already counts keys, sensors and pointing input per device. With
+   `CONFIG_ZMK_SLEEP=n` the timeout moves nothing else in a half but the
+   battery sampling, which ZMK pauses while idle;
+   `CONFIG_LANTERN_OFF_WHEN_IDLE=n` keeps the LEDs lit on the cable whatever
+   the activity. `CONFIG_LANTERN_COUNTDOWN` is on by default with the idle
+   rule and the palette, a new picture every
+   `CONFIG_LANTERN_COUNTDOWN_STAGE_MS` (10000): `=n` keeps the picture until
+   the dark (the scatter still throws anew every `CONFIG_LANTERN_SCATTER_MS`).
+   The picture is one Kconfig choice, `LANTERN_PICTURE`, the bands
+   (`CONFIG_LANTERN_BANDS`) by default: `CONFIG_LANTERN_SOLID=y` paints every
+   key in slot 0, `CONFIG_LANTERN_GRADIENT=y` blends the colours across the
+   board by the keys' x (it needs `coords`), `CONFIG_LANTERN_SCATTER=y` throws
+   the slots over the keys at random (it needs `scatter-weights`).
+   `CONFIG_LANTERN_PRESS_GLOW=y` adds the press glow,
+   `CONFIG_LANTERN_THIN_RING=y` the thin ring, `CONFIG_LANTERN_DISC=y` the
+   disc and `CONFIG_LANTERN_STAIN=y` the stain, the ring that dyes (the three
+   need `coords`). On a split peripheral `CONFIG_LANTERN_USB_LATENCY` is on by
+   default with the rail; `=n` leaves the link at the central's latency.
 
 4. The palette's node, on every device of the split under the one name
    (canon: in its keymap's behaviors; [config/palette.dtsi](config/palette.dtsi)

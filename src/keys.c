@@ -33,18 +33,18 @@
  *   it does not send (lantern_palette_send()), so a palette of one colour
  *   paints every LED alike (canon t-0967 leaves dark colours out of a
  *   sprite's palette since 2026-10-20, so black arrives only as a cleared
- *   slot). Without a palette every LED is white. Each colour is scaled so
- *   that its brightest channel is CONFIG_LANTERN_BRIGHTNESS percent of full
- *   scale: hue and saturation are the colour's, the brightness is the
- *   device's (the LEDs sit under keycaps; 16 is what ZMK's underglow drove at
- *   canon's earlier settings, brightness 25 between 5 and 50). A grey has no
- *   hue and scales to white; so does black, which has no brightest channel,
- *   when it is slot 0. The picture's colours (the picture, the countdown's
- *   other pictures, the stain's dye) take CONFIG_LANTERN_PICTURE_BRIGHTNESS
- *   instead, the same by default and never above it (asserted): a picture
- *   dimmed under the effects (canon t-skdt), whose brightening and cap stay
- *   the device's, so that the dimmer picture leaves them as much room or
- *   more.
+ *   slot). Without a palette every LED is white. Each colour of the picture
+ *   (the picture, the countdown's other pictures, the stain's dye) is scaled
+ *   so that its brightest channel is CONFIG_LANTERN_PICTURE_BRIGHTNESS
+ *   percent of full scale: hue and saturation are the colour's, the
+ *   brightness is the device's. That is CONFIG_LANTERN_BRIGHTNESS by default
+ *   and never above it (asserted), the device's brightness, from which the
+ *   frame's cap counts (the LEDs sit under keycaps; 16 is what ZMK's
+ *   underglow drove at canon's earlier settings, brightness 25 between 5 and
+ *   50); a picture dimmed below it (canon t-skdt) leaves the effects, which
+ *   brighten to full scale under the same cap, as much room or more. A grey
+ *   has no hue and scales to white; so does black, which has no brightest
+ *   channel, when it is slot 0.
  * - The countdown: the pictures are the bands and then the palette's shades
  *   in slot order, N of them (a cleared slot is slot 0's; two colours that
  *   scale to one shade, a hue at two brightnesses or two greys, are one:
@@ -116,7 +116,8 @@
  *   LEDs at 16 %, from 60 mA a full white LED: an estimate, unmeasured): with
  *   CAP at the white picture alone, a white or grey band left an effect no
  *   room (Opus review, 2026-10-20). More keys at full scale than CAP_KEYS, on
- *   a white picture, share the room and all dim alike. Integers only: the low
+ *   a white picture at the device's brightness, share the room and all dim
+ *   alike. Integers only: the low
  *   priority queue's 768-byte stack is shared with ZMK's battery sampling,
  *   and a thread that once uses the FPU keeps a larger context from then on.
  * - The press glow (CONFIG_LANTERN_PRESS_GLOW): a pressed key's LED jumps to
@@ -271,8 +272,8 @@ DT_FOREACH_PROP_ELEM(NODE, positions, POSITION_IN_RANGE)
                  "lantern,keys: a slots entry is no palette slot (0 to 5)");
 DT_FOREACH_PROP_ELEM(NODE, slots, SLOT_IN_RANGE)
 
-/* The brightest channel of the device's colours, which the frame's cap counts
- * from, and of the picture's at most (the header). */
+/* The device's brightness as a channel value, which the frame's cap counts
+ * from, and the picture's, at most it (the header). */
 #define LEVEL ((255 * CONFIG_LANTERN_BRIGHTNESS + 50) / 100)
 #define PICTURE_LEVEL ((255 * CONFIG_LANTERN_PICTURE_BRIGHTNESS + 50) / 100)
 BUILD_ASSERT(PICTURE_LEVEL <= LEVEL,
@@ -282,8 +283,8 @@ BUILD_ASSERT(PICTURE_LEVEL <= LEVEL,
 #if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
 /* The brightest channel of an effect's colour: full scale (the header). */
 #define HI_LEVEL 255
-BUILD_ASSERT(HI_LEVEL > LEVEL, "CONFIG_LANTERN_BRIGHTNESS 100 leaves an effect no headroom: an "
-                               "effect brightens to full scale");
+BUILD_ASSERT(HI_LEVEL > LEVEL, "CONFIG_LANTERN_BRIGHTNESS 100 leaves the frame's cap no room for "
+                               "an effect, which brightens to full scale");
 #define FRAME_MS 30
 #define HITS 8
 /* The channel sum no frame exceeds: every LED white at LEVEL, plus CAP_KEYS
@@ -447,7 +448,8 @@ static uint32_t slot_rgb(const uint32_t palette[LANTERN_PALETTE_SLOTS], bool hav
 /* The shades a frame is made of: the palette's colours at PICTURE_LEVEL, the
  * distinct ones in slot order (a cleared slot is slot 0's; without a palette
  * one white), each with the 0xRRGGBB it was scaled from, for an effect that
- * paints it at another level, and each slot's rank among them. */
+ * paints it at another level and for the gradient's full-scale blend, and
+ * each slot's rank among them. */
 struct shades {
     size_t n; /* 1..LANTERN_PALETTE_SLOTS */
     struct led_rgb at_level[LANTERN_PALETTE_SLOTS];

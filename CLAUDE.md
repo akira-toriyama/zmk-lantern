@@ -13,7 +13,8 @@ how to build. Usage: [README.md](README.md). English only.
   palette slot the consumer's node assigns to the key under it, and the
   countdown to the idle dark: the pictures cycling every ten seconds, the
   bands and then each colour of the palette (`CONFIG_LANTERN_KEYS`,
-  `CONFIG_LANTERN_BRIGHTNESS`, `CONFIG_LANTERN_COUNTDOWN`,
+  `CONFIG_LANTERN_BRIGHTNESS`, `CONFIG_LANTERN_PICTURE_BRIGHTNESS`,
+  `CONFIG_LANTERN_COUNTDOWN`,
   `CONFIG_LANTERN_COUNTDOWN_STAGE_MS`; [src/keys.c](src/keys.c), binding
   `lantern,keys`); the pictures in place of the bands, one Kconfig choice
   (`LANTERN_PICTURE`, the bands `CONFIG_LANTERN_BANDS` by default while
