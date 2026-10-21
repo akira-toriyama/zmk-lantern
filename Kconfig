@@ -14,11 +14,11 @@ config LANTERN_KEYS
     help
       On a device with a lantern,keys node (a split half of the Cyboard
       Imprint in canon): the module is the one writer of the node's strip
-      (src/keys.c). Each LED shows a palette slot: in the bands, the default
-      picture (LANTERN_PICTURE), the one the node assigns to the key under
-      it (positions: the key under each LED, in chain order; slots: the slot
-      of each key position), so the palette's colours fall on the keyboard
-      in bands; a slot that is 0x000000 shows slot 0, and a
+      (src/keys.c). Each LED shows the picture the choice LANTERN_PICTURE
+      picks, by default the bands: the palette slot the node assigns to the
+      key under it (positions: the key under each LED, in chain order;
+      slots: the slot of each key position), so the palette's colours fall
+      on the keyboard in bands. A slot that is 0x000000 shows slot 0, and a
       device without a palette shows white. A frame is written when the LEDs
       light or go dark (LANTERN_ON_USB_POWER) and when the palette changes,
       on ZMK's low priority work queue, which this selects.
@@ -142,6 +142,24 @@ config LANTERN_SOLID
       (colours that paint alike count once), slot 0's first. The node keeps
       slots, which this picture does not read.
 
+config LANTERN_GRADIENT
+    bool "The palette's colours blended across the board from left to right, by each key's x"
+    select LANTERN_GEOMETRY
+    help
+      Each LED shows a blend of the palette's colours by its key's place on
+      the whole board (the lantern,keys node's coords): the leftmost key in
+      the first distinct colour, the rightmost in the last, and each key
+      between them the two colours around its place mixed in proportion, in
+      slot order, so no two neighbours meet at an edge. A blend's brightest
+      channel is LANTERN_BRIGHTNESS, as a colour's (a blend of two hues
+      lights more channels, so it can look brighter). The halves share the
+      board: the left half shows the first stretch, the right half the last.
+      A colour shows pure only on a key at its place; no key sits between
+      the halves, so a colour whose place lies there never does. The
+      countdown's other pictures are as with the bands, and the press glow
+      brightens the key's blend. Needs the node's coords (asserted). The
+      node keeps slots, which this picture does not read.
+
 config LANTERN_SCATTER
     bool "Throw the palette's slots over the keys at random, by the node's weights, a new throw every LANTERN_SCATTER_MS"
     depends on ENTROPY_HAS_DRIVER || TEST_RANDOM_GENERATOR
@@ -181,23 +199,24 @@ config LANTERN_PRESS_GLOW
     select LANTERN_EFFECTS
     help
       While the key LEDs are lit, the LED of a key this half presses jumps
-      to its colour in the picture (its band's in the bands) at full
-      brightness (so the build refuses a LANTERN_BRIGHTNESS of 100, where
-      there is no step up) and falls back
-      to the picture over 500 ms (src/keys.c). Pressing every key of a half
-      shows which LED sits under which key, one key at a time, where the
-      bands show it only band by band. The press that lights an idle half
-      shows the picture alone. Default n while canon t-6ttk tries the
+      to its colour in the picture beneath any dye (its band's in the bands,
+      its blend in the gradient) at full brightness (so the build refuses a
+      LANTERN_BRIGHTNESS of 100, where there is no step up) and falls back
+      to what the key showed over 500 ms (src/keys.c). Pressing every key
+      of a half shows which LED sits under which key, one key at a time,
+      where the bands show it only band by band. The press that lights an
+      idle half shows the picture alone. Default n while canon t-6ttk tries the
       effects one image at a time.
 
 config LANTERN_GEOMETRY
     bool
     help
-      The board's geometry for the effects that measure it (src/keys.c): the
+      The board's geometry for what measures it (src/keys.c): the
       lantern,keys node's coords, an x and a y per key position in hundredths
       of a key unit (asserted present and twice the key count), and the
-      distance between two keys through an integer square root. Each such
-      effect selects it; nothing to set.
+      distance between two keys through an integer square root. Each effect
+      that measures the board selects it, and the gradient picture for the
+      coords alone; nothing to set.
 
 config LANTERN_THIN_RING
     bool "Spread a thin ring of the palette's next colour from each pressed key"
@@ -277,7 +296,7 @@ config LANTERN_PALETTE
       Six colours (0xRRGGBB, slots 0..5) that the host hands the split
       central (LANTERN_PALETTE_PORT) and that the central and every half keep
       in their settings ("lantern/palette/colours"); a half's key LEDs show
-      them in the bands its lantern,keys node draws (LANTERN_KEYS), repainted
+      them in the picture (LANTERN_KEYS; the bands by default), repainted
       when a palette arrives while they are lit and shown at every boot. A
       set of fewer than six colours clears the rest to 0x000000, which the
       LEDs show as slot 0. The central's code invokes the

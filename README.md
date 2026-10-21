@@ -3,15 +3,15 @@
 A [ZMK](https://zmk.dev) module that lights a keyboard's key LEDs only while
 USB powers it and it is in use, and paints them from a palette the host hands
 the keyboard. While a cable powers the half, its LED rail is on and every key
-shows its palette colour; on battery the LEDs are black and the rail is off,
-so they cost the battery nothing; on the cable, five minutes without a key
-(ZMK's idle state) turn them off until the next one, and on the way there the
-half cycles through the palette's colours, the whole half in one colour for
-ten seconds, then the next. At boot the LEDs light for a second, cable or
-not, and then the rule applies. The palette: six
-colours handed to the keyboard's split central over USB, kept by every half
-across boots, and shown on the keys in the bands the consumer's overlay draws
-(the palette, below).
+shows its colour in the palette's picture; on battery the LEDs are black and
+the rail is off, so they cost the battery nothing; on the cable, five minutes
+without a key (ZMK's idle state) turn them off until the next one, and on the
+way there the half cycles through the palette's colours, the whole half in one
+colour for ten seconds, then the next. At boot the LEDs light for a second,
+cable or not, and then the rule applies. The palette: six colours handed to
+the keyboard's split central over USB, kept by every half across boots, and
+shown on the keys in the picture the module paints, by default the bands the
+consumer's overlay draws (the palette, below).
 
 Built for the **Cyboard Imprint** of
 [akira-toriyama/canon](https://github.com/akira-toriyama/canon), whose halves
@@ -70,9 +70,10 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
 - A cable plugged into an idle half lights nothing until its next key: USB is
   no activity to ZMK, and lighting on it would leave the LEDs on with no idle
   event to follow.
-- The picture ([src/keys.c](src/keys.c)): each LED shows one palette slot, by
-  default (the bands) the one the consumer's `lantern,keys` node assigns to
-  the key under it, so the palette's colours fall on the keyboard in bands.
+- The picture ([src/keys.c](src/keys.c)): each LED shows its key's colour in
+  the picture, by default (the bands) the palette slot the consumer's
+  `lantern,keys` node assigns to the key under it, so the palette's colours
+  fall on the keyboard in bands.
   A slot the host left black shows slot 0, so one colour paints every key
   alike; without a palette every
   key is white. Each colour is scaled so that its brightest channel is
@@ -87,9 +88,19 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
 - The solid (`CONFIG_LANTERN_SOLID`, off by default while canon tries the
   pictures one at a time): instead of the bands, every key in slot 0, the
   whole half in one colour; the countdown's pictures are then the whole half
-  in each distinct colour in turn, slot 0's first. The bands, the solid and
-  the scatter are one Kconfig choice, `LANTERN_PICTURE`, set through its
-  members.
+  in each distinct colour in turn, slot 0's first. The bands, the solid,
+  the gradient and the scatter are one Kconfig choice, `LANTERN_PICTURE`,
+  set through its members.
+- The gradient (`CONFIG_LANTERN_GRADIENT`, off by default while canon tries
+  the pictures one at a time): instead of the bands, the palette's colours
+  blended across the whole board by each key's x (the node's `coords`): the
+  leftmost key in the first distinct colour (colours that paint alike count
+  once), the rightmost in the last, each key between them the two colours
+  around its place mixed in proportion, so no band edges; a blend's
+  brightest channel is the brightness, as a colour's. The halves share the
+  board: the left half shows the first stretch, the right half the last. A
+  colour shows pure only on a key at its place; no key sits between the
+  halves, so a colour whose place lies there never does.
 - The scatter (`CONFIG_LANTERN_SCATTER`, off by default while canon tries the
   pictures one at a time): instead of the bands, the palette's slots thrown
   over the half's keys at random, each slot on as many keys as its share of
@@ -109,12 +120,12 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
   ZMK's idle, not for the stages. One colour: the bands until the dark.
 - The press glow (`CONFIG_LANTERN_PRESS_GLOW`, off by default while canon
   tries the effects one at a time): while the LEDs are lit, the LED of a key
-  this half presses jumps to its colour in the picture (its band's in the
-  bands) at full brightness and falls
-  back to the picture over 500 ms. Pressing every key of a half shows which
-  LED sits under which key, one key at a time. An effect pulls an LED toward
-  its colour and never dims the picture; a frame draws at most what every
-  LED white plus two keys white at full brightness would (an estimate of
+  this half presses jumps to its colour in the picture beneath any dye (its
+  band's in the bands, its blend in the gradient) at full brightness and
+  falls back to what the key showed over 500 ms. Pressing every key of a half
+  shows which LED sits under which key, one key at a time. An effect pulls an
+  LED toward its colour and never dims the picture; a frame draws at most what
+  every LED white plus two keys white at full brightness would (an estimate of
   280 + 100 mA at 16 %, unmeasured), so more keys glowing at once on a white
   picture share that and glow less. The brightness must stay below 100 % for
   an effect to show (asserted).
@@ -163,10 +174,11 @@ request for the first 5 s of a connection, and the central's host accepts it
 
 Six colours (`0xRRGGBB`, slots 0..5) that the host hands the keyboard's split
 central and that the central and every half keep in their settings
-(`lantern/palette/colours`); a half's key LEDs show them in the bands its
-`lantern,keys` node draws, repainted when a palette arrives while they are
-lit and shown at every boot. A set of fewer than six colours clears the rest
-to `0x000000`, which the LEDs show as slot 0.
+(`lantern/palette/colours`); a half's key LEDs show them in the picture
+(by default the bands its `lantern,keys` node draws), repainted when a
+palette arrives while they are lit and shown at every boot. A set of fewer
+than six colours clears the rest to `0x000000`, which the LEDs show as slot
+0.
 
 - The host writes a text line on the central's USB CDC ACM port (canon:
   `scripts/dongle.py palette`): `palette RRGGBB [RRGGBB ...]` (one to six)
@@ -261,9 +273,10 @@ to `0x000000`, which the LEDs show as slot 0.
    `positions` is measured on the hardware, one LED at a time (canon's t-69g7
    probe); `slots` has one entry per key position of the chosen matrix
    transform (asserted), so a table in the keymap's shape reads as the
-   picture, 0 to 5 each; `coords` has an x and a y per key position, in
+   bands, 0 to 5 each; `coords` has an x and a y per key position, in
    hundredths of a key unit on the whole board (canon: `imprint.json` times
-   100), for the effects that measure the board, which assert it. A consumer
+   100), for what measures the board (the thin ring, the disc, the
+   gradient), which asserts it. A consumer
    with per-half overlays puts `slots`, `coords` and `scatter-weights` in a shared dtsi and each
    half's `positions` and `chain-length` in its own overlay (canon's
    `config/lantern_keys.dtsi`).
@@ -295,8 +308,10 @@ to `0x000000`, which the LEDs show as slot 0.
    every `CONFIG_LANTERN_SCATTER_MS`). The picture is one Kconfig choice,
    `LANTERN_PICTURE`, the bands (`CONFIG_LANTERN_BANDS`) by default:
    `CONFIG_LANTERN_SOLID=y` paints every key in slot 0,
-   `CONFIG_LANTERN_SCATTER=y` throws the slots over the keys at random (it
-   needs `scatter-weights`). `CONFIG_LANTERN_PRESS_GLOW=y` adds
+   `CONFIG_LANTERN_GRADIENT=y` blends the colours across the board by the
+   keys' x (it needs `coords`), `CONFIG_LANTERN_SCATTER=y` throws the slots
+   over the keys at random (it needs `scatter-weights`).
+   `CONFIG_LANTERN_PRESS_GLOW=y` adds
    the press glow, `CONFIG_LANTERN_THIN_RING=y` the thin ring,
    `CONFIG_LANTERN_DISC=y` the disc and `CONFIG_LANTERN_STAIN=y` the stain,
    the ring that dyes (the three need `coords`). On a split

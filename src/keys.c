@@ -3,11 +3,11 @@
  *
  * SPDX-License-Identifier: MIT
  *
- * The key LEDs' picture: each LED shows one palette slot (src/palette.c), by
- * default the one the consumer's lantern,keys node assigns to the key under
- * it, so the palette's colours fall on the keyboard in bands (canon t-69g7:
- * slots 0..4 left to right across both halves; the other pictures below);
- * and the countdown to the idle dark
+ * The key LEDs' picture: each LED shows its key's colour in the picture, by
+ * default the palette slot (src/palette.c) the consumer's lantern,keys node
+ * assigns to the key, so the palette's colours fall on the keyboard in bands
+ * (canon t-69g7: slots 0..4 left to right across both halves; the other
+ * pictures below); and the countdown to the idle dark
  * (CONFIG_LANTERN_COUNTDOWN, canon t-gsm2, t-x82q): from the half's last key
  * to its idle dark, the picture changes every CONFIG_LANTERN_COUNTDOWN_STAGE_MS,
  * a stage: the bands, then the whole half in each colour of the palette in
@@ -27,11 +27,13 @@
  *   strip, and a frame is written only when something changed.
  * - The picture: LED i shows the colour of one slot, base_slot(i), which the
  *   Kconfig choice LANTERN_PICTURE makes slots[positions[i]] (the bands, the
- *   default), 0 (the solid) or the LED's throw (the scatter, both below). A slot
- *   that is 0x000000 shows slot 0 instead: the host clears the slots it does
- *   not send (lantern_palette_send()), so a palette of one colour paints every
- *   LED alike (canon t-0967 leaves dark colours out of a sprite's palette since
- *   2026-10-20, so black arrives only as a cleared slot). Without a palette
+ *   default), 0 (the solid) or the LED's throw (the scatter); the gradient
+ *   shows ramp()'s blend of two shades in place of a slot (the three below).
+ *   A slot that is
+ *   0x000000 shows slot 0 instead: the host clears the slots it does not
+ *   send (lantern_palette_send()), so a palette of one colour paints every
+ *   LED alike (canon t-0967 leaves dark colours out of a sprite's palette
+ *   since 2026-10-20, so black arrives only as a cleared slot). Without a palette
  *   every LED is white. Each colour is scaled so that its brightest channel
  *   is CONFIG_LANTERN_BRIGHTNESS percent of full scale: hue and saturation
  *   are the colour's, the brightness is the device's (the LEDs sit under
@@ -114,7 +116,8 @@
  *   sampling, and a thread that once uses the FPU keeps a larger context
  *   from then on.
  * - The press glow (CONFIG_LANTERN_PRESS_GLOW): a pressed key's LED jumps to
- *   its slot's colour at HI_LEVEL and falls back to the picture over GLOW_MS,
+ *   its colour in the picture beneath any dye (its slot's shade, its blend in
+ *   the gradient) at HI_LEVEL and falls back to what it showed over GLOW_MS,
  *   QMK's SOLID_REACTIVE_SIMPLE written from its idea (QMK is GPL: nothing
  *   copied). Pressing every key of a half shows the chain order (positions)
  *   key by key, which the bands show only band by band. Full scale because
@@ -138,13 +141,13 @@
  *   unmeasured) on the preemptible low priority thread, and keeps the FPU
  *   out of it (above). The coords, the square root and the distance are
  *   CONFIG_LANTERN_GEOMETRY's, which each effect that measures the board
- *   selects.
+ *   selects, and the gradient for the coords alone.
  * - The disc (CONFIG_LANTERN_DISC): from a pressed key a rim spreads at
  *   DISC_SPEED key units a second, and each LED it has passed starts at
  *   HI_LEVEL and fades back to the picture over DISC_FADE_MS, so the disc is
  *   brightest at its rim and dark behind it; inside it the palette's shades
- *   pass in slot order, the LED's colour running once around the cyclic
- *   gradient through the distinct shades while it fades, shade 0 at the rim.
+ *   pass in slot order, the LED's colour running once around the cycle
+ *   through the distinct shades while it fades, shade 0 at the rim.
  *   QMK's SPLASH written from its idea (QMK is GPL: nothing copied). An LED
  *   under two discs shows the stronger one's colour at their summed strength,
  *   as under two rings. A hit lives DISC_MS, long enough for the rim to cross
@@ -169,6 +172,21 @@
  *   so the countdown's pictures are the whole half in each shade in turn,
  *   shade 0's first, and the press glow brightens slot 0's shade. The node
  *   still carries slots, unread.
+ * - The gradient (CONFIG_LANTERN_GRADIENT, canon t-skdt): ramp() puts each
+ *   key on one line through the shades in slot order by its x on the whole
+ *   board (the coords): the leftmost key at shade 0, the rightmost at the
+ *   last, and an LED between two shades shows them mixed in proportion; one
+ *   on a shade's place shows that shade exactly. Both shades are taken at
+ *   full scale and the mix brought to the level after, so a blend's
+ *   brightest channel is LEVEL, as a shade's (mixed at LEVEL, two hues would
+ *   dim each other). The halves share the board, each showing its stretch of
+ *   the one line. A shade shows pure only on a key at its place (canon: the
+ *   ends always, the others by the shade count); no key sits between the
+ *   halves, so a shade whose place lies there never does. The board's ends
+ *   are measured once, at the first frame that shows the gradient. The
+ *   countdown's other pictures and the stain's dye are shades as with the
+ *   bands; the press glow brightens the LED's blend. The node still carries
+ *   slots, unread.
  * - The scatter (CONFIG_LANTERN_SCATTER, canon t-skdt): the picture is the
  *   palette's slots thrown over this half's LEDs at random in place of the
  *   bands, each slot on as many LEDs as its share of the node's
@@ -329,7 +347,8 @@ BUILD_ASSERT(HIT_LIFE_MS < HIT_TIME / 2, "a hit's age must be told from a wrappe
 
 #if IS_ENABLED(CONFIG_LANTERN_GEOMETRY)
 BUILD_ASSERT(DT_INST_NODE_HAS_PROP(0, coords),
-             "an effect that measures the board (CONFIG_LANTERN_GEOMETRY) needs lantern,keys coords");
+             "what measures the board (CONFIG_LANTERN_GEOMETRY: the thin ring, the disc or the "
+             "gradient) needs lantern,keys coords");
 BUILD_ASSERT(COND_CODE_1(DT_INST_NODE_HAS_PROP(0, coords), (DT_INST_PROP_LEN(0, coords)), (0)) ==
                  2 * KEY_COUNT,
              "lantern,keys: coords needs an x and a y per key position of slots");
@@ -351,8 +370,8 @@ COND_CODE_1(DT_INST_NODE_HAS_PROP(0, coords), (DT_FOREACH_PROP_ELEM(NODE, coords
 #define LATCH_US 300
 
 static const struct device *const strip = DEVICE_DT_GET(STRIP);
-/* An image whose picture is not the bands and that has no effect reads
- * neither table (the asserts above still check them). */
+/* Without an effect the solid and the scatter read neither table and the
+ * gradient positions alone (the asserts above still check both). */
 static const uint8_t positions[LED_COUNT] __maybe_unused = DT_INST_PROP(0, positions);
 static const uint8_t slots[KEY_COUNT] __maybe_unused = DT_INST_PROP(0, slots);
 #if IS_ENABLED(CONFIG_LANTERN_GEOMETRY)
@@ -395,6 +414,17 @@ static struct led_rgb scale(uint32_t rgb, unsigned int level) {
 static bool same(const struct led_rgb *a, const struct led_rgb *b) {
     return a->r == b->r && a->g == b->g && a->b == b->b;
 }
+
+#if IS_ENABLED(CONFIG_LANTERN_EFFECTS) || IS_ENABLED(CONFIG_LANTERN_GRADIENT)
+/* a pulled toward b by w / 256. */
+static struct led_rgb mix(struct led_rgb a, struct led_rgb b, unsigned int w) {
+    return (struct led_rgb){
+        .r = (uint8_t)(a.r + ((int)b.r - (int)a.r) * (int)w / 256),
+        .g = (uint8_t)(a.g + ((int)b.g - (int)a.g) * (int)w / 256),
+        .b = (uint8_t)(a.b + ((int)b.b - (int)a.b) * (int)w / 256),
+    };
+}
+#endif
 
 /* The 0xRRGGBB slot s paints: a cleared slot paints slot 0's colour, and
  * without a palette every slot paints white. */
@@ -445,6 +475,49 @@ static uint8_t stains[LED_COUNT];
 static size_t stained_at;
 #endif
 
+#if IS_ENABLED(CONFIG_LANTERN_GRADIENT)
+
+/* The frame's thread: the leftmost key's x and the board's width to the
+ * rightmost key's, measured from coords at the first frame that shows the
+ * gradient. */
+static bool ramp_measured;
+static uint16_t ramp_left, ramp_width;
+
+/* LED i's blend at level (the header says why the mix is at full scale);
+ * q is in 1/256 shades along the shades in slot order. */
+static struct led_rgb ramp(const struct shades *sh, size_t i, unsigned int level) {
+    if (!ramp_measured) {
+        uint16_t lo = UINT16_MAX, hi = 0;
+
+        for (size_t k = 0; k < KEY_COUNT; k++) {
+            lo = MIN(lo, coords[2 * k]);
+            hi = MAX(hi, coords[2 * k]);
+        }
+        ramp_left = lo;
+        ramp_width = hi - lo;
+        ramp_measured = true;
+    }
+    if (sh->n == 1 || ramp_width == 0) {
+        return scale(sh->rgb[0], level);
+    }
+    /* at most 30000 x 5 x 256, inside 32 bits */
+    uint32_t q = (uint32_t)(coords[2 * positions[i]] - ramp_left) * (uint32_t)(sh->n - 1) * 256 /
+                 ramp_width;
+    size_t k = q >> 8;
+
+    if (k >= sh->n - 1) {
+        return scale(sh->rgb[sh->n - 1], level);
+    }
+    if ((q & 0xFF) == 0) {
+        /* the shade itself: the mix at full scale would round it twice */
+        return scale(sh->rgb[k], level);
+    }
+    struct led_rgb m = mix(scale(sh->rgb[k], 255), scale(sh->rgb[k + 1], 255), q & 0xFF);
+    return scale(((uint32_t)m.r << 16) | ((uint32_t)m.g << 8) | m.b, level);
+}
+
+#else
+
 /* The slot LED i shows in the picture: its throw, slot 0, or its key's band. */
 static uint8_t base_slot(size_t i) {
 #if IS_ENABLED(CONFIG_LANTERN_SCATTER)
@@ -458,6 +531,8 @@ static uint8_t base_slot(size_t i) {
 #error "base_slot(): a LANTERN_PICTURE member without its picture here"
 #endif
 }
+
+#endif /* IS_ENABLED(CONFIG_LANTERN_GRADIENT) */
 
 #if IS_ENABLED(CONFIG_LANTERN_SCATTER)
 
@@ -545,18 +620,10 @@ static size_t hits_read(struct hit live[HITS]) {
     return n;
 }
 
-/* Shade r at HI_LEVEL. */
-static struct led_rgb shade_hi(const struct shades *sh, size_t r) {
+/* Shade r at HI_LEVEL. A gradient's press glow brightens the blend instead,
+ * so a build with that glow alone of the effects leaves it unused. */
+static struct led_rgb __maybe_unused shade_hi(const struct shades *sh, size_t r) {
     return scale(sh->rgb[r], HI_LEVEL);
-}
-
-/* a pulled toward b by w / 256. */
-static struct led_rgb mix(struct led_rgb a, struct led_rgb b, unsigned int w) {
-    return (struct led_rgb){
-        .r = (uint8_t)(a.r + ((int)b.r - (int)a.r) * (int)w / 256),
-        .g = (uint8_t)(a.g + ((int)b.g - (int)a.g) * (int)w / 256),
-        .b = (uint8_t)(a.b + ((int)b.b - (int)a.b) * (int)w / 256),
-    };
 }
 
 /* The frame's thread: the picture under the frame's effects, for the cap. */
@@ -596,9 +663,9 @@ static void hold_to_cap(void) {
 
 #if IS_ENABLED(CONFIG_LANTERN_PRESS_GLOW)
 
-/* Each pressed key's LED pulled toward its slot's colour at HI_LEVEL, all the
- * way at the press and not at all GLOW_MS later; the freshest press of a key
- * wins. */
+/* Each pressed key's LED pulled toward its colour in the picture at HI_LEVEL
+ * (its slot's shade, its blend in the gradient; never a dye), all the way at
+ * the press and not at all GLOW_MS later; the freshest press of a key wins. */
 static void press_glow(const struct shades *sh, const struct hit live[], size_t n) {
     for (size_t i = 0; i < LED_COUNT; i++) {
         unsigned int w = 0;
@@ -608,7 +675,11 @@ static void press_glow(const struct shades *sh, const struct hit live[], size_t 
             }
         }
         if (w > 0) {
+#if IS_ENABLED(CONFIG_LANTERN_GRADIENT)
+            pixels[i] = mix(pixels[i], ramp(sh, i, HI_LEVEL), w);
+#else
             pixels[i] = mix(pixels[i], shade_hi(sh, sh->rank[base_slot(i)]), w);
+#endif
         }
     }
 }
@@ -617,8 +688,9 @@ static void press_glow(const struct shades *sh, const struct hit live[], size_t 
 
 #if IS_ENABLED(CONFIG_LANTERN_GEOMETRY)
 
-/* The integer square root of v, rounded down, bit by bit. */
-static uint32_t isqrt(uint32_t v) {
+/* The integer square root of v, rounded down, bit by bit. The gradient
+ * selects the geometry for coords alone and measures no distance. */
+static uint32_t __maybe_unused isqrt(uint32_t v) {
     uint32_t root = 0, bit = 1u << 30;
 
     while (bit > v) {
@@ -637,7 +709,7 @@ static uint32_t isqrt(uint32_t v) {
 }
 
 /* Hundredths of a key unit between key positions a and b. */
-static uint32_t distance(uint8_t a, uint8_t b) {
+static uint32_t __maybe_unused distance(uint8_t a, uint8_t b) {
     int32_t dx = (int32_t)coords[2 * a] - (int32_t)coords[2 * b];
     int32_t dy = (int32_t)coords[2 * a + 1] - (int32_t)coords[2 * b + 1];
 
@@ -699,17 +771,17 @@ static void thin_ring(const struct shades *sh, const struct hit live[], size_t n
 
 #if IS_ENABLED(CONFIG_LANTERN_DISC)
 
-/* The cyclic gradient through the shades at HI_LEVEL: p, 0..255, is how far
- * around, shade 0 at 0 and again past 255, each shade an equal arc, linear
- * between neighbours. */
-static struct led_rgb gradient(const struct shades *sh, unsigned int p) {
+/* The cycle through the shades at HI_LEVEL: p, 0..255, is how far around,
+ * shade 0 at 0 and again past 255, each shade an equal arc, linear between
+ * neighbours. */
+static struct led_rgb cycle(const struct shades *sh, unsigned int p) {
     unsigned int q = p * sh->n; /* 1/256 shades around; q >> 8 < n since p < 256 */
 
     return mix(shade_hi(sh, q >> 8), shade_hi(sh, ((q >> 8) + 1) % sh->n), q & 0xFF);
 }
 
 /* Each hit's disc (the header): an LED the rim, DISC_SPEED x the hit's age
- * out, reached tau ms ago is pulled toward gradient(tau / DISC_FADE_MS) with
+ * out, reached tau ms ago is pulled toward cycle(tau / DISC_FADE_MS) with
  * strength 1 - tau / DISC_FADE_MS. An LED under several discs takes the
  * strongest one's colour at their summed strength. */
 static void disc(const struct shades *sh, const struct hit live[], size_t n) {
@@ -734,7 +806,7 @@ static void disc(const struct shades *sh, const struct hit live[], size_t n) {
             w += s;
         }
         if (w > 0) {
-            pixels[i] = mix(pixels[i], gradient(sh, p), MIN(w, 256));
+            pixels[i] = mix(pixels[i], cycle(sh, p), MIN(w, 256));
         }
     }
 }
@@ -758,7 +830,11 @@ static bool compose(size_t at) {
 #endif
     at %= frame_shades.n;
     for (size_t i = 0; i < LED_COUNT; i++) {
+#if IS_ENABLED(CONFIG_LANTERN_GRADIENT)
+        pixels[i] = at > 0 ? frame_shades.at_level[at] : ramp(&frame_shades, i, LEVEL);
+#else
         pixels[i] = frame_shades.at_level[at > 0 ? at : frame_shades.rank[base_slot(i)]];
+#endif
     }
 
 #if IS_ENABLED(CONFIG_LANTERN_STAIN)

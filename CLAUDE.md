@@ -18,10 +18,12 @@ how to build. Usage: [README.md](README.md). English only.
   `lantern,keys`); the pictures in place of the bands, one Kconfig choice
   (`LANTERN_PICTURE`, the bands `CONFIG_LANTERN_BANDS` by default while
   canon t-skdt tries the others one image at a time; src/keys.c): the solid,
-  every key in slot 0 (`CONFIG_LANTERN_SOLID`), and the scatter, the slots
-  thrown over the keys at random by the node's `scatter-weights` and thrown
-  again every ten seconds (`CONFIG_LANTERN_SCATTER`,
-  `CONFIG_LANTERN_SCATTER_MS`); the
+  every key in slot 0 (`CONFIG_LANTERN_SOLID`), the gradient, the colours
+  blended across the board by the keys' x in `coords`
+  (`CONFIG_LANTERN_GRADIENT`, which selects `CONFIG_LANTERN_GEOMETRY`), and
+  the scatter, the slots thrown over the keys at random by the node's
+  `scatter-weights` and thrown again every ten seconds
+  (`CONFIG_LANTERN_SCATTER`, `CONFIG_LANTERN_SCATTER_MS`); the
   effects that move the picture after a key, the press
   glow, the thin ring, the disc and the stain (`CONFIG_LANTERN_PRESS_GLOW`,
   `CONFIG_LANTERN_THIN_RING`, `CONFIG_LANTERN_DISC`, `CONFIG_LANTERN_STAIN`,
@@ -88,8 +90,9 @@ how to build. Usage: [README.md](README.md). English only.
   `CONFIG_LANTERN_THIN_RING=y` or `CONFIG_LANTERN_DISC=y` adds
   `CONFIG_LANTERN_EFFECTS=y`, the last two `CONFIG_LANTERN_GEOMETRY=y` too;
   `CONFIG_LANTERN_STAIN=y` adds `CONFIG_LANTERN_THIN_RING=y`;
-  a half shows `CONFIG_LANTERN_BANDS=y`, or `CONFIG_LANTERN_SOLID=y` or
-  `CONFIG_LANTERN_SCATTER=y` in its place, the scatter with
+  a half shows `CONFIG_LANTERN_BANDS=y`, or `CONFIG_LANTERN_SOLID=y`,
+  `CONFIG_LANTERN_GRADIENT=y` or `CONFIG_LANTERN_SCATTER=y` in its place,
+  the gradient with `CONFIG_LANTERN_GEOMETRY=y`, the scatter with
   `CONFIG_LANTERN_SCATTER_MS=10000` (the choice `LANTERN_PICTURE` has no
   line of its own: a `--kconfig CONFIG_LANTERN_PICTURE=…` fails the build).
 - Kconfig merge order, later wins: board defconfig → ZMK `app/prj.conf` → the
@@ -170,10 +173,10 @@ how to build. Usage: [README.md](README.md). English only.
   Prospector Dongle) none of the palette. Exactly one node of each per target
   (BUILD_ASSERT).
 - **`positions` and `chain-length` are the consumer's measurement, `slots` its
-  picture, `coords` its geometry**: `src/keys.c` asserts the lengths (`positions`
+  bands, `coords` its geometry**: `src/keys.c` asserts the lengths (`positions`
   as many as the strip's `chain-length`, `slots` as many as `ZMK_KEYMAP_LEN`,
-  `coords` twice that where an effect measures the board,
-  `CONFIG_LANTERN_GEOMETRY`, present only then)
+  `coords` twice that where something measures the board, an effect or the
+  gradient, `CONFIG_LANTERN_GEOMETRY`, present only then)
   and the ranges (a position below the key count, a slot below
   `LANTERN_PALETTE_SLOTS`, a coordinate at most 30000 so that a squared
   distance fits 32 bits), and nothing about the order or the places: a wrong

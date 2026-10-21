@@ -6,9 +6,10 @@
  * The palette: six colours (0xRRGGBB, slots 0..5: five from the day's sprite
  * and a spare, canon t-0967) that the host hands the keyboard's split central
  * (src/palette_port.c), which every half and the central keep in their
- * settings across boots, and which a half's key LEDs show in the bands its
- * lantern,keys node draws (src/keys.c: slots 0..4 left to right across
- * canon's halves; its effects, canon t-6ttk, paint from the same slots).
+ * settings across boots, and which a half's key LEDs show in the picture
+ * (src/keys.c; by default the bands its lantern,keys node draws, slots 0..4
+ * left to right across canon's halves; its effects, canon t-6ttk, paint
+ * from the same colours).
  *
  * - One path for every change, the behavior `lantern,behavior-palette`: the
  *   central's code invokes it with zmk_behavior_invoke_binding(), whose

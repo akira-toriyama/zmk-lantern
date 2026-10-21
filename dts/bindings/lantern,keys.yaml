@@ -52,10 +52,9 @@ properties:
       split, so a distance reads the same from either), at most 30000 each.
       canon: imprint.json, keymap-drawer's physical layout, times 100 (each
       key's top left corner; every key is one unit, so the offset to the
-      centre cancels). For the effects that measure the board
-      (CONFIG_LANTERN_GEOMETRY: the thin ring and the disc), which assert
-      it present and twice the length of slots; a target without them needs
-      none.
+      centre cancels). For what measures the board (CONFIG_LANTERN_GEOMETRY:
+      the thin ring, the disc and the gradient), which asserts it present
+      and twice the length of slots; a target without them needs none.
 
   scatter-weights:
     type: array
