@@ -15,9 +15,9 @@
  * moves after a key. This file is the strip's one writer. A frame goes out
  * when something changed: when the rail rule lights or blanks the LEDs
  * (src/on_usb_power.c), when the palette changes while they are lit, when the
- * countdown moves a stage, at each throw of the scatter, when the no
- * picture's boot light ends, and every FRAME_MS while an effect moves; a
- * still picture costs no tick.
+ * countdown moves a stage, at each throw of the scatter, when the boot light
+ * ends (the no picture's or the intro's), and every FRAME_MS while an effect
+ * moves or the intro plays; a still picture costs no tick.
  *
  * - Why the module writes the strip itself and ZMK's underglow is asserted
  *   off: rgb_underglow.c repaints every LED with its one colour and effect at
@@ -78,8 +78,8 @@
  *   hence the consumer sets the real count) and stays off the system work
  *   queue, where ZMK processes key events, and off the Bluetooth receive
  *   queue, where a half runs the palette behavior. A caller only sets the
- *   wanted state (lit or dark, the stage, the no picture's boot light;
- *   atomics) and submits the one work
+ *   wanted state (lit or dark, the stage, the boot light and the intro's
+ *   start; atomics) and submits the one work
  *   item; the handler reads the state and the palette's atomics when it runs,
  *   so two submissions coalesce, the last state wins, a submission during the
  *   handler runs it again, and nothing holds a lock. The countdown's clock and
@@ -109,7 +109,9 @@
  *   wraps into a live one; the blank clears them all, and a press that lights
  *   an idle half shows no effect. While one moves, the frame arms frame_work,
  *   a delayable item on the same queue that runs the same handler, FRAME_MS
- *   ahead; a black frame cancels it, so no frame follows the blank's. An
+ *   ahead; a black frame cancels it, so no frame follows the blank's. That
+ *   timer and the cap below are the moving frames' (CONFIG_LANTERN_FRAMES),
+ *   which the intro selects too. An
  *   effect pulls an LED from the picture toward its colour (mix()), never
  *   adds to it: added to a bright band it would saturate to white. Its
  *   colours go up to HI_LEVEL, full scale, and then the frame's channel sum
@@ -121,7 +123,7 @@
  *   CAP at the white picture alone, a white or grey band left an effect no
  *   room (Opus review, 2026-10-20). More keys at full scale than CAP_KEYS, on
  *   a white picture at the device's brightness, share the room and all dim
- *   alike. Integers only: the low
+ *   alike. Integers only, for the effects and the intro alike: the low
  *   priority queue's 768-byte stack is shared with ZMK's battery sampling,
  *   and a thread that once uses the FPU keeps a larger context from then on.
  * - The press glow (CONFIG_LANTERN_PRESS_GLOW): a pressed key's LED jumps to
@@ -151,7 +153,8 @@
  *   unmeasured) on the preemptible low priority thread, and keeps the FPU
  *   out of it (above). The coords, the square root and the distance are
  *   CONFIG_LANTERN_GEOMETRY's, which each effect that measures the board
- *   selects, and the gradient for the coords alone.
+ *   selects, the intro for the coords and the square root, and the gradient
+ *   for the coords alone.
  * - The disc (CONFIG_LANTERN_DISC): from a pressed key a rim spreads at
  *   DISC_SPEED key units a second, and each LED it has passed starts at
  *   HI_LEVEL and fades back to the picture over DISC_FADE_MS, so the disc is
@@ -231,7 +234,35 @@
  *   frame, so on USB the keys turn black (on battery the blank follows
  *   anyway). With the countdown on, its first picture is otherwise the black
  *   one and the others the whole half in a shade, as with the bands. The
- *   node still carries slots, which only the boot light reads.
+ *   node still carries slots, which only the boot light reads. The intro
+ *   (below), when built, takes the boot light's frames instead.
+ * - The intro (CONFIG_LANTERN_INTRO, canon t-5v1f): a show in place of the
+ *   boot light's picture, LANTERN_INTRO_MS long (keys.h), which the rail
+ *   rule plays at boot and whenever USB power arrives (src/on_usb_power.c),
+ *   in red, blue and green at full scale, not the palette's colours (the
+ *   user's pick and order, after Pokemon's first games). Each half plays it alone,
+ *   mirrored: an LED's depth runs from 0 at the half's outermost key to
+ *   DEPTH_ONE at its innermost, by its key's distance (coords) from the
+ *   bottom of the board's middle, the point between the two thumb clusters,
+ *   so the show moves from the outer columns' top to the inner thumb. The
+ *   script, in order: the star, a white head crossing the half in STAR_MS,
+ *   each key it passes glittering for GLITTER_MS, every beat a primary or
+ *   none at random (the dice: an integer hash of the LED, the beat and a
+ *   seed taken at the start, so the frame keeps no state for it); the
+ *   waves, red, blue and green WAVE_GAP_MS apart, each front crossing in
+ *   WAVE_MS with a fading tail; the core, the deepest keys, adding each
+ *   wave's colour as it arrives (red, magenta, white: light adds) with a
+ *   flash, then pulsing white and swelling outwards for CHARGE_MS; and the
+ *   burst, a white front from the core out in BURST_MS, each key it passes
+ *   left in its rainbow colour by depth (outer red through yellow, green and
+ *   cyan to inner blue), the whole rainbow then held AFTERGLOW_HOLD_MS, the
+ *   one moment every key is lit, and faded out at once over
+ *   AFTERGLOW_FADE_MS, by the end. The acts add: an LED where two meet shows their sum, up to
+ *   full scale per channel, and the frame's cap over a black picture holds
+ *   the whole. Each frame is composed from the time since the start, so a
+ *   late frame loses nothing; the depths are measured once, at the first
+ *   frame. No effect is drawn and no press noted while it plays: a press
+ *   noted then would show at its end as a disc already in flight.
  */
 
 #define DT_DRV_COMPAT lantern_keys
@@ -301,17 +332,22 @@ BUILD_ASSERT(PICTURE_LEVEL <= LEVEL,
              "CONFIG_LANTERN_PICTURE_BRIGHTNESS above CONFIG_LANTERN_BRIGHTNESS: a still picture "
              "could pass the frame's cap");
 
-#if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
+#if IS_ENABLED(CONFIG_LANTERN_FRAMES)
 /* The brightest channel of an effect's colour: full scale (the header). */
 #define HI_LEVEL 255
-BUILD_ASSERT(HI_LEVEL > LEVEL, "CONFIG_LANTERN_BRIGHTNESS 100 leaves the frame's cap no room for "
-                               "an effect, which brightens to full scale");
 #define FRAME_MS 30
-#define HITS 8
 /* The channel sum no frame exceeds: every LED white at LEVEL, plus CAP_KEYS
  * LEDs white at HI_LEVEL instead (the header). */
 #define CAP_KEYS 2
 #define CAP (3 * (LED_COUNT * LEVEL + CAP_KEYS * (HI_LEVEL - LEVEL)))
+#endif
+
+#if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
+/* The effects only: the intro, over a black picture, has all of CAP as room
+ * at any brightness. */
+BUILD_ASSERT(HI_LEVEL > LEVEL, "CONFIG_LANTERN_BRIGHTNESS 100 leaves the frame's cap no room for "
+                               "an effect, which brightens to full scale");
+#define HITS 8
 /* A hit in one atomic: (position + 1) << 24 | seq << HIT_SEQ_SHIFT | the
  * press's time, the low 18 bits of k_uptime_get_32() in ms (262 s). seq is
  * the count of presses mod HIT_SEQ_CYCLE: an effect that gives each press the
@@ -381,8 +417,8 @@ BUILD_ASSERT(!IS_ENABLED(CONFIG_LANTERN_PRESS_GLOW) || !IS_ENABLED(CONFIG_LANTER
 
 #if IS_ENABLED(CONFIG_LANTERN_GEOMETRY)
 BUILD_ASSERT(DT_INST_NODE_HAS_PROP(0, coords),
-             "what measures the board (CONFIG_LANTERN_GEOMETRY: the thin ring, the disc or the "
-             "gradient) needs lantern,keys coords");
+             "what measures the board (CONFIG_LANTERN_GEOMETRY: the thin ring, the disc, the "
+             "gradient or the intro) needs lantern,keys coords");
 BUILD_ASSERT(COND_CODE_1(DT_INST_NODE_HAS_PROP(0, coords), (DT_INST_PROP_LEN(0, coords)), (0)) ==
                  2 * KEY_COUNT,
              "lantern,keys: coords needs an x and a y per key position of slots");
@@ -431,8 +467,13 @@ static uint8_t scatter[LED_COUNT];
 static struct led_rgb pixels[LED_COUNT];
 static atomic_t lit;
 static atomic_t stage; /* stages since the last key; the picture is stage mod the shade count */
-#if IS_ENABLED(CONFIG_LANTERN_NO_PICTURE)
-static atomic_t booting; /* the boot light lasts: the no picture shows the bands (the header) */
+#if IS_ENABLED(CONFIG_LANTERN_NO_PICTURE) || IS_ENABLED(CONFIG_LANTERN_INTRO)
+/* the boot light lasts: the intro plays, or the no picture shows the bands (the header) */
+static atomic_t booting;
+#endif
+#if IS_ENABLED(CONFIG_LANTERN_INTRO)
+static atomic_t intro_t0;   /* k_uptime_get_32() at the intro's start */
+static atomic_t intro_seed; /* the glitter's seed, k_cycle_get_32() then */
 #endif
 
 /* The 0xRRGGBB scaled so that its brightest channel is level; black to white. */
@@ -665,7 +706,12 @@ static struct led_rgb __maybe_unused shade_hi(const struct shades *sh, size_t r)
     return scale(sh->rgb[r], HI_LEVEL);
 }
 
-/* The frame's thread: the picture under the frame's effects, for the cap. */
+#endif /* IS_ENABLED(CONFIG_LANTERN_EFFECTS) */
+
+#if IS_ENABLED(CONFIG_LANTERN_FRAMES)
+
+/* The frame's thread: the picture under the frame's effects, for the cap
+ * (black under the intro). */
 static struct led_rgb picture[LED_COUNT];
 
 static uint32_t above(uint8_t px, uint8_t pic) { return px > pic ? (uint32_t)(px - pic) : 0; }
@@ -698,7 +744,7 @@ static void hold_to_cap(void) {
     }
 }
 
-#endif /* IS_ENABLED(CONFIG_LANTERN_EFFECTS) */
+#endif /* IS_ENABLED(CONFIG_LANTERN_FRAMES) */
 
 #if IS_ENABLED(CONFIG_LANTERN_PRESS_GLOW)
 
@@ -852,11 +898,293 @@ static void disc(const struct shades *sh, const struct hit live[], size_t n) {
 
 #endif /* IS_ENABLED(CONFIG_LANTERN_DISC) */
 
-/* The frame: the picture of stage at, the effects over it and the cap; true
- * while an effect still moves. The low priority work queue only: it writes
- * frame_shades, pixels and picture and clears spent hits (the palette and the
- * hits are atomics, read from there). */
+#if IS_ENABLED(CONFIG_LANTERN_INTRO)
+
+/* An LED's depth: 0 at this half's outermost key, DEPTH_ONE at its innermost
+ * (the header). */
+#define DEPTH_ONE 1024
+
+/* The intro's script (the header tells it): times in ms from its start,
+ * reaches in depth, levels of 255. */
+#define STAR_MS 600         /* the star's head from the outermost key to the innermost */
+#define STAR_REACH 128      /* how far on either side of the head it lights */
+#define GLITTER_MS 1000     /* how long a key glitters once the head has passed it */
+#define GLITTER_BEAT_MS 60  /* every beat a new primary, or none */
+#define GLITTER_ON 160      /* of 256: the chance that a key shows in a beat */
+#define WAVE_FROM_MS 1300   /* the first wave's start; the others follow */
+#define WAVE_GAP_MS 500
+#define WAVE_MS 1000        /* a wave's front from the outermost key to the innermost */
+#define WAVE_HEAD 64        /* how far ahead of its front a wave lights, rising */
+#define WAVE_TAIL 320       /* and behind it, fading */
+/* The core: the depth where it begins to glow and where it glows fully. On
+ * canon's Imprint the thumb keys sit at 766 to 1024 and the next deepest key
+ * at 626, so the whole thumb cluster glows, the inner keys brightest. */
+#define CORE_FROM 700
+#define CORE_FULL 940
+#define CORE_SWELL 150      /* how much further out it begins by the burst */
+#define CORE_LEVEL 170      /* its glow once a flash has faded */
+#define POP_MS 300          /* its flash at a wave's arrival, fading to CORE_LEVEL (the last's to CHARGE_LOW) */
+#define CHARGE_MS 600       /* the white core's pulses and swell, from the last wave's arrival */
+#define CHARGE_BEAT_MS 150
+#define CHARGE_LOW 80       /* the pulses' low, where the last wave's flash fades to */
+#define BURST_FROM_MS (WAVE_FROM_MS + 2 * WAVE_GAP_MS + WAVE_MS + CHARGE_MS)
+#define BURST_MS 600        /* the white front from the innermost key to the outermost */
+#define BURST_REACH 100     /* how far on either side of the front it lights */
+#define AFTERGLOW_HOLD_MS 400  /* the whole rainbow, once the front is out of the half */
+#define AFTERGLOW_FADE_MS 1100 /* then every key fading out at once */
+/* The rainbow's brightest channel: at 100 the whole rainbow fits the frame's
+ * cap on canon's 29 LEDs, so the hold shows at its level; at 120 the cap
+ * scaled the hold to 0.94 and the burst's front near the outer keys to 0.67
+ * (host runs, 2026-10-21). */
+#define AFTERGLOW_LEVEL 100
+BUILD_ASSERT(BURST_FROM_MS + BURST_MS + AFTERGLOW_HOLD_MS + AFTERGLOW_FADE_MS <= LANTERN_INTRO_MS,
+             "the intro's script runs past LANTERN_INTRO_MS, where the rail rule ends it");
+BUILD_ASSERT(CORE_SWELL < CORE_FROM && CORE_FROM < CORE_FULL && CORE_FULL <= DEPTH_ONE,
+             "the core's depths are out of order");
+
+/* The frame's thread: each LED's depth, measured from coords at the intro's
+ * first frame. */
+static bool depth_measured;
+static uint16_t depth[LED_COUNT];
+
+/* Hundredths of a key unit from LED i's key to (mid, bottom). */
+static uint32_t from_middle(size_t i, int32_t mid, int32_t bottom) {
+    int32_t dx = (int32_t)coords[2 * positions[i]] - mid;
+    int32_t dy = (int32_t)coords[2 * positions[i] + 1] - bottom;
+
+    return isqrt((uint32_t)(dx * dx + dy * dy));
+}
+
+/* The bottom of the board's middle: halfway between its leftmost and
+ * rightmost keys, level with its lowest (y grows downwards); the depths run
+ * from this half's farthest LED from it to its nearest. */
+static void depth_measure(void) {
+    uint16_t left = UINT16_MAX, right = 0, bottom = 0;
+
+    for (size_t k = 0; k < KEY_COUNT; k++) {
+        left = MIN(left, coords[2 * k]);
+        right = MAX(right, coords[2 * k]);
+        bottom = MAX(bottom, coords[2 * k + 1]);
+    }
+    int32_t mid = ((int32_t)left + right) / 2;
+    uint32_t far = 0, near = UINT32_MAX;
+
+    for (size_t i = 0; i < LED_COUNT; i++) {
+        uint32_t r = from_middle(i, mid, bottom);
+        far = MAX(far, r);
+        near = MIN(near, r);
+    }
+    for (size_t i = 0; i < LED_COUNT; i++) {
+        depth[i] = far == near ? DEPTH_ONE
+                               : (uint16_t)((far - from_middle(i, mid, bottom)) * DEPTH_ONE /
+                                            (far - near));
+    }
+    depth_measured = true;
+}
+
+/* The glitter's dice: a 32-bit integer hash, the improved lowbias32 constants
+ * [16 21f0aaad 15 d35a2d97 15] listed in the README of Chris Wellons'
+ * hash-prospector (public domain). */
+static uint32_t dice(uint32_t x) {
+    x ^= x >> 16;
+    x *= 0x21f0aaadu;
+    x ^= x >> 15;
+    x *= 0xd35a2d97u;
+    x ^= x >> 15;
+    return x;
+}
+
+/* Depth d's rainbow colour, outermost red through yellow, green and cyan to
+ * innermost blue, its brightest channel s, added to c. */
+static void rainbow(uint32_t d, uint32_t s, uint32_t c[3]) {
+    uint32_t f = d & 0xFF, r, g, b;
+
+    switch (d >> 8) {
+    case 0:
+        r = 255, g = f, b = 0;
+        break;
+    case 1:
+        r = 255 - f, g = 255, b = 0;
+        break;
+    case 2:
+        r = 0, g = 255, b = f;
+        break;
+    case 3:
+        r = 0, g = 255 - f, b = 255;
+        break;
+    default: /* DEPTH_ONE */
+        r = 0, g = 0, b = 255;
+        break;
+    }
+    c[0] += r * s / 255;
+    c[1] += g * s / 255;
+    c[2] += b * s / 255;
+}
+
+static void white(uint32_t s, uint32_t c[3]) {
+    c[0] += s;
+    c[1] += s;
+    c[2] += s;
+}
+
+/* The waves' colours in their order, as indexes into intro_led()'s c[]:
+ * red, blue, green, the order the user wrote them (canon t-5v1f). */
+static const uint8_t wave_channel[3] = {0, 2, 1};
+
+/* LED i's colour t ms into the intro, before the cap: the acts' light added,
+ * c[0] red, c[1] green, c[2] blue. */
+static struct led_rgb intro_led(size_t i, uint32_t t, uint32_t seed) {
+    int32_t d = depth[i];
+    uint32_t c[3] = {0, 0, 0};
+
+    /* the star */
+    int32_t off = (int32_t)(t * DEPTH_ONE / STAR_MS) - d;
+    if (off < 0) {
+        off = -off;
+    }
+    if (off < STAR_REACH) {
+        white((uint32_t)(STAR_REACH - off) * 255 / STAR_REACH, c);
+    }
+    uint32_t passed = (uint32_t)d * STAR_MS / DEPTH_ONE;
+    if (t >= passed && t - passed < GLITTER_MS) {
+        uint32_t age = t - passed;
+        uint32_t roll = dice(seed ^ ((uint32_t)i << 8) ^ (age / GLITTER_BEAT_MS));
+
+        if ((roll & 0xFF) < GLITTER_ON) {
+            c[(roll >> 8) % 3] += 255 * (GLITTER_MS - age) / GLITTER_MS;
+        }
+    }
+
+    /* the waves */
+    for (size_t w = 0; w < 3; w++) {
+        uint32_t from = WAVE_FROM_MS + w * WAVE_GAP_MS;
+        if (t < from) {
+            break;
+        }
+        int32_t behind = (int32_t)((t - from) * DEPTH_ONE / WAVE_MS) - d;
+        if (behind >= 0 && behind < WAVE_TAIL) {
+            c[wave_channel[w]] += (uint32_t)(WAVE_TAIL - behind) * 255 / WAVE_TAIL;
+        } else if (behind < 0 && -behind < WAVE_HEAD) {
+            c[wave_channel[w]] += (uint32_t)(WAVE_HEAD + behind) * 255 / WAVE_HEAD;
+        }
+    }
+
+    /* the core, until the burst */
+    if (t < BURST_FROM_MS) {
+        size_t arrived = 0;
+        uint32_t last = 0;
+
+        for (size_t w = 0; w < 3; w++) {
+            uint32_t at = WAVE_FROM_MS + w * WAVE_GAP_MS + WAVE_MS;
+            if (t >= at) {
+                arrived = w + 1;
+                last = at;
+            }
+        }
+        if (arrived > 0) {
+            uint32_t since = t - last;
+            /* the last wave's flash fades to the pulses' low, so that they show */
+            uint32_t low = arrived == 3 ? CHARGE_LOW : CORE_LEVEL;
+            uint32_t level = low;
+            int32_t from = CORE_FROM;
+
+            if (since < POP_MS) {
+                level += (255 - low) * (POP_MS - since) / POP_MS;
+            }
+            if (arrived == 3) {
+                /* the last arrival is CHARGE_MS before the burst, so since < CHARGE_MS */
+                uint32_t beat = since % CHARGE_BEAT_MS;
+                uint32_t tri = (beat < CHARGE_BEAT_MS / 2 ? beat : CHARGE_BEAT_MS - beat) * 512 /
+                               CHARGE_BEAT_MS;
+
+                level = MAX(level, CHARGE_LOW + (255 - CHARGE_LOW) * MIN(tri, 256) / 256);
+                from -= (int32_t)(CORE_SWELL * since / CHARGE_MS);
+            }
+            if (d > from) {
+                uint32_t k = d >= CORE_FULL ? 256 : (uint32_t)(d - from) * 256 / (CORE_FULL - from);
+
+                for (size_t w = 0; w < arrived; w++) {
+                    c[wave_channel[w]] += level * k / 256;
+                }
+            }
+        }
+    }
+
+    /* the burst */
+    if (t >= BURST_FROM_MS) {
+        uint32_t since = t - BURST_FROM_MS;
+
+        off = DEPTH_ONE - (int32_t)(since * DEPTH_ONE / BURST_MS) - d;
+        if (off < 0) {
+            off = -off;
+        }
+        if (off < BURST_REACH) {
+            white((uint32_t)(BURST_REACH - off) * 255 / BURST_REACH, c);
+        }
+        passed = (uint32_t)(DEPTH_ONE - d) * BURST_MS / DEPTH_ONE;
+        uint32_t fade = BURST_MS + AFTERGLOW_HOLD_MS;
+        if (since >= passed && since < fade) {
+            rainbow((uint32_t)d, AFTERGLOW_LEVEL, c);
+        } else if (since >= fade && since - fade < AFTERGLOW_FADE_MS) {
+            rainbow((uint32_t)d,
+                    AFTERGLOW_LEVEL * (AFTERGLOW_FADE_MS - (since - fade)) / AFTERGLOW_FADE_MS, c);
+        }
+    }
+
+    return (struct led_rgb){
+        .r = (uint8_t)MIN(c[0], 255u),
+        .g = (uint8_t)MIN(c[1], 255u),
+        .b = (uint8_t)MIN(c[2], 255u),
+    };
+}
+
+/* The frame's thread: the intro's frame, t ms from its start, over a black
+ * picture for the cap; true until LANTERN_INTRO_MS, when the rail rule ends
+ * the boot light (the script's last light is out before, asserted). Not
+ * inlined: inside paint() its locals would sit in paint()'s frame under the
+ * strip driver's calls too, 24 bytes nearer the end of the 768-byte stack
+ * (Opus review, 2026-10-21). */
+static __noinline bool intro_compose(void) {
+    uint32_t t = k_uptime_get_32() - (uint32_t)atomic_get(&intro_t0);
+
+    if (!depth_measured) {
+        depth_measure();
+    }
+    memset(picture, 0, sizeof(picture));
+    if (t >= LANTERN_INTRO_MS) {
+        memset(pixels, 0, sizeof(pixels));
+        return false;
+    }
+    uint32_t seed = (uint32_t)atomic_get(&intro_seed);
+
+    for (size_t i = 0; i < LED_COUNT; i++) {
+        pixels[i] = intro_led(i, t, seed);
+    }
+    hold_to_cap();
+    return true;
+}
+
+/* The whole boot light, the black after the script included: compose draws
+ * the intro's frame, and a press notes no hit (the header). */
+static bool intro_plays(void) { return atomic_get(&booting) != 0; }
+
+#else
+
+static inline bool intro_plays(void) { return false; }
+
+#endif /* IS_ENABLED(CONFIG_LANTERN_INTRO) */
+
+/* The frame: the picture of stage at, the effects over it and the cap, or
+ * the intro's frame while it plays; true while an effect still moves or the
+ * intro plays. The low priority work queue only: it writes frame_shades,
+ * pixels and picture and clears spent hits (the palette and the hits are
+ * atomics, read from there). */
 static bool compose(size_t at) {
+#if IS_ENABLED(CONFIG_LANTERN_INTRO)
+    if (intro_plays()) {
+        return intro_compose();
+    }
+#endif
     uint32_t palette[LANTERN_PALETTE_SLOTS] = {0};
     bool have = IS_ENABLED(CONFIG_LANTERN_PALETTE) && lantern_palette_get(palette);
 
@@ -869,7 +1197,8 @@ static bool compose(size_t at) {
 #endif
     at %= frame_shades.n;
 #if IS_ENABLED(CONFIG_LANTERN_NO_PICTURE)
-    bool boot = atomic_get(&booting) != 0;
+    /* the intro, when built, has the boot light's frames (above) */
+    bool boot = !IS_ENABLED(CONFIG_LANTERN_INTRO) && atomic_get(&booting) != 0;
 #endif
     for (size_t i = 0; i < LED_COUNT; i++) {
 #if IS_ENABLED(CONFIG_LANTERN_GRADIENT)
@@ -916,7 +1245,7 @@ static bool compose(size_t at) {
 static void paint(struct k_work *work);
 
 static K_WORK_DEFINE(paint_work, paint);
-#if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
+#if IS_ENABLED(CONFIG_LANTERN_FRAMES)
 static K_WORK_DELAYABLE_DEFINE(frame_work, paint);
 #endif
 
@@ -940,7 +1269,7 @@ static void paint(struct k_work *work) {
     }
     k_usleep(LATCH_US);
 
-#if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
+#if IS_ENABLED(CONFIG_LANTERN_FRAMES)
     if (moving) {
         k_work_reschedule_for_queue(zmk_workqueue_lowprio_work_q(), &frame_work,
                                     K_MSEC(FRAME_MS));
@@ -1056,9 +1385,10 @@ static int key_listener(const zmk_event_t *eh) {
 #endif
 #if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
     /* This half's own presses only: on a split central (Cyboard's stock left
-     * half) the other half's keys arrive here too, and no LED here shows them. */
+     * half) the other half's keys arrive here too, and no LED here shows them;
+     * none while the intro plays (the header). */
     if (ev->state && ev->source == ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL &&
-        ev->position < KEY_COUNT && atomic_get(&lit)) {
+        ev->position < KEY_COUNT && atomic_get(&lit) && !intro_plays()) {
         hit_note(ev->position);
         frame = true;
     }
@@ -1097,13 +1427,20 @@ void lantern_keys_refresh(void) {
     }
 }
 
-#if IS_ENABLED(CONFIG_LANTERN_NO_PICTURE)
+#if IS_ENABLED(CONFIG_LANTERN_NO_PICTURE) || IS_ENABLED(CONFIG_LANTERN_INTRO)
 
 /* System work queue (the rail rule): before every light, the boot light's
- * state (on only for the boot light's, whose frame then shows the bands;
- * dark then, so no frame here), and off again at the boot light's end with
- * the LEDs lit, which sends a frame. */
+ * state (on only for the boot light's, whose frames then play the intro or
+ * show the no picture's bands; dark then, so no frame here), and off again
+ * at the boot light's end with the LEDs lit, which sends a frame. */
 void lantern_keys_boot_light(bool on) {
+#if IS_ENABLED(CONFIG_LANTERN_INTRO)
+    if (on) {
+        /* before the flag, so that a frame that sees the flag sees this start */
+        atomic_set(&intro_t0, (atomic_val_t)k_uptime_get_32());
+        atomic_set(&intro_seed, (atomic_val_t)k_cycle_get_32());
+    }
+#endif
     atomic_set(&booting, on ? 1 : 0);
     if (atomic_get(&lit)) {
         submit();

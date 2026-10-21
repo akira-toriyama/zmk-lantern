@@ -32,6 +32,11 @@ how to build. Usage: [README.md](README.md). English only.
   `CONFIG_LANTERN_THIN_RING`, `CONFIG_LANTERN_DISC`, `CONFIG_LANTERN_STAIN`,
   off by default while canon t-6ttk tries them one image at a time;
   src/keys.c, the node's `coords` through `CONFIG_LANTERN_GEOMETRY`); the
+  intro, a six-second show in red, blue and green from the outer keys to the
+  thumbs that the boot light plays instead of the picture, opening at boot
+  and again whenever USB power arrives
+  (`CONFIG_LANTERN_INTRO`, off by default while canon t-5v1f tries it; its
+  script in src/keys.c, its opening on USB power in src/on_usb_power.c); the
   split link's peripheral
   latency, 0 while USB powers a split peripheral and the central's on battery
   (`CONFIG_LANTERN_USB_LATENCY`; [src/latency.c](src/latency.c)); and the palette: six
@@ -91,8 +96,11 @@ how to build. Usage: [README.md](README.md). English only.
   and `palette_port.c.obj`, never the latency, the dongle's nothing of the
   rail or the keys. `--kconfig CONFIG_LANTERN_PRESS_GLOW=y`,
   `CONFIG_LANTERN_THIN_RING=y` or `CONFIG_LANTERN_DISC=y` adds
-  `CONFIG_LANTERN_EFFECTS=y`, the last two `CONFIG_LANTERN_GEOMETRY=y` too;
+  `CONFIG_LANTERN_EFFECTS=y` and `CONFIG_LANTERN_FRAMES=y`, the thin ring
+  and the disc `CONFIG_LANTERN_GEOMETRY=y` too;
   `CONFIG_LANTERN_STAIN=y` adds `CONFIG_LANTERN_THIN_RING=y`;
+  `CONFIG_LANTERN_INTRO=y` adds `CONFIG_LANTERN_FRAMES=y` and
+  `CONFIG_LANTERN_GEOMETRY=y` and drops `CONFIG_LANTERN_BOOT_LIGHT_MS`;
   a half shows `CONFIG_LANTERN_BANDS=y`, or `CONFIG_LANTERN_SOLID=y`,
   `CONFIG_LANTERN_GRADIENT=y`, `CONFIG_LANTERN_SCATTER=y` or
   `CONFIG_LANTERN_NO_PICTURE=y` in its place,
@@ -150,7 +158,11 @@ how to build. Usage: [README.md](README.md). English only.
   processes key events, and off the Bluetooth receive queue, where a half
   runs the palette behavior. Callers say lit, dark or changed, and when the
   boot light lasts (`lantern_keys_boot_light()`, which only the no picture
-  builds: it shows the bands for it), and never touch a pixel. **The
+  and the intro build: the bands for it, or the intro in it), and never
+  touch a pixel. With the intro the boot light also opens when USB power
+  arrives (`src/on_usb_power.c`'s listener, on the system work queue with
+  the rest of the rail state) and lasts `LANTERN_INTRO_MS`, the script's
+  length in `src/keys.h`, which `src/keys.c` asserts it fits. **The
   countdown's clock and tick live on the system work queue**
   too (`src/keys.c`: the time of the half's last key, a delayable work item
   that computes the stage and arms itself for the next boundary; the stage
@@ -170,7 +182,9 @@ how to build. Usage: [README.md](README.md). English only.
   to 750f413 a stage was the timeout over the colour count and the last
   colour held until the dark; the user chose the ten-second cycle on
   hardware (t-x82q). A cable plugged into an idle half lights nothing until
-  its next key, by design (the source says why).
+  its next key, by design (the source says why); with the intro it plays
+  the intro and goes dark at its end, a timed light that needs no idle
+  event.
 - A target without a `lantern,keys` node builds none of the painting
   (`CONFIG_LANTERN_KEYS` depends on `DT_HAS_LANTERN_KEYS_ENABLED`) and none of
   the rail (`CONFIG_LANTERN_ON_USB_POWER` depends on `LANTERN_KEYS` and on
@@ -181,8 +195,8 @@ how to build. Usage: [README.md](README.md). English only.
 - **`positions` and `chain-length` are the consumer's measurement, `slots` its
   bands, `coords` its geometry**: `src/keys.c` asserts the lengths (`positions`
   as many as the strip's `chain-length`, `slots` as many as `ZMK_KEYMAP_LEN`,
-  `coords` twice that where something measures the board, an effect or the
-  gradient, `CONFIG_LANTERN_GEOMETRY`, present only then)
+  `coords` twice that where something measures the board, an effect, the
+  gradient or the intro, `CONFIG_LANTERN_GEOMETRY`, present only then)
   and the ranges (a position below the key count, a slot below
   `LANTERN_PALETTE_SLOTS`, a coordinate at most 30000 so that a squared
   distance fits 32 bits), and nothing about the order or the places: a wrong
@@ -245,11 +259,13 @@ how to build. Usage: [README.md](README.md). English only.
   a BUILD_ASSERT), since a brighter still picture could pass the cap and
   leave the room negative. The press glow goes to full scale
   because twice the picture's brightness was not seen under the keycaps on
-  hardware (canon t-6ttk, 2026-10-21). Effects
+  hardware (canon t-6ttk, 2026-10-21). The intro draws under the same cap,
+  over a black picture (the timer and the cap are `CONFIG_LANTERN_FRAMES`'s,
+  which the effects' engine and the intro select). Effects and the intro
   run on ZMK's low priority queue, whose 768-byte stack ZMK's battery
   sampling shares and no MPU guard protects on a half: integers only (the
-  effects' distances through an integer square root), and anything large
-  static. A hit carries the press's number (mod 60, a multiple of every
+  effects' distances and the intro's depths through an integer square
+  root), and anything large static. A hit carries the press's number (mod 60, a multiple of every
   shade count) so that an effect can give each press the palette's next
   shade without skipping one at the wrap. **The stain's dye is the frame
   thread's alone** (`stains[]`, written where the ring is drawn, applied to

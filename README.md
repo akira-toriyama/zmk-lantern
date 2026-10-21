@@ -58,6 +58,7 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
 | USB powers the half and its last key is `CONFIG_LANTERN_COUNTDOWN_STAGE_MS` (10 s) or more ago (`CONFIG_LANTERN_COUNTDOWN`) | on | lit: the whole half in the palette's next colour, a new picture every stage, the bands again after the last colour |
 | USB powers the half, but ZMK's activity state is idle: `CONFIG_ZMK_IDLE_TIMEOUT` ms (the consumer's line) without a key, sensor or pointing input on this half | off | black, until the next input |
 | the first `CONFIG_LANTERN_BOOT_LIGHT_MS` after boot (default 1000) | on | lit, cable or not |
+| with `CONFIG_LANTERN_INTRO`, the boot light: six seconds from boot and from each arrival of USB power | on | the intro, cable or not |
 
 - Each half decides for itself, from its own USB port and its own activity;
   nothing crosses the split. Typing on one half alone leaves the other to go
@@ -66,10 +67,11 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
   writes the picture; unplugging writes a black frame and drops the rail
   100 ms after. A reset, a suspend (the host asleep) or a resume on the cable
   changes nothing. Idle and the next input switch the LEDs the same way; the
-  boot light is never cut short.
+  boot light is never cut short. With the intro, plugging in plays it first.
 - A cable plugged into an idle half lights nothing until its next key: USB is
   no activity to ZMK, and lighting on it would leave the LEDs on with no idle
-  event to follow.
+  event to follow. With the intro it plays the intro, six seconds, and goes
+  dark again.
 - The picture ([src/keys.c](src/keys.c)): each LED shows its key's colour in
   the picture, by default (the bands) the palette slot the consumer's
   `lantern,keys` node assigns to the key under it, so the palette's colours
@@ -87,8 +89,9 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
   underglow stays off on such a half (`CONFIG_ZMK_RGB_UNDERGLOW=n`, asserted),
   and a frame goes out only when the LEDs light or go dark, when the palette
   changes while they are lit, when the countdown moves a stage, at each throw
-  of the scatter, when the no picture's boot light ends, and every 30 ms
-  while an effect moves; a still picture ticks at no rate.
+  of the scatter, when the boot light ends (the no picture's or the intro's),
+  and every 30 ms while an effect moves or the intro plays; a still picture
+  ticks at no rate.
 - The solid (`CONFIG_LANTERN_SOLID`, off by default while canon tries the
   pictures one at a time): instead of the bands, every key in slot 0, the
   whole half in one colour; the countdown's pictures are then the whole half
@@ -116,7 +119,8 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
   tries the pictures one at a time): every key black while the LEDs are lit,
   so that only the effects light, over black keys (the stain's dye stays, as
   over any picture). The boot light shows the bands instead, so that a half
-  still shows it has power; on the cable the keys turn black when it ends.
+  still shows it has power, unless the intro plays in its place; on the
+  cable the keys turn black when it ends.
   With the countdown on, its first picture is the black one and the others
   the whole half in a colour; the press glow, which brightens a key's colour
   in the picture, is refused with it.
@@ -166,6 +170,20 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
   the countdown changes the picture (the next key
   brings the picture back and its ring dyes it afresh) and whenever the LEDs
   light; without the countdown it stays until the LEDs go dark.
+- The intro (`CONFIG_LANTERN_INTRO`, off by default while canon tries it):
+  the boot light plays a six-second show instead of the picture, in red,
+  blue and green at full brightness within the frame's cap, not the
+  palette's colours, and opens at boot and again whenever USB power arrives;
+  then the rule applies as after any boot light. Each half plays it alone,
+  mirrored, from its outermost key to its innermost thumb (it measures the
+  board from `coords`): a white star crosses the half and leaves the keys
+  glittering in random primaries; a red, a blue and a green wave follow it
+  in; the thumb cluster, its inner keys brightest, takes each wave's colour
+  as it arrives, red, then magenta, then white, and pulses; a white burst
+  runs back out and leaves a rainbow (outer red to inner blue) on every key,
+  which holds a moment and fades. Nothing cuts it short, power arriving
+  while it plays does not restart it, and keys pressed meanwhile show no
+  effect.
 
 ## The split link
 
@@ -288,7 +306,7 @@ than six colours clears the rest to `0x000000`, which the LEDs show as slot
    bands, 0 to 5 each; `coords` has an x and a y per key position, in
    hundredths of a key unit on the whole board (canon: `imprint.json` times
    100), for what measures the board (the thin ring, the disc, the
-   gradient), which asserts it. A consumer
+   gradient, the intro), which asserts it. A consumer
    with per-half overlays puts `slots`, `coords` and `scatter-weights` in a shared dtsi and each
    half's `positions` and `chain-length` in its own overlay (canon's
    `config/lantern_keys.dtsi`).
@@ -304,10 +322,14 @@ than six colours clears the rest to `0x000000`, which the LEDs show as slot
    wherever their nodes exist; `CONFIG_LANTERN_BRIGHTNESS` (default 16) sets
    the frame's cap and, by default, the picture's brightness, which
    `CONFIG_LANTERN_PICTURE_BRIGHTNESS` (at most it) lowers alone;
-   `CONFIG_LANTERN_BOOT_LIGHT_MS=0` drops the boot light. ZMK's underglow must
+   `CONFIG_LANTERN_BOOT_LIGHT_MS=0` drops the boot light, and
+   `CONFIG_LANTERN_INTRO=y` makes it play the intro, at boot and when USB
+   power arrives (it needs `coords`). ZMK's underglow must
    be off on such a half (its tick would repaint the strip; Cyboard's module
    defaults it to y for every target). A missing or conflicting option fails
-   the build with a message naming it. A target without the nodes (a dongle)
+   the build with a message naming it, except
+   `CONFIG_LANTERN_BOOT_LIGHT_MS` with the intro, which Kconfig only warns
+   about and drops. A target without the nodes (a dongle)
    builds none of the painting or the rail. `CONFIG_LANTERN_OFF_WHEN_IDLE` is
    on by default with the rail, and the idle timeout is ZMK's
    `CONFIG_ZMK_IDLE_TIMEOUT` (default 30000 ms; 300000 is the five minutes of
@@ -326,7 +348,8 @@ than six colours clears the rest to `0x000000`, which the LEDs show as slot
    board by the keys' x (it needs `coords`), `CONFIG_LANTERN_SCATTER=y` throws
    the slots over the keys at random (it needs `scatter-weights`),
    `CONFIG_LANTERN_NO_PICTURE=y` leaves every key black for the effects (the
-   boot light shows the bands; not with the press glow).
+   boot light shows the bands unless the intro plays; not with the press
+   glow).
    `CONFIG_LANTERN_PRESS_GLOW=y` adds the press glow,
    `CONFIG_LANTERN_THIN_RING=y` the thin ring, `CONFIG_LANTERN_DISC=y` the
    disc and `CONFIG_LANTERN_STAIN=y` the stain, the ring that dyes (the three
@@ -372,7 +395,9 @@ targets on every pull request and weekly against the moving branches.
 
 Log lines (a `--logging` image, through canon's `dongle.py log` or any serial
 reader at 115200): `start: usb powered, boot light 1000 ms`, `lit: boot light`,
-`lit: usb powered`, `dark: on battery`, `dark: idle`, and the countdown's
+`lit: usb powered`, `dark: on battery`, `dark: idle` (with the intro
+`start: usb powered, intro 6000 ms`, `lit: intro`, and `intro: usb powered`
+when power arrives), and the countdown's
 `stage N` at every move; the palette's:
 `slots 0-1 RRGGBB RRGGBB stored` (or `unchanged`) on every device, and on the
 central `N colour(s) from <port>` and `resent to half N`; the picture logs
