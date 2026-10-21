@@ -114,12 +114,13 @@ config LANTERN_INTRO
       again whenever USB power arrives, so a cable plugged in shows it too,
       into an idle half as well; then LANTERN_ON_USB_POWER's rule applies,
       as after any boot light. Nothing cuts it short, and power that arrives
-      while it plays does not restart it. Each half plays it for itself, mirrored, from
-      its outermost key to its innermost thumb, measured on the lantern,keys
-      node's coords (asserted). Its colours are its own, red, blue and green
-      at full scale under the frame's cap, not the palette's (canon t-5v1f:
-      the user's pick, after Pokemon's first games); a key pressed while it
-      plays shows no effect.
+      while it plays does not restart it. Each half plays it for itself,
+      mirrored, from its outermost key to its innermost thumb, measured on
+      the lantern,keys node's coords (asserted). Its colours are its own, not
+      the palette's: red, blue and green up to full scale under the frame's
+      cap, and no other but the star's white head, tinted where it meets the
+      glitter (canon t-5v1f: the user's pick, after Pokemon's first games). A
+      key pressed while it plays shows no effect.
 
 config LANTERN_OFF_WHEN_IDLE
     bool "Dark once ZMK's activity state leaves ACTIVE, lit again on activity"

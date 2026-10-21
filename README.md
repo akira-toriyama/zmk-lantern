@@ -172,18 +172,21 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
   light; without the countdown it stays until the LEDs go dark.
 - The intro (`CONFIG_LANTERN_INTRO`, off by default while canon tries it):
   the boot light plays a six-second show instead of the picture, in red,
-  blue and green at full brightness within the frame's cap, not the
+  blue and green up to full brightness within the frame's cap, not the
   palette's colours, and opens at boot and again whenever USB power arrives;
   then the rule applies as after any boot light. Each half plays it alone,
   mirrored, from its outermost key to its innermost thumb (it measures the
   board from `coords`): a white star crosses the half and leaves the keys
   glittering in random primaries; a red, a blue and a green wave follow it
   in; the thumb cluster, its inner keys brightest, takes each wave's colour
-  as it arrives, red, then magenta, then white, and pulses; a white burst
-  runs back out and leaves a rainbow (outer red to inner blue) on every key,
-  which holds a moment and fades. Nothing cuts it short, power arriving
-  while it plays does not restart it, and keys pressed meanwhile show no
-  effect.
+  as it arrives, red, then blue, then green, and pulses in the three by
+  turns; a red, a blue and a green ring burst back out, and the last leaves
+  every key in its third of the half by depth, the outer red, the middle
+  blue and the inner green (on the Imprint, the thumb cluster), which hold
+  a moment and fade. No key mixes two of the colours; the only other is the
+  star's white head, tinted where it meets the glitter. Nothing cuts it
+  short, power arriving while it plays does not restart it, and keys
+  pressed meanwhile show no effect.
 
 ## The split link
 

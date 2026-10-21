@@ -239,30 +239,39 @@
  * - The intro (CONFIG_LANTERN_INTRO, canon t-5v1f): a show in place of the
  *   boot light's picture, LANTERN_INTRO_MS long (keys.h), which the rail
  *   rule plays at boot and whenever USB power arrives (src/on_usb_power.c),
- *   in red, blue and green at full scale, not the palette's colours (the
- *   user's pick and order, after Pokemon's first games). Each half plays it alone,
- *   mirrored: an LED's depth runs from 0 at the half's outermost key to
- *   DEPTH_ONE at its innermost, by its key's distance (coords) from the
- *   bottom of the board's middle, the point between the two thumb clusters,
- *   so the show moves from the outer columns' top to the inner thumb. The
- *   script, in order: the star, a white head crossing the half in STAR_MS,
- *   each key it passes glittering for GLITTER_MS, every beat a primary or
- *   none at random (the dice: an integer hash of the LED, the beat and a
- *   seed taken at the start, so the frame keeps no state for it); the
- *   waves, red, blue and green WAVE_GAP_MS apart, each front crossing in
- *   WAVE_MS with a fading tail; the core, the deepest keys, adding each
- *   wave's colour as it arrives (red, magenta, white: light adds) with a
- *   flash, then pulsing white and swelling outwards for CHARGE_MS; and the
- *   burst, a white front from the core out in BURST_MS, each key it passes
- *   left in its rainbow colour by depth (outer red through yellow, green and
- *   cyan to inner blue), the whole rainbow then held AFTERGLOW_HOLD_MS, the
- *   one moment every key is lit, and faded out at once over
- *   AFTERGLOW_FADE_MS, by the end. The acts add: an LED where two meet shows their sum, up to
- *   full scale per channel, and the frame's cap over a black picture holds
- *   the whole. Each frame is composed from the time since the start, so a
- *   late frame loses nothing; the depths are measured once, at the first
- *   frame. No effect is drawn and no press noted while it plays: a press
- *   noted then would show at its end as a disc already in flight.
+ *   in red, blue and green up to full scale, not the palette's colours (the
+ *   user's pick and order, after Pokemon's first games), and in no other
+ *   colour but the star's white head: on hardware the user found the first
+ *   script's end, a white burst leaving a rainbow, unrelated to the three
+ *   and asked for other colours a little at most (2026-10-22). Each half
+ *   plays it alone, mirrored: an LED's depth runs from 0 at the half's
+ *   outermost key to DEPTH_ONE at its innermost, by its key's distance
+ *   (coords) from the bottom of the board's middle, the point between the
+ *   two thumb clusters, so the show moves from the outer columns' top to the
+ *   inner thumb. The script, in order: the star, a white head crossing the
+ *   half in STAR_MS, each key it passes glittering for GLITTER_MS, every
+ *   beat a primary or none at random (the dice: an integer hash of the LED,
+ *   the beat and a seed taken at the start, so the frame keeps no state for
+ *   it); the waves, red, blue and green WAVE_GAP_MS apart, each front
+ *   crossing in WAVE_MS with a fading tail; the core, the deepest keys, each
+ *   in the colour of the newest wave to reach it, so that a wave coming into
+ *   the core never meets another colour there, with a flash at each wave's
+ *   arrival, then pulsing for CHARGE_MS a colour a beat, the last wave's
+ *   green, red, blue, green, and swelling outwards; and the burst, a red, a
+ *   blue and a green ring from the core out BURST_GAP_MS apart, each
+ *   crossing in BURST_MS, the last leaving each key it passes in its third
+ *   of the depths, the outer red, the middle blue and the inner green (the
+ *   waves' order from the outside), held THIRDS_HOLD_MS and faded out at
+ *   once over THIRDS_FADE_MS, by the end, the script's only stretch with
+ *   every key lit. A key shows one primary, the strongest of the light on
+ *   it (the beat's alone on the charging core's keys), light of one colour
+ *   adding up to full scale, so that no retiming of the acts can mix two;
+ *   the star's white goes over it, tinted where the head meets the glitter.
+ *   The frame's cap over a black picture holds the whole. Each frame is
+ *   composed from the time since the start, so a late frame loses nothing;
+ *   the depths are measured once, at the first frame. No effect is drawn
+ *   and no press noted while it plays: a press noted then would show at its
+ *   end as a disc already in flight.
  */
 
 #define DT_DRV_COMPAT lantern_keys
@@ -923,21 +932,25 @@ static void disc(const struct shades *sh, const struct hit live[], size_t n) {
 #define CORE_FULL 940
 #define CORE_SWELL 150      /* how much further out it begins by the burst */
 #define CORE_LEVEL 170      /* its glow once a flash has faded */
-#define POP_MS 300          /* its flash at a wave's arrival, fading to CORE_LEVEL (the last's to CHARGE_LOW) */
-#define CHARGE_MS 600       /* the white core's pulses and swell, from the last wave's arrival */
+/* Its flash at a wave's arrival, fading to CORE_LEVEL; the last wave's fades
+ * to CHARGE_LOW within the charge's first beat, so that every later beat
+ * pulses from the low alike. */
+#define POP_MS 300
+#define CHARGE_MS 600       /* the core's pulses, a colour a beat, and its swell */
 #define CHARGE_BEAT_MS 150
-#define CHARGE_LOW 80       /* the pulses' low, where the last wave's flash fades to */
+#define CHARGE_LOW 80       /* the pulses' low */
 #define BURST_FROM_MS (WAVE_FROM_MS + 2 * WAVE_GAP_MS + WAVE_MS + CHARGE_MS)
-#define BURST_MS 600        /* the white front from the innermost key to the outermost */
-#define BURST_REACH 100     /* how far on either side of the front it lights */
-#define AFTERGLOW_HOLD_MS 400  /* the whole rainbow, once the front is out of the half */
-#define AFTERGLOW_FADE_MS 1100 /* then every key fading out at once */
-/* The rainbow's brightest channel: at 100 the whole rainbow fits the frame's
- * cap on canon's 29 LEDs, so the hold shows at its level; at 120 the cap
- * scaled the hold to 0.94 and the burst's front near the outer keys to 0.67
- * (host runs, 2026-10-21). */
-#define AFTERGLOW_LEVEL 100
-BUILD_ASSERT(BURST_FROM_MS + BURST_MS + AFTERGLOW_HOLD_MS + AFTERGLOW_FADE_MS <= LANTERN_INTRO_MS,
+#define BURST_GAP_MS 150    /* between the rings' starts */
+#define BURST_MS 450        /* a ring's front from the innermost key to the outermost */
+#define BURST_REACH 128     /* how far on either side of its front a ring lights */
+#define THIRDS_HOLD_MS 350  /* every key in its third, once the last ring's front is out */
+#define THIRDS_FADE_MS 1000 /* then every key fading out at once */
+/* The thirds' level: on canon's 29 LEDs every key at it, 4640, fits the
+ * frame's cap at the device's brightness (4851 at 16 %), so the hold shows at
+ * its level. */
+#define THIRDS_LEVEL 160
+BUILD_ASSERT(BURST_FROM_MS + 2 * BURST_GAP_MS + BURST_MS + THIRDS_HOLD_MS + THIRDS_FADE_MS <=
+                 LANTERN_INTRO_MS,
              "the intro's script runs past LANTERN_INTRO_MS, where the rail rule ends it");
 BUILD_ASSERT(CORE_SWELL < CORE_FROM && CORE_FROM < CORE_FULL && CORE_FULL <= DEPTH_ONE,
              "the core's depths are out of order");
@@ -994,48 +1007,18 @@ static uint32_t dice(uint32_t x) {
     return x;
 }
 
-/* Depth d's rainbow colour, outermost red through yellow, green and cyan to
- * innermost blue, its brightest channel s, added to c. */
-static void rainbow(uint32_t d, uint32_t s, uint32_t c[3]) {
-    uint32_t f = d & 0xFF, r, g, b;
+/* The intro's three colours in their order, red, blue, green, the order the
+ * user wrote them (canon t-5v1f), as indexes into intro_led()'s c[]: the
+ * waves', the rings' and the thirds' from the outside. */
+static const uint8_t primary[3] = {0, 2, 1};
 
-    switch (d >> 8) {
-    case 0:
-        r = 255, g = f, b = 0;
-        break;
-    case 1:
-        r = 255 - f, g = 255, b = 0;
-        break;
-    case 2:
-        r = 0, g = 255, b = f;
-        break;
-    case 3:
-        r = 0, g = 255 - f, b = 255;
-        break;
-    default: /* DEPTH_ONE */
-        r = 0, g = 0, b = 255;
-        break;
-    }
-    c[0] += r * s / 255;
-    c[1] += g * s / 255;
-    c[2] += b * s / 255;
-}
-
-static void white(uint32_t s, uint32_t c[3]) {
-    c[0] += s;
-    c[1] += s;
-    c[2] += s;
-}
-
-/* The waves' colours in their order, as indexes into intro_led()'s c[]:
- * red, blue, green, the order the user wrote them (canon t-5v1f). */
-static const uint8_t wave_channel[3] = {0, 2, 1};
-
-/* LED i's colour t ms into the intro, before the cap: the acts' light added,
- * c[0] red, c[1] green, c[2] blue. */
+/* LED i's colour t ms into the intro, before the cap: the strongest primary
+ * of the light on it, c[0] red, c[1] green, c[2] blue, and the star's white
+ * over it (the header). */
 static struct led_rgb intro_led(size_t i, uint32_t t, uint32_t seed) {
     int32_t d = depth[i];
     uint32_t c[3] = {0, 0, 0};
+    uint32_t star = 0;
 
     /* the star */
     int32_t off = (int32_t)(t * DEPTH_ONE / STAR_MS) - d;
@@ -1043,7 +1026,7 @@ static struct led_rgb intro_led(size_t i, uint32_t t, uint32_t seed) {
         off = -off;
     }
     if (off < STAR_REACH) {
-        white((uint32_t)(STAR_REACH - off) * 255 / STAR_REACH, c);
+        star = (uint32_t)(STAR_REACH - off) * 255 / STAR_REACH;
     }
     uint32_t passed = (uint32_t)d * STAR_MS / DEPTH_ONE;
     if (t >= passed && t - passed < GLITTER_MS) {
@@ -1055,17 +1038,22 @@ static struct led_rgb intro_led(size_t i, uint32_t t, uint32_t seed) {
         }
     }
 
-    /* the waves */
+    /* the waves; reached counts those whose light has come to this LED */
+    size_t reached = 0;
     for (size_t w = 0; w < 3; w++) {
         uint32_t from = WAVE_FROM_MS + w * WAVE_GAP_MS;
         if (t < from) {
             break;
         }
         int32_t behind = (int32_t)((t - from) * DEPTH_ONE / WAVE_MS) - d;
-        if (behind >= 0 && behind < WAVE_TAIL) {
-            c[wave_channel[w]] += (uint32_t)(WAVE_TAIL - behind) * 255 / WAVE_TAIL;
-        } else if (behind < 0 && -behind < WAVE_HEAD) {
-            c[wave_channel[w]] += (uint32_t)(WAVE_HEAD + behind) * 255 / WAVE_HEAD;
+        if (behind <= -WAVE_HEAD) {
+            break;
+        }
+        reached = w + 1;
+        if (behind < 0) {
+            c[primary[w]] += (uint32_t)(WAVE_HEAD + behind) * 255 / WAVE_HEAD;
+        } else if (behind < WAVE_TAIL) {
+            c[primary[w]] += (uint32_t)(WAVE_TAIL - behind) * 255 / WAVE_TAIL;
         }
     }
 
@@ -1083,13 +1071,16 @@ static struct led_rgb intro_led(size_t i, uint32_t t, uint32_t seed) {
         }
         if (arrived > 0) {
             uint32_t since = t - last;
-            /* the last wave's flash fades to the pulses' low, so that they show */
             uint32_t low = arrived == 3 ? CHARGE_LOW : CORE_LEVEL;
+            uint32_t pop = arrived == 3 ? CHARGE_BEAT_MS : POP_MS;
             uint32_t level = low;
             int32_t from = CORE_FROM;
+            /* the newest wave to reach this key; an arrived wave has reached
+             * every key, so reached >= arrived >= 1 */
+            size_t colour = reached - 1;
 
-            if (since < POP_MS) {
-                level += (255 - low) * (POP_MS - since) / POP_MS;
+            if (since < pop) {
+                level += (255 - low) * (pop - since) / pop;
             }
             if (arrived == 3) {
                 /* the last arrival is CHARGE_MS before the burst, so since < CHARGE_MS */
@@ -1099,42 +1090,58 @@ static struct led_rgb intro_led(size_t i, uint32_t t, uint32_t seed) {
 
                 level = MAX(level, CHARGE_LOW + (255 - CHARGE_LOW) * MIN(tri, 256) / 256);
                 from -= (int32_t)(CORE_SWELL * since / CHARGE_MS);
+                /* a colour a beat: the last wave's, then the waves' order round again */
+                colour = (2 + since / CHARGE_BEAT_MS) % 3;
             }
             if (d > from) {
                 uint32_t k = d >= CORE_FULL ? 256 : (uint32_t)(d - from) * 256 / (CORE_FULL - from);
 
-                for (size_t w = 0; w < arrived; w++) {
-                    c[wave_channel[w]] += level * k / 256;
+                if (arrived == 3) {
+                    /* the last wave's fading tail would outshine a beat at its
+                     * low on the deepest keys */
+                    uint32_t own = c[primary[colour]];
+
+                    c[0] = c[1] = c[2] = 0;
+                    c[primary[colour]] = own;
                 }
+                c[primary[colour]] += level * k / 256;
             }
         }
     }
 
-    /* the burst */
+    /* the burst: the rings, and behind the last the thirds */
     if (t >= BURST_FROM_MS) {
         uint32_t since = t - BURST_FROM_MS;
 
-        off = DEPTH_ONE - (int32_t)(since * DEPTH_ONE / BURST_MS) - d;
-        if (off < 0) {
-            off = -off;
+        for (size_t j = 0; j < 3 && since >= j * BURST_GAP_MS; j++) {
+            int32_t front =
+                DEPTH_ONE - (int32_t)((since - j * BURST_GAP_MS) * DEPTH_ONE / BURST_MS);
+            off = front > d ? front - d : d - front;
+            if (off < BURST_REACH) {
+                c[primary[j]] += (uint32_t)(BURST_REACH - off) * 255 / BURST_REACH;
+            }
         }
-        if (off < BURST_REACH) {
-            white((uint32_t)(BURST_REACH - off) * 255 / BURST_REACH, c);
-        }
-        passed = (uint32_t)(DEPTH_ONE - d) * BURST_MS / DEPTH_ONE;
-        uint32_t fade = BURST_MS + AFTERGLOW_HOLD_MS;
+        passed = 2 * BURST_GAP_MS + (uint32_t)(DEPTH_ONE - d) * BURST_MS / DEPTH_ONE;
+        uint32_t fade = 2 * BURST_GAP_MS + BURST_MS + THIRDS_HOLD_MS;
+        size_t third = MIN((uint32_t)d * 3 / DEPTH_ONE, 2u);
+
         if (since >= passed && since < fade) {
-            rainbow((uint32_t)d, AFTERGLOW_LEVEL, c);
-        } else if (since >= fade && since - fade < AFTERGLOW_FADE_MS) {
-            rainbow((uint32_t)d,
-                    AFTERGLOW_LEVEL * (AFTERGLOW_FADE_MS - (since - fade)) / AFTERGLOW_FADE_MS, c);
+            c[primary[third]] += THIRDS_LEVEL;
+        } else if (since >= fade && since - fade < THIRDS_FADE_MS) {
+            c[primary[third]] += THIRDS_LEVEL * (THIRDS_FADE_MS - (since - fade)) / THIRDS_FADE_MS;
         }
     }
 
+    size_t top = c[1] > c[0] ? 1 : 0;
+    if (c[2] > c[top]) {
+        top = 2;
+    }
+    uint32_t p = MIN(c[top], 255u);
+
     return (struct led_rgb){
-        .r = (uint8_t)MIN(c[0], 255u),
-        .g = (uint8_t)MIN(c[1], 255u),
-        .b = (uint8_t)MIN(c[2], 255u),
+        .r = (uint8_t)MIN((top == 0 ? p : 0) + star, 255u),
+        .g = (uint8_t)MIN((top == 1 ? p : 0) + star, 255u),
+        .b = (uint8_t)MIN((top == 2 ? p : 0) + star, 255u),
     };
 }
 
@@ -1142,8 +1149,9 @@ static struct led_rgb intro_led(size_t i, uint32_t t, uint32_t seed) {
  * picture for the cap; true until LANTERN_INTRO_MS, when the rail rule ends
  * the boot light (the script's last light is out before, asserted). Not
  * inlined: inside paint() its locals would sit in paint()'s frame under the
- * strip driver's calls too, 24 bytes nearer the end of the 768-byte stack
- * (Opus review, 2026-10-21). */
+ * strip driver's calls too, nearer the end of the 768-byte stack: 24 bytes
+ * for the first script, 40 for the current one on a model build (Opus
+ * reviews, 2026-10-21 and -22). */
 static __noinline bool intro_compose(void) {
     uint32_t t = k_uptime_get_32() - (uint32_t)atomic_get(&intro_t0);
 
