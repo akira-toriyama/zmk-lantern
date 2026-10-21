@@ -21,10 +21,12 @@ how to build. Usage: [README.md](README.md). English only.
   canon t-skdt tries the others one image at a time; src/keys.c): the solid,
   every key in slot 0 (`CONFIG_LANTERN_SOLID`), the gradient, the colours
   blended across the board by the keys' x in `coords`
-  (`CONFIG_LANTERN_GRADIENT`, which selects `CONFIG_LANTERN_GEOMETRY`), and
-  the scatter, the slots thrown over the keys at random by the node's
+  (`CONFIG_LANTERN_GRADIENT`, which selects `CONFIG_LANTERN_GEOMETRY`), the
+  scatter, the slots thrown over the keys at random by the node's
   `scatter-weights` and thrown again every ten seconds
-  (`CONFIG_LANTERN_SCATTER`, `CONFIG_LANTERN_SCATTER_MS`); the
+  (`CONFIG_LANTERN_SCATTER`, `CONFIG_LANTERN_SCATTER_MS`), and the no
+  picture, every key black under the effects and the bands for the boot
+  light (`CONFIG_LANTERN_NO_PICTURE`, not with the press glow); the
   effects that move the picture after a key, the press
   glow, the thin ring, the disc and the stain (`CONFIG_LANTERN_PRESS_GLOW`,
   `CONFIG_LANTERN_THIN_RING`, `CONFIG_LANTERN_DISC`, `CONFIG_LANTERN_STAIN`,
@@ -92,7 +94,8 @@ how to build. Usage: [README.md](README.md). English only.
   `CONFIG_LANTERN_EFFECTS=y`, the last two `CONFIG_LANTERN_GEOMETRY=y` too;
   `CONFIG_LANTERN_STAIN=y` adds `CONFIG_LANTERN_THIN_RING=y`;
   a half shows `CONFIG_LANTERN_BANDS=y`, or `CONFIG_LANTERN_SOLID=y`,
-  `CONFIG_LANTERN_GRADIENT=y` or `CONFIG_LANTERN_SCATTER=y` in its place,
+  `CONFIG_LANTERN_GRADIENT=y`, `CONFIG_LANTERN_SCATTER=y` or
+  `CONFIG_LANTERN_NO_PICTURE=y` in its place,
   the gradient with `CONFIG_LANTERN_GEOMETRY=y`, the scatter with
   `CONFIG_LANTERN_SCATTER_MS=10000` (the choice `LANTERN_PICTURE` has no
   line of its own: a `--kconfig CONFIG_LANTERN_PICTURE=…` fails the build).
@@ -145,12 +148,14 @@ how to build. Usage: [README.md](README.md). English only.
   state an atomic, two submissions coalesce): `led_strip_update_rgb()` blocks
   for the SPI transfer and stays off the system work queue, where ZMK
   processes key events, and off the Bluetooth receive queue, where a half
-  runs the palette behavior. Callers say lit, dark or changed and never touch
-  a pixel. **The countdown's clock and tick live on the system work queue**
+  runs the palette behavior. Callers say lit, dark or changed, and when the
+  boot light lasts (`lantern_keys_boot_light()`, which only the no picture
+  builds: it shows the bands for it), and never touch a pixel. **The
+  countdown's clock and tick live on the system work queue**
   too (`src/keys.c`: the time of the half's last key, a delayable work item
   that computes the stage and arms itself for the next boundary; the stage
-  crosses to the painter as one atomic), so the light and the blank are
-  system work queue calls, the refresh any thread's.
+  crosses to the painter as one atomic), so the light, the blank and the
+  boot light are system work queue calls, the refresh any thread's.
 - **The idle timeout is ZMK's `CONFIG_ZMK_IDLE_TIMEOUT`, set by the consumer,
   and the dark is ZMK's idle state**: it already counts a half's keys,
   sensors and pointing input. The countdown (`CONFIG_LANTERN_COUNTDOWN`)

@@ -74,7 +74,8 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
   the picture, by default (the bands) the palette slot the consumer's
   `lantern,keys` node assigns to the key under it, so the palette's colours
   fall on the keyboard in bands. A slot the host left black shows slot 0, so
-  one colour paints every key alike; without a palette every key is white.
+  one colour paints every key alike; without a palette every key is white
+  (black in the no picture).
   Each colour is scaled so that its brightest channel is, by default,
   `CONFIG_LANTERN_BRIGHTNESS` percent of full scale (default 16, what ZMK's
   underglow drove on canon's halves before the module painted the strip),
@@ -86,14 +87,14 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
   underglow stays off on such a half (`CONFIG_ZMK_RGB_UNDERGLOW=n`, asserted),
   and a frame goes out only when the LEDs light or go dark, when the palette
   changes while they are lit, when the countdown moves a stage, at each throw
-  of the scatter, and every 30 ms while an effect moves; a still picture ticks
-  at no rate.
+  of the scatter, when the no picture's boot light ends, and every 30 ms
+  while an effect moves; a still picture ticks at no rate.
 - The solid (`CONFIG_LANTERN_SOLID`, off by default while canon tries the
   pictures one at a time): instead of the bands, every key in slot 0, the
   whole half in one colour; the countdown's pictures are then the whole half
   in each distinct colour in turn, slot 0's first. The bands, the solid,
-  the gradient and the scatter are one Kconfig choice, `LANTERN_PICTURE`,
-  set through its members.
+  the gradient, the scatter and the no picture are one Kconfig choice,
+  `LANTERN_PICTURE`, set through its members.
 - The gradient (`CONFIG_LANTERN_GRADIENT`, off by default while canon tries
   the pictures one at a time): instead of the bands, the palette's colours
   blended across the whole board by each key's x (the node's `coords`): the
@@ -111,6 +112,14 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
   50 20 10 5 5 0, and slot 0 takes what the others leave), thrown again every
   `CONFIG_LANTERN_SCATTER_MS` (default 10000) while the LEDs are lit and at
   every light. Each half throws for itself.
+- The no picture (`CONFIG_LANTERN_NO_PICTURE`, off by default while canon
+  tries the pictures one at a time): every key black while the LEDs are lit,
+  so that only the effects light, over black keys (the stain's dye stays, as
+  over any picture). The boot light shows the bands instead, so that a half
+  still shows it has power; on the cable the keys turn black when it ends.
+  With the countdown on, its first picture is the black one and the others
+  the whole half in a colour; the press glow, which brightens a key's colour
+  in the picture, is refused with it.
 - The countdown (`CONFIG_LANTERN_COUNTDOWN`, on by default with the idle rule
   and the palette): from the half's last key, the picture changes every
   `CONFIG_LANTERN_COUNTDOWN_STAGE_MS` (default 10000): the bands, then the
@@ -315,7 +324,9 @@ than six colours clears the rest to `0x000000`, which the LEDs show as slot
    (`CONFIG_LANTERN_BANDS`) by default: `CONFIG_LANTERN_SOLID=y` paints every
    key in slot 0, `CONFIG_LANTERN_GRADIENT=y` blends the colours across the
    board by the keys' x (it needs `coords`), `CONFIG_LANTERN_SCATTER=y` throws
-   the slots over the keys at random (it needs `scatter-weights`).
+   the slots over the keys at random (it needs `scatter-weights`),
+   `CONFIG_LANTERN_NO_PICTURE=y` leaves every key black for the effects (the
+   boot light shows the bands; not with the press glow).
    `CONFIG_LANTERN_PRESS_GLOW=y` adds the press glow,
    `CONFIG_LANTERN_THIN_RING=y` the thin ring, `CONFIG_LANTERN_DISC=y` the
    disc and `CONFIG_LANTERN_STAIN=y` the stain, the ring that dyes (the three

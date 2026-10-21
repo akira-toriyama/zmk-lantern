@@ -39,7 +39,8 @@ properties:
     description: |
       One entry per key position, in position order (the whole keymap, both
       halves of a split): the palette slot, 0 to 5, the key's LED shows in
-      the bands (CONFIG_LANTERN_BANDS, the default picture). The length is
+      the bands (CONFIG_LANTERN_BANDS, the default picture, and the boot
+      light of CONFIG_LANTERN_NO_PICTURE). The length is
       the keymap's length (asserted), so a table written in the keymap's
       shape reads as the bands. Required whatever the picture: the module
       takes the key count from it and checks every entry is a slot.

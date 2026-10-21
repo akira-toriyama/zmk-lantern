@@ -19,7 +19,8 @@ config LANTERN_KEYS
       key under it (positions: the key under each LED, in chain order;
       slots: the slot of each key position), so the palette's colours fall
       on the keyboard in bands. A slot that is 0x000000 shows slot 0, and a
-      device without a palette shows white. A frame is written when the LEDs
+      device without a palette shows white (LANTERN_NO_PICTURE's black
+      aside). A frame is written when the LEDs
       light or go dark (LANTERN_ON_USB_POWER) and when the palette changes,
       on ZMK's low priority work queue, which this selects.
 
@@ -95,7 +96,8 @@ config LANTERN_BOOT_LIGHT_MS
       for this long from its frame, on USB and on battery alike; then
       LANTERN_ON_USB_POWER's rule applies: on USB the LEDs stay lit, on
       battery they go black and the rail off. 0: no boot light, the rule
-      applies at once.
+      applies at once. LANTERN_NO_PICTURE, which paints every key black,
+      shows the bands for it, so that a half still shows it has power.
 
 config LANTERN_OFF_WHEN_IDLE
     bool "Dark once ZMK's activity state leaves ACTIVE, lit again on activity"
@@ -144,8 +146,9 @@ choice LANTERN_PICTURE
     depends on LANTERN_KEYS
     help
       What the LEDs show while lit, the countdown's first picture and the
-      one the effects draw over (src/keys.c). The bands by default; canon
-      t-skdt tries the others one image at a time.
+      one the effects draw over (src/keys.c), or every key black
+      (LANTERN_NO_PICTURE). The bands by default; canon t-skdt tries the
+      others one image at a time.
 
 config LANTERN_BANDS
     bool "Each key in the slot the lantern,keys node's slots give it"
@@ -195,6 +198,22 @@ config LANTERN_SCATTER
       Needs a random number source (Zephyr's sys_rand32_get: an entropy
       driver, as the nRF52840's RNG, or the test generator).
 
+config LANTERN_NO_PICTURE
+    bool "No picture: every key black while lit, so that only the effects light"
+    help
+      Every LED black while the LEDs are lit, so that only the effects
+      show, over black keys (and the stain's dye, which stays at the
+      picture's brightness as over any picture). The boot light
+      (LANTERN_BOOT_LIGHT_MS) shows the bands instead, so that a half still
+      shows it has power; on USB the keys turn black when it ends. With the
+      countdown on, its first picture is the black one and the others the
+      whole half in a colour, as with the bands, from
+      LANTERN_COUNTDOWN_STAGE_MS after the last key; canon t-skdt tries it
+      with LANTERN_COUNTDOWN=n. The press
+      glow brightens a key's colour in the picture, which this has none of:
+      the build refuses the two together. The node keeps slots, which only
+      the boot light reads.
+
 endchoice
 
 config LANTERN_SCATTER_MS
@@ -226,8 +245,9 @@ config LANTERN_PRESS_GLOW
       to what the key showed over 500 ms (src/keys.c). Pressing every key
       of a half shows which LED sits under which key, one key at a time,
       where the bands show it only band by band. The press that lights an
-      idle half shows the picture alone. Default n while canon t-6ttk tries the
-      effects one image at a time.
+      idle half shows the picture alone. Not with LANTERN_NO_PICTURE, which
+      gives a key no colour to brighten (asserted). Default n while canon
+      t-6ttk tries the effects one image at a time.
 
 config LANTERN_GEOMETRY
     bool

@@ -10,7 +10,10 @@
  * (lantern_keys_light(), src/keys.c); dark = a black frame
  * (lantern_keys_blank()), then the rail off BLANK_MS later. At boot the LEDs
  * light for CONFIG_LANTERN_BOOT_LIGHT_MS whatever the power, then the rule
- * applies.
+ * applies; lantern_keys_boot_light() tells the picture the boot light's state
+ * before every light and again at its end with the LEDs lit, since the no
+ * picture, which paints every key black, shows the bands for it
+ * (src/keys.c).
  *
  * - The rail is driven here, never by ZMK's zmk,ext-power-generic driver:
  *   its init turns the rail on, its settings handler restores a stored
@@ -61,9 +64,10 @@
  *   pauses its sampling while idle (zmk.map, 2026-10-19). The countdown
  *   (src/keys.c) cuts the same timeout into stages for the picture, from its
  *   own clock of the half's keys; the dark stays this rule's.
- * - The frames: lantern_keys_light() and lantern_keys_blank() take no lock
- *   and block on nothing; each queues one frame on ZMK's low priority work
- *   queue (src/keys.c). settle-ms (the node) covers the LEDs' power-up before
+ * - The frames: lantern_keys_light(), lantern_keys_blank() and
+ *   lantern_keys_boot_light() take no lock and block on nothing; each queues
+ *   at most one frame on ZMK's low priority work queue (src/keys.c).
+ *   settle-ms (the node) covers the LEDs' power-up before
  *   the first frame, as the ext-power node's init-delay-ms did; BLANK_MS
  *   covers the black frame before the rail drops (a 29-LED frame at 4 MHz
  *   takes 1.4 ms, 7 ms at the Cyboard overlay's chain-length of 150). The
@@ -157,6 +161,7 @@ static void apply_rule(void) {
 
 /* Rail on and settled: the picture, and the boot light's end. */
 static void light(void) {
+    lantern_keys_boot_light(boot_light);
     lantern_keys_light();
     phase = LIT;
     LOG_INF("lit: %s", boot_light ? "boot light" : "usb powered");
@@ -212,6 +217,7 @@ static void step(struct k_work *work) {
     case LIT:
         if (boot_light) {
             boot_light = false;
+            lantern_keys_boot_light(false);
             want_lit = rule();
         }
         if (!want_lit) {

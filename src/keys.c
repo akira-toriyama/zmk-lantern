@@ -15,8 +15,9 @@
  * moves after a key. This file is the strip's one writer. A frame goes out
  * when something changed: when the rail rule lights or blanks the LEDs
  * (src/on_usb_power.c), when the palette changes while they are lit, when the
- * countdown moves a stage, at each throw of the scatter, and every FRAME_MS
- * while an effect moves; a still picture costs no tick.
+ * countdown moves a stage, at each throw of the scatter, when the no
+ * picture's boot light ends, and every FRAME_MS while an effect moves; a
+ * still picture costs no tick.
  *
  * - Why the module writes the strip itself and ZMK's underglow is asserted
  *   off: rgb_underglow.c repaints every LED with its one colour and effect at
@@ -28,12 +29,14 @@
  * - The picture: LED i shows the colour of one slot, base_slot(i), which the
  *   Kconfig choice LANTERN_PICTURE makes slots[positions[i]] (the bands, the
  *   default), 0 (the solid) or the LED's throw (the scatter); the gradient
- *   shows ramp()'s blend of two shades in place of a slot (the three below).
+ *   shows ramp()'s blend of two shades in place of a slot, and the no picture
+ *   black (the four below).
  *   A slot that is 0x000000 shows slot 0 instead: the host clears the slots
  *   it does not send (lantern_palette_send()), so a palette of one colour
  *   paints every LED alike (canon t-0967 leaves dark colours out of a
  *   sprite's palette since 2026-10-20, so black arrives only as a cleared
- *   slot). Without a palette every LED is white. Each colour of the picture
+ *   slot). Without a palette every LED is white (the no picture's black
+ *   aside). Each colour of the picture
  *   (the picture, the countdown's other pictures, the stain's dye) is scaled
  *   so that its brightest channel is CONFIG_LANTERN_PICTURE_BRIGHTNESS
  *   percent of full scale: hue and saturation are the colour's, the
@@ -75,7 +78,8 @@
  *   hence the consumer sets the real count) and stays off the system work
  *   queue, where ZMK processes key events, and off the Bluetooth receive
  *   queue, where a half runs the palette behavior. A caller only sets the
- *   wanted state (lit or dark, the stage; atomics) and submits the one work
+ *   wanted state (lit or dark, the stage, the no picture's boot light;
+ *   atomics) and submits the one work
  *   item; the handler reads the state and the palette's atomics when it runs,
  *   so two submissions coalesce, the last state wins, a submission during the
  *   handler runs it again, and nothing holds a lock. The countdown's clock and
@@ -128,7 +132,8 @@
  *   key by key, which the bands show only band by band. Full scale because
  *   twice LEVEL, the first try, was not seen on hardware: under the keycaps
  *   16 % to 32 % for half a second read as no change (canon t-6ttk,
- *   2026-10-21).
+ *   2026-10-21). The no picture gives a key no colour to brighten, so the
+ *   build refuses the two together.
  * - The thin ring (CONFIG_LANTERN_THIN_RING): from a pressed key a ring one
  *   key wide spreads at RING_SPEED key units a second and fades out over
  *   RING_MS, so it has crossed the half when it is gone; each press takes
@@ -209,8 +214,24 @@
  *   old throw for one frame. sys_rand32_get() is Zephyr's xoshiro128++ on a
  *   half (CONFIG_XOSHIRO_RANDOM_GENERATOR; thread context, the first call
  *   seeds from the nRF RNG). The node still carries slots, which only the
- *   bands read. Each half throws for itself: the two are
- *   independent, with the same shares.
+ *   bands and the no picture's boot light read. Each half throws for itself:
+ *   the two are independent, with the same shares.
+ * - The no picture (CONFIG_LANTERN_NO_PICTURE, canon t-skdt): every LED
+ *   black while lit, so that only the effects show, over black keys: an
+ *   effect pulls an LED from black and fades back to it, and the cap leaves
+ *   the effects all its room but what a stain's dye takes (the dye stays at
+ *   the picture's level, as over any picture, and the cap counts it as the
+ *   picture). The boot light would then show nothing, and its point is to
+ *   show that a half has power (canon t-6ttk, the user's choice of
+ *   2026-10-19), so the rail rule tells this file the boot light's state at
+ *   every light and again at its end with the LEDs lit
+ *   (lantern_keys_boot_light(), on the system work queue; booting, an atomic
+ *   the frame reads), and while it lasts the countdown's first picture (stage
+ *   mod the shade count 0) is the bands, the node's slots; its end sends a
+ *   frame, so on USB the keys turn black (on battery the blank follows
+ *   anyway). With the countdown on, its first picture is otherwise the black
+ *   one and the others the whole half in a shade, as with the bands. The
+ *   node still carries slots, which only the boot light reads.
  */
 
 #define DT_DRV_COMPAT lantern_keys
@@ -354,6 +375,9 @@ BUILD_ASSERT(HIT_LIFE_MS > 0, "CONFIG_LANTERN_EFFECTS without an effect: an effe
 BUILD_ASSERT(HIT_LIFE_MS <= UINT16_MAX, "a hit's age is kept in 16 bits");
 BUILD_ASSERT(HIT_LIFE_MS < HIT_TIME / 2, "a hit's age must be told from a wrapped time");
 #endif
+BUILD_ASSERT(!IS_ENABLED(CONFIG_LANTERN_PRESS_GLOW) || !IS_ENABLED(CONFIG_LANTERN_NO_PICTURE),
+             "CONFIG_LANTERN_PRESS_GLOW brightens a key's colour in the picture, and "
+             "CONFIG_LANTERN_NO_PICTURE paints none");
 
 #if IS_ENABLED(CONFIG_LANTERN_GEOMETRY)
 BUILD_ASSERT(DT_INST_NODE_HAS_PROP(0, coords),
@@ -381,7 +405,8 @@ COND_CODE_1(DT_INST_NODE_HAS_PROP(0, coords), (DT_FOREACH_PROP_ELEM(NODE, coords
 
 static const struct device *const strip = DEVICE_DT_GET(STRIP);
 /* Without an effect the solid and the scatter read neither table and the
- * gradient positions alone (the asserts above still check both). */
+ * gradient positions alone; the no picture reads both for its boot light (the
+ * asserts above still check both). */
 static const uint8_t positions[LED_COUNT] __maybe_unused = DT_INST_PROP(0, positions);
 static const uint8_t slots[KEY_COUNT] __maybe_unused = DT_INST_PROP(0, slots);
 #if IS_ENABLED(CONFIG_LANTERN_GEOMETRY)
@@ -406,6 +431,9 @@ static uint8_t scatter[LED_COUNT];
 static struct led_rgb pixels[LED_COUNT];
 static atomic_t lit;
 static atomic_t stage; /* stages since the last key; the picture is stage mod the shade count */
+#if IS_ENABLED(CONFIG_LANTERN_NO_PICTURE)
+static atomic_t booting; /* the boot light lasts: the no picture shows the bands (the header) */
+#endif
 
 /* The 0xRRGGBB scaled so that its brightest channel is level; black to white. */
 static struct led_rgb scale(uint32_t rgb, unsigned int level) {
@@ -527,7 +555,7 @@ static struct led_rgb ramp(const struct shades *sh, size_t i, unsigned int level
     return scale(((uint32_t)m.r << 16) | ((uint32_t)m.g << 8) | m.b, level);
 }
 
-#else
+#elif !IS_ENABLED(CONFIG_LANTERN_NO_PICTURE)
 
 /* The slot LED i shows in the picture: its throw, slot 0, or its key's band. */
 static uint8_t base_slot(size_t i) {
@@ -543,7 +571,7 @@ static uint8_t base_slot(size_t i) {
 #endif
 }
 
-#endif /* IS_ENABLED(CONFIG_LANTERN_GRADIENT) */
+#endif /* IS_ENABLED(CONFIG_LANTERN_GRADIENT); the no picture builds no base_slot() */
 
 #if IS_ENABLED(CONFIG_LANTERN_SCATTER)
 
@@ -840,9 +868,17 @@ static bool compose(size_t at) {
     }
 #endif
     at %= frame_shades.n;
+#if IS_ENABLED(CONFIG_LANTERN_NO_PICTURE)
+    bool boot = atomic_get(&booting) != 0;
+#endif
     for (size_t i = 0; i < LED_COUNT; i++) {
 #if IS_ENABLED(CONFIG_LANTERN_GRADIENT)
         pixels[i] = at > 0 ? frame_shades.at_level[at] : ramp(&frame_shades, i, PICTURE_LEVEL);
+#elif IS_ENABLED(CONFIG_LANTERN_NO_PICTURE)
+        /* black, but the bands while the boot light lasts (the header) */
+        pixels[i] = at > 0  ? frame_shades.at_level[at]
+                    : boot ? frame_shades.at_level[frame_shades.rank[slots[positions[i]]]]
+                           : (struct led_rgb){0};
 #else
         pixels[i] = frame_shades.at_level[at > 0 ? at : frame_shades.rank[base_slot(i)]];
 #endif
@@ -1060,3 +1096,18 @@ void lantern_keys_refresh(void) {
         submit();
     }
 }
+
+#if IS_ENABLED(CONFIG_LANTERN_NO_PICTURE)
+
+/* System work queue (the rail rule): before every light, the boot light's
+ * state (on only for the boot light's, whose frame then shows the bands;
+ * dark then, so no frame here), and off again at the boot light's end with
+ * the LEDs lit, which sends a frame. */
+void lantern_keys_boot_light(bool on) {
+    atomic_set(&booting, on ? 1 : 0);
+    if (atomic_get(&lit)) {
+        submit();
+    }
+}
+
+#endif
