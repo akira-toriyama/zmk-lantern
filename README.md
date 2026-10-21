@@ -80,6 +80,8 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
   `CONFIG_LANTERN_BRIGHTNESS` percent of full scale (default 16, what ZMK's
   underglow drove on canon's halves before the module painted the strip),
   which keeps its hue and saturation; a grey or black scales to white. The
+  picture alone can be dimmer than the effects over it
+  (`CONFIG_LANTERN_PICTURE_BRIGHTNESS`, at most the brightness). The
   module is the strip's one writer: ZMK's underglow stays off on such a half
   (`CONFIG_ZMK_RGB_UNDERGLOW=n`, asserted), and a frame goes out only when the
   LEDs light or go dark, when the palette changes while they are lit, when
@@ -290,7 +292,9 @@ than six colours clears the rest to `0x000000`, which the LEDs show as slot
 
    `CONFIG_LANTERN_KEYS` and `CONFIG_LANTERN_ON_USB_POWER` are on by default
    wherever their nodes exist; `CONFIG_LANTERN_BRIGHTNESS` (default 16) is
-   the picture's brightness; `CONFIG_LANTERN_BOOT_LIGHT_MS=0` drops the boot
+   the LEDs' brightness and `CONFIG_LANTERN_PICTURE_BRIGHTNESS` (at most
+   that, the same by default) the picture's alone, dimmer under the effects
+   when lower; `CONFIG_LANTERN_BOOT_LIGHT_MS=0` drops the boot
    light. ZMK's underglow must be off on such a half (its tick would repaint
    the strip; Cyboard's module defaults it to y for every target). A missing
    or conflicting option fails the build with a message naming it. A target

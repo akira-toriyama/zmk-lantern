@@ -233,7 +233,11 @@ how to build. Usage: [README.md](README.md). English only.
   and the cap takes any excess out of the effects' brightening alone. CAP is
   the white picture plus two keys white at full scale (`CAP_KEYS`), about
   380 mA by estimate: a cap at the white picture alone left a white or grey
-  band no room (Opus review, 2026-10-20). The press glow goes to full scale
+  band no room (Opus review, 2026-10-20). The cap counts from
+  `CONFIG_LANTERN_BRIGHTNESS`; the picture's own brightness,
+  `CONFIG_LANTERN_PICTURE_BRIGHTNESS`, is at most that (Kconfig's range and
+  a BUILD_ASSERT), since a brighter still picture could pass the cap and
+  leave the room negative. The press glow goes to full scale
   because twice the picture's brightness was not seen under the keycaps on
   hardware (canon t-6ttk, 2026-10-21). Effects
   run on ZMK's low priority queue, whose 768-byte stack ZMK's battery

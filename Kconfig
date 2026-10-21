@@ -42,6 +42,21 @@ config LANTERN_BRIGHTNESS
       drove on canon's halves before this module painted the strip
       (brightness 25 between Cyboard's 5 and 50).
 
+config LANTERN_PICTURE_BRIGHTNESS
+    int "Brightness of the picture alone, in percent of full scale, at most LANTERN_BRIGHTNESS"
+    range 1 LANTERN_BRIGHTNESS
+    default LANTERN_BRIGHTNESS
+    depends on LANTERN_KEYS
+    help
+      The picture's colours, the countdown's other pictures and the stain's
+      dye at this percentage of full scale instead of LANTERN_BRIGHTNESS, so
+      that the picture can be dimmer than the effects over it: an effect
+      still brightens to full scale and a frame's cap stays the one
+      LANTERN_BRIGHTNESS sets, so a dimmer picture leaves the effects as much
+      room or more. Default LANTERN_BRIGHTNESS; never above it (asserted: a
+      still picture could pass the cap). canon t-skdt tries half of it under
+      the disc.
+
 config LANTERN_ON_USB_POWER
     bool "Light the key LEDs while USB powers this half, dark and unpowered on battery"
     default y

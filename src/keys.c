@@ -29,17 +29,22 @@
  *   Kconfig choice LANTERN_PICTURE makes slots[positions[i]] (the bands, the
  *   default), 0 (the solid) or the LED's throw (the scatter); the gradient
  *   shows ramp()'s blend of two shades in place of a slot (the three below).
- *   A slot that is
- *   0x000000 shows slot 0 instead: the host clears the slots it does not
- *   send (lantern_palette_send()), so a palette of one colour paints every
- *   LED alike (canon t-0967 leaves dark colours out of a sprite's palette
- *   since 2026-10-20, so black arrives only as a cleared slot). Without a palette
- *   every LED is white. Each colour is scaled so that its brightest channel
- *   is CONFIG_LANTERN_BRIGHTNESS percent of full scale: hue and saturation
- *   are the colour's, the brightness is the device's (the LEDs sit under
- *   keycaps; 16 is what ZMK's underglow drove at canon's earlier settings,
- *   brightness 25 between 5 and 50). A grey has no hue and scales to white;
- *   so does black, which has no brightest channel, when it is slot 0.
+ *   A slot that is 0x000000 shows slot 0 instead: the host clears the slots
+ *   it does not send (lantern_palette_send()), so a palette of one colour
+ *   paints every LED alike (canon t-0967 leaves dark colours out of a
+ *   sprite's palette since 2026-10-20, so black arrives only as a cleared
+ *   slot). Without a palette every LED is white. Each colour is scaled so
+ *   that its brightest channel is CONFIG_LANTERN_BRIGHTNESS percent of full
+ *   scale: hue and saturation are the colour's, the brightness is the
+ *   device's (the LEDs sit under keycaps; 16 is what ZMK's underglow drove at
+ *   canon's earlier settings, brightness 25 between 5 and 50). A grey has no
+ *   hue and scales to white; so does black, which has no brightest channel,
+ *   when it is slot 0. The picture's colours (the picture, the countdown's
+ *   other pictures, the stain's dye) take CONFIG_LANTERN_PICTURE_BRIGHTNESS
+ *   instead, the same by default and never above it (asserted): a picture
+ *   dimmed under the effects (canon t-skdt), whose brightening and cap stay
+ *   the device's, so that the dimmer picture leaves them as much room or
+ *   more.
  * - The countdown: the pictures are the bands and then the palette's shades
  *   in slot order, N of them (a cleared slot is slot 0's; two colours that
  *   scale to one shade, a hue at two brightnesses or two greys, are one:
@@ -93,28 +98,27 @@
  *   2026-10-20).
  * - Effects (CONFIG_LANTERN_EFFECTS, which each effect selects): the half's
  *   own presses go into a ring of the last HITS, each a key position, the
- *   press's number (the count of presses, cycling) and the low 18 bits of
- *   the press's uptime in one atomic, written on the system
- *   work queue (the key listener, while lit; a full ring drops the oldest)
- *   and read by the frame, which clears each hit that has run its course, so
- *   an 18-bit time never wraps into a live one; the blank clears them all, and
- *   a press that lights an idle half shows no effect. While one moves, the
- *   frame arms frame_work, a delayable item on the same queue that runs the
- *   same handler, FRAME_MS ahead; a black frame cancels it, so no frame
- *   follows the blank's. An effect pulls an LED from the picture toward its
- *   colour (mix()), never adds to it: added to a bright band it would
- *   saturate to white. Its colours go up to HI_LEVEL, full scale, and then
- *   the frame's channel sum is held to CAP by scaling down only what the
- *   effects brightened above the picture, so the picture itself never dims
- *   for an effect. CAP is the most a still picture draws, every LED white at
+ *   press's number (the count of presses, cycling) and the low 18 bits of the
+ *   press's uptime in one atomic, written on the system work queue (the key
+ *   listener, while lit; a full ring drops the oldest) and read by the frame,
+ *   which clears each hit that has run its course, so an 18-bit time never
+ *   wraps into a live one; the blank clears them all, and a press that lights
+ *   an idle half shows no effect. While one moves, the frame arms frame_work,
+ *   a delayable item on the same queue that runs the same handler, FRAME_MS
+ *   ahead; a black frame cancels it, so no frame follows the blank's. An
+ *   effect pulls an LED from the picture toward its colour (mix()), never
+ *   adds to it: added to a bright band it would saturate to white. Its
+ *   colours go up to HI_LEVEL, full scale, and then the frame's channel sum
+ *   is held to CAP by scaling down only what the effects brightened above the
+ *   picture, so the picture itself never dims for an effect. CAP is the most
+ *   a still picture draws at the device's brightness, every LED white at
  *   LEVEL, plus CAP_KEYS LEDs white at HI_LEVEL (about 280 + 100 mA for 29
  *   LEDs at 16 %, from 60 mA a full white LED: an estimate, unmeasured): with
  *   CAP at the white picture alone, a white or grey band left an effect no
- *   room (Opus review, 2026-10-20). More keys at full scale than CAP_KEYS,
- *   on a white picture, share the room and all dim alike. Integers only: the
- *   low priority queue's 768-byte stack is shared with ZMK's battery
- *   sampling, and a thread that once uses the FPU keeps a larger context
- *   from then on.
+ *   room (Opus review, 2026-10-20). More keys at full scale than CAP_KEYS, on
+ *   a white picture, share the room and all dim alike. Integers only: the low
+ *   priority queue's 768-byte stack is shared with ZMK's battery sampling,
+ *   and a thread that once uses the FPU keeps a larger context from then on.
  * - The press glow (CONFIG_LANTERN_PRESS_GLOW): a pressed key's LED jumps to
  *   its colour in the picture beneath any dye (its slot's shade, its blend in
  *   the gradient) at HI_LEVEL and falls back to what it showed over GLOW_MS,
@@ -155,19 +159,19 @@
  *   disc, which covers many LEDs at once, harder than it holds a ring.
  * - The stain (CONFIG_LANTERN_STAIN): the thin ring dyes the keys it passes.
  *   An LED within STAIN_REACH of the press keeps the ring's shade as its
- *   picture colour, at LEVEL like a band, from the frame in which the ring's
- *   crest reaches it, so the half is painted over in the day's colours as the
- *   user types; zmk-pk-underglow's rainbow ripple, from its idea. The reach is
- *   where the crest still has STAIN_LEAST of full strength (the ring fades as
- *   it spreads), the design's 0.6; it is judged by the crest's position, not
- *   by the strength a frame happens to sample, because the crest is narrow
- *   and frames FRAME_MS apart miss it beyond about three units (Opus review,
- *   2026-10-21). The newest ring to have passed an LED dyes it. The dye is
- *   the frame thread's alone (stains[], written where the ring is drawn) and
- *   goes when the countdown moves the picture (the next key brings it back,
- *   and its ring dyes it afresh) and when the LEDs blank. It indexes
- *   the shades, so a new palette recolours the dye with it, and a dye past
- *   the new shade count shows the picture.
+ *   picture colour, at the picture's level like a band, from the frame in
+ *   which the ring's crest reaches it, so the half is painted over in the
+ *   day's colours as the user types; zmk-pk-underglow's rainbow ripple, from
+ *   its idea. The reach is where the crest still has STAIN_LEAST of full
+ *   strength (the ring fades as it spreads), the design's 0.6; it is judged
+ *   by the crest's position, not by the strength a frame happens to sample,
+ *   because the crest is narrow and frames FRAME_MS apart miss it beyond
+ *   about three units (Opus review, 2026-10-21). The newest ring to have
+ *   passed an LED dyes it. The dye is the frame thread's alone (stains[],
+ *   written where the ring is drawn) and goes when the countdown moves the
+ *   picture (the next key brings it back, and its ring dyes it afresh) and
+ *   when the LEDs blank. It indexes the shades, so a new palette recolours
+ *   the dye with it, and a dye past the new shade count shows the picture.
  * - The solid (CONFIG_LANTERN_SOLID, canon t-skdt): every LED shows slot 0,
  *   so the countdown's pictures are the whole half in each shade in turn,
  *   shade 0's first, and the press glow brightens slot 0's shade. The node
@@ -177,16 +181,16 @@
  *   board (the coords): the leftmost key at shade 0, the rightmost at the
  *   last, and an LED between two shades shows them mixed in proportion; one
  *   on a shade's place shows that shade exactly. Both shades are taken at
- *   full scale and the mix brought to the level after, so a blend's
- *   brightest channel is LEVEL, as a shade's (mixed at LEVEL, two hues would
- *   dim each other). The halves share the board, each showing its stretch of
- *   the one line. A shade shows pure only on a key at its place (canon: the
- *   ends always, the others by the shade count); no key sits between the
- *   halves, so a shade whose place lies there never does. The board's ends
- *   are measured once, at the first frame that shows the gradient. The
- *   countdown's other pictures and the stain's dye are shades as with the
- *   bands; the press glow brightens the LED's blend. The node still carries
- *   slots, unread.
+ *   full scale and the mix brought to the level after, so a blend's brightest
+ *   channel is the picture's level, as a shade's (mixed at that level, two
+ *   hues would dim each other). The halves share the board, each showing its
+ *   stretch of the one line. A shade shows pure only on a key at its place
+ *   (canon: the ends always, the others by the shade count); no key sits
+ *   between the halves, so a shade whose place lies there never does. The
+ *   board's ends are measured once, at the first frame that shows the
+ *   gradient. The countdown's other pictures and the stain's dye are shades
+ *   as with the bands; the press glow brightens the LED's blend. The node
+ *   still carries slots, unread.
  * - The scatter (CONFIG_LANTERN_SCATTER, canon t-skdt): the picture is the
  *   palette's slots thrown over this half's LEDs at random in place of the
  *   bands, each slot on as many LEDs as its share of the node's
@@ -267,8 +271,13 @@ DT_FOREACH_PROP_ELEM(NODE, positions, POSITION_IN_RANGE)
                  "lantern,keys: a slots entry is no palette slot (0 to 5)");
 DT_FOREACH_PROP_ELEM(NODE, slots, SLOT_IN_RANGE)
 
-/* The brightest channel of every colour painted. */
+/* The brightest channel of the device's colours, which the frame's cap counts
+ * from, and of the picture's at most (the header). */
 #define LEVEL ((255 * CONFIG_LANTERN_BRIGHTNESS + 50) / 100)
+#define PICTURE_LEVEL ((255 * CONFIG_LANTERN_PICTURE_BRIGHTNESS + 50) / 100)
+BUILD_ASSERT(PICTURE_LEVEL <= LEVEL,
+             "CONFIG_LANTERN_PICTURE_BRIGHTNESS above CONFIG_LANTERN_BRIGHTNESS: a still picture "
+             "could pass the frame's cap");
 
 #if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
 /* The brightest channel of an effect's colour: full scale (the header). */
@@ -435,10 +444,10 @@ static uint32_t slot_rgb(const uint32_t palette[LANTERN_PALETTE_SLOTS], bool hav
     return palette[s] != 0 ? palette[s] : palette[0];
 }
 
-/* The shades a frame is made of: the palette's colours at LEVEL, the distinct
- * ones in slot order (a cleared slot is slot 0's; without a palette one
- * white), each with the 0xRRGGBB it was scaled from, for an effect that paints
- * it at another level, and each slot's rank among them. */
+/* The shades a frame is made of: the palette's colours at PICTURE_LEVEL, the
+ * distinct ones in slot order (a cleared slot is slot 0's; without a palette
+ * one white), each with the 0xRRGGBB it was scaled from, for an effect that
+ * paints it at another level, and each slot's rank among them. */
 struct shades {
     size_t n; /* 1..LANTERN_PALETTE_SLOTS */
     struct led_rgb at_level[LANTERN_PALETTE_SLOTS];
@@ -450,7 +459,7 @@ static void shades(const uint32_t palette[LANTERN_PALETTE_SLOTS], bool have, str
     sh->n = 0;
     for (size_t s = 0; s < LANTERN_PALETTE_SLOTS; s++) {
         uint32_t rgb = slot_rgb(palette, have, s);
-        struct led_rgb c = scale(rgb, LEVEL);
+        struct led_rgb c = scale(rgb, PICTURE_LEVEL);
         size_t r = 0;
         while (r < sh->n && !same(&sh->at_level[r], &c)) {
             r++;
@@ -831,7 +840,7 @@ static bool compose(size_t at) {
     at %= frame_shades.n;
     for (size_t i = 0; i < LED_COUNT; i++) {
 #if IS_ENABLED(CONFIG_LANTERN_GRADIENT)
-        pixels[i] = at > 0 ? frame_shades.at_level[at] : ramp(&frame_shades, i, LEVEL);
+        pixels[i] = at > 0 ? frame_shades.at_level[at] : ramp(&frame_shades, i, PICTURE_LEVEL);
 #else
         pixels[i] = frame_shades.at_level[at > 0 ? at : frame_shades.rank[base_slot(i)]];
 #endif
