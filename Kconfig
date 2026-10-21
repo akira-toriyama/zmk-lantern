@@ -117,6 +117,31 @@ config LANTERN_COUNTDOWN_STAGE_MS
       hardware (2026-10-20, t-x82q); a minute a colour, with the colours
       running out at the idle timeout, read as still.
 
+config LANTERN_SCATTER
+    bool "Throw the palette's slots over the keys at random, by the node's weights, a new throw every LANTERN_SCATTER_MS"
+    depends on LANTERN_KEYS
+    depends on ENTROPY_HAS_DRIVER || TEST_RANDOM_GENERATOR
+    help
+      The picture is the palette's slots thrown over the half's LEDs at
+      random instead of the bands: each slot on as many keys as its share
+      of the lantern,keys node's scatter-weights (one percentage per slot,
+      at most 100 in all, asserted; slots 1.. take their rounded share, slot
+      0, the heaviest colour, the rest), thrown again every LANTERN_SCATTER_MS
+      while the LEDs are lit, keys or no keys, and at every light. Each half
+      throws for itself. The node keeps slots for the bands. Needs a random
+      number source (Zephyr's sys_rand32_get: an entropy driver, as the
+      nRF52840's RNG, or the test generator). Default n while canon t-skdt
+      tries the pictures one image at a time.
+
+config LANTERN_SCATTER_MS
+    int "Milliseconds between two throws of the scatter"
+    range 1000 3600000
+    default 10000
+    depends on LANTERN_SCATTER
+    help
+      How long each throw of the scatter shows before the next, while the
+      LEDs are lit. Ten seconds is canon's user's first pick (t-skdt).
+
 config LANTERN_EFFECTS
     bool
     help

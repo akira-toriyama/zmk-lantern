@@ -15,7 +15,11 @@ how to build. Usage: [README.md](README.md). English only.
   bands and then each colour of the palette (`CONFIG_LANTERN_KEYS`,
   `CONFIG_LANTERN_BRIGHTNESS`, `CONFIG_LANTERN_COUNTDOWN`,
   `CONFIG_LANTERN_COUNTDOWN_STAGE_MS`; [src/keys.c](src/keys.c), binding
-  `lantern,keys`); the effects that move the picture after a key, the press
+  `lantern,keys`); the scatter, the slots thrown over the keys at random by
+  the node's `scatter-weights` and thrown again every ten seconds
+  (`CONFIG_LANTERN_SCATTER`, `CONFIG_LANTERN_SCATTER_MS`, off by default while
+  canon t-skdt tries the pictures one image at a time; src/keys.c); the
+  effects that move the picture after a key, the press
   glow, the thin ring, the disc and the stain (`CONFIG_LANTERN_PRESS_GLOW`,
   `CONFIG_LANTERN_THIN_RING`, `CONFIG_LANTERN_DISC`, `CONFIG_LANTERN_STAIN`,
   off by default while canon t-6ttk tries them one image at a time;
@@ -80,7 +84,8 @@ how to build. Usage: [README.md](README.md). English only.
   rail or the keys. `--kconfig CONFIG_LANTERN_PRESS_GLOW=y`,
   `CONFIG_LANTERN_THIN_RING=y` or `CONFIG_LANTERN_DISC=y` adds
   `CONFIG_LANTERN_EFFECTS=y`, the last two `CONFIG_LANTERN_GEOMETRY=y` too;
-  `CONFIG_LANTERN_STAIN=y` adds `CONFIG_LANTERN_THIN_RING=y`.
+  `CONFIG_LANTERN_STAIN=y` adds `CONFIG_LANTERN_THIN_RING=y`;
+  `CONFIG_LANTERN_SCATTER=y` shows `CONFIG_LANTERN_SCATTER_MS=10000` too.
 - Kconfig merge order, later wins: board defconfig → ZMK `app/prj.conf` → the
   shield's confs → the consumer's `config/<prefix>.conf` files →
   `EXTRA_CONF_FILE` fragments (build.sh: logging, `--kconfig`) → `-DCONFIG_*`.
@@ -230,7 +235,14 @@ how to build. Usage: [README.md](README.md). English only.
   shade without skipping one at the wrap. **The stain's dye is the frame
   thread's alone** (`stains[]`, written where the ring is drawn, applied to
   the picture before the effects, cleared when the stage moves and at a
-  blank): nothing else reads or writes it.
+  blank): nothing else reads or writes it. **The scatter's throw runs on the
+  low priority queue too** (`scatter_work`, a delayable item the light arms
+  and that re-arms itself while lit; the blank cancels nothing, since a
+  cancel racing the light's re-arm could leave it neither queued nor timed,
+  Opus review 2026-10-21; a tick that finds the LEDs dark just returns), so
+  the frame never reads a half-thrown table; the light's throw normally
+  queues ahead of the light's frame, behind one still queued from a blank
+  just before.
 - **The split link's latency is the half's rule, never ZMK's `PREF_*` on a
   half** (`src/latency.c`): those symbols exist on a central only, so the
   battery latency is the one the link had at connection. A request may be a

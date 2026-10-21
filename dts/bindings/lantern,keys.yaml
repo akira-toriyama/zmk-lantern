@@ -52,3 +52,13 @@ properties:
       centre cancels). For the effects that measure the board
       (CONFIG_LANTERN_THIN_RING), which assert it present and twice the
       length of slots; a target without them needs none.
+
+  scatter-weights:
+    type: array
+    description: |
+      One entry per palette slot (six): the percentage of this half's LEDs
+      the slot takes in the scatter (CONFIG_LANTERN_SCATTER), at most 100
+      in all (asserted). Slots 1.. take their rounded share and slot 0, the
+      heaviest colour, the rest, so slot 0's own entry only documents the
+      intent. canon t-skdt: 50 20 10 5 5 0 (the 10 the shares leave go to
+      slot 0 too). A target without the scatter needs none.

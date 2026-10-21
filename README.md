@@ -81,8 +81,15 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
   module is the strip's one writer: ZMK's underglow stays off on such a half
   (`CONFIG_ZMK_RGB_UNDERGLOW=n`, asserted), and a frame goes out only when the
   LEDs light or go dark, when the palette changes while they are lit, when
-  the countdown moves a stage, and every 30 ms while an effect moves; a still
-  picture ticks at no rate.
+  the countdown moves a stage, at each throw of the scatter, and every 30 ms
+  while an effect moves; a still picture ticks at no rate.
+- The scatter (`CONFIG_LANTERN_SCATTER`, off by default while canon tries the
+  pictures one at a time): instead of the bands, the palette's slots thrown
+  over the half's keys at random, each slot on as many keys as its share of
+  the node's `scatter-weights` (percent per slot, at most 100 in all; canon:
+  50 20 10 5 5 0, and slot 0 takes what the others leave), thrown again every
+  `CONFIG_LANTERN_SCATTER_MS` (default 10000) while the LEDs are lit and at
+  every light. Each half throws for itself.
 - The countdown (`CONFIG_LANTERN_COUNTDOWN`, on by default with the idle rule
   and the palette): from the half's last key, the picture changes every
   `CONFIG_LANTERN_COUNTDOWN_STAGE_MS` (default 10000): the bands, then the
@@ -229,6 +236,7 @@ to `0x000000`, which the LEDs show as slot 0.
            positions = < 17 29 5 16 28 40 /* ... one entry per LED, in chain order: the key under it */ >;
            slots = < 0 0 0 1 1 1 /* ... one entry per key position: the slot its LED shows */ >;
            coords = < 0 200 100 200 /* ... an x and a y per key position, hundredths of a key unit */ >;
+           scatter-weights = <50 20 10 5 5 0>; /* a percentage per slot, for the scatter */
        };
    };
    ```
@@ -248,7 +256,7 @@ to `0x000000`, which the LEDs show as slot 0.
    picture, 0 to 5 each; `coords` has an x and a y per key position, in
    hundredths of a key unit on the whole board (canon: `imprint.json` times
    100), for the effects that measure the board, which assert it. A consumer
-   with per-half overlays puts `slots` and `coords` in a shared dtsi and each
+   with per-half overlays puts `slots`, `coords` and `scatter-weights` in a shared dtsi and each
    half's `positions` and `chain-length` in its own overlay (canon's
    `config/lantern_keys.dtsi`).
 
@@ -275,7 +283,9 @@ to `0x000000`, which the LEDs show as slot 0.
    keeps the LEDs lit on the cable whatever the activity.
    `CONFIG_LANTERN_COUNTDOWN` is on by default with the idle rule and the
    palette, a new picture every `CONFIG_LANTERN_COUNTDOWN_STAGE_MS` (10000):
-   `=n` keeps the bands until the dark. `CONFIG_LANTERN_PRESS_GLOW=y` adds
+   `=n` keeps the bands until the dark. `CONFIG_LANTERN_SCATTER=y` throws the
+   slots over the keys at random instead of the bands (it needs
+   `scatter-weights`). `CONFIG_LANTERN_PRESS_GLOW=y` adds
    the press glow, `CONFIG_LANTERN_THIN_RING=y` the thin ring,
    `CONFIG_LANTERN_DISC=y` the disc and `CONFIG_LANTERN_STAIN=y` the stain,
    the ring that dyes (the three need `coords`). On a split

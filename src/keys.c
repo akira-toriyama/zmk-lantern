@@ -14,8 +14,8 @@
  * moves after a key. This file is the strip's one writer. A frame goes out
  * when something changed: when the rail rule lights or blanks the LEDs
  * (src/on_usb_power.c), when the palette changes while they are lit, when the
- * countdown moves a stage, and every FRAME_MS while an effect moves; a still
- * picture costs no tick.
+ * countdown moves a stage, at each throw of the scatter, and every FRAME_MS
+ * while an effect moves; a still picture costs no tick.
  *
  * - Why the module writes the strip itself and ZMK's underglow is asserted
  *   off: rgb_underglow.c repaints every LED with its one colour and effect at
@@ -162,6 +162,25 @@
  *   back, and its ring dyes them afresh) and when the LEDs blank. It indexes
  *   the shades, so a new palette recolours the dye with it, and a dye past
  *   the new shade count shows the band.
+ * - The scatter (CONFIG_LANTERN_SCATTER, canon t-skdt): the picture is the
+ *   palette's slots thrown over this half's LEDs at random in place of the
+ *   bands, each slot on as many LEDs as its share of the node's
+ *   scatter-weights (percent, at most 100 in all; slots 1.. take their
+ *   rounded share, slot 0, the heaviest colour, the rest, so what the
+ *   shares leave and a rounding remainder land on it; shares that round past
+ *   the LED count shorten the last slots), and thrown again every
+ *   CONFIG_LANTERN_SCATTER_MS while lit, keys or no keys, and at every light.
+ *   The throw runs on the low priority queue (scatter_work, armed at the
+ *   light; a tick finding the LEDs dark re-arms nothing, and the blank
+ *   cancels nothing: a cancel racing the light's re-arm could leave the item
+ *   neither queued nor timed, Opus review 2026-10-21), so it never races the
+ *   frame. The light's throw normally queues ahead of the light's frame,
+ *   behind one still queued from a blank just before, which then shows the
+ *   old throw for one frame. sys_rand32_get() is Zephyr's xoshiro128++ on a
+ *   half (CONFIG_XOSHIRO_RANDOM_GENERATOR; thread context, the first call
+ *   seeds from the nRF RNG). The node still carries slots: the bands, and
+ *   the build without the scatter. Each half throws for itself: the two are
+ *   independent, with the same shares.
  */
 
 #define DT_DRV_COMPAT lantern_keys
@@ -181,6 +200,10 @@
 
 #include <zmk/matrix.h>
 #include <zmk/workqueue.h>
+
+#if IS_ENABLED(CONFIG_LANTERN_SCATTER)
+#include <zephyr/random/random.h>
+#endif
 
 #if IS_ENABLED(CONFIG_LANTERN_COUNTDOWN) || IS_ENABLED(CONFIG_LANTERN_EFFECTS)
 #include <zmk/event_manager.h>
@@ -321,11 +344,28 @@ COND_CODE_1(DT_INST_NODE_HAS_PROP(0, coords), (DT_FOREACH_PROP_ELEM(NODE, coords
 #define LATCH_US 300
 
 static const struct device *const strip = DEVICE_DT_GET(STRIP);
-static const uint8_t positions[LED_COUNT] = DT_INST_PROP(0, positions);
-static const uint8_t slots[KEY_COUNT] = DT_INST_PROP(0, slots);
+/* An image with the scatter and no effect reads neither table (the asserts
+ * above still check them). */
+static const uint8_t positions[LED_COUNT] __maybe_unused = DT_INST_PROP(0, positions);
+static const uint8_t slots[KEY_COUNT] __maybe_unused = DT_INST_PROP(0, slots);
 #if IS_ENABLED(CONFIG_LANTERN_GEOMETRY)
 /* Each key position's x and y, in hundredths of a key unit (the header). */
 static const uint16_t coords[2 * KEY_COUNT] = DT_INST_PROP(0, coords);
+#endif
+#if IS_ENABLED(CONFIG_LANTERN_SCATTER)
+BUILD_ASSERT(DT_INST_NODE_HAS_PROP(0, scatter_weights),
+             "CONFIG_LANTERN_SCATTER needs lantern,keys scatter-weights: a percentage per slot");
+BUILD_ASSERT(COND_CODE_1(DT_INST_NODE_HAS_PROP(0, scatter_weights),
+                         (DT_INST_PROP_LEN(0, scatter_weights)), (0)) == LANTERN_PALETTE_SLOTS,
+             "lantern,keys: scatter-weights needs one percentage per palette slot");
+BUILD_ASSERT(COND_CODE_1(DT_INST_NODE_HAS_PROP(0, scatter_weights),
+                         (DT_INST_FOREACH_PROP_ELEM_SEP(0, scatter_weights, DT_PROP_BY_IDX, (+))),
+                         (0)) <= 100,
+             "lantern,keys: scatter-weights sum to more than 100 (slot 0 takes what the others leave)");
+/* Each slot's share of the LEDs, in percent (the header). */
+static const uint8_t scatter_weights[LANTERN_PALETTE_SLOTS] = DT_INST_PROP(0, scatter_weights);
+/* The frame's thread: the slot each LED shows, thrown by scatter_roll(). */
+static uint8_t scatter[LED_COUNT];
 #endif
 static struct led_rgb pixels[LED_COUNT];
 static atomic_t lit;
@@ -397,6 +437,42 @@ static struct shades frame_shades;
 static uint8_t stains[LED_COUNT];
 static size_t stained_at;
 #endif
+
+/* The slot LED i shows in the picture: its throw, or its key's band. */
+static uint8_t base_slot(size_t i) {
+#if IS_ENABLED(CONFIG_LANTERN_SCATTER)
+    return scatter[i];
+#else
+    return slots[positions[i]];
+#endif
+}
+
+#if IS_ENABLED(CONFIG_LANTERN_SCATTER)
+
+/* The low priority work queue only (scatter_work). Slots 1.. take their
+ * rounded share of the LEDs, slot 0 the rest (the header); then a
+ * Fisher-Yates shuffle. */
+static void scatter_roll(void) {
+    size_t n = 0;
+
+    for (size_t s = 1; s < LANTERN_PALETTE_SLOTS; s++) {
+        size_t share = (LED_COUNT * scatter_weights[s] + 50) / 100;
+        while (share-- > 0 && n < LED_COUNT) {
+            scatter[n++] = (uint8_t)s;
+        }
+    }
+    while (n < LED_COUNT) {
+        scatter[n++] = 0;
+    }
+    for (size_t i = LED_COUNT - 1; i > 0; i--) {
+        size_t j = sys_rand32_get() % (i + 1);
+        uint8_t t = scatter[i];
+        scatter[i] = scatter[j];
+        scatter[j] = t;
+    }
+}
+
+#endif /* IS_ENABLED(CONFIG_LANTERN_SCATTER) */
 
 #if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
 
@@ -520,7 +596,7 @@ static void press_glow(const struct shades *sh, const struct hit live[], size_t 
             }
         }
         if (w > 0) {
-            pixels[i] = mix(pixels[i], shade_hi(sh, sh->rank[slots[positions[i]]]), w);
+            pixels[i] = mix(pixels[i], shade_hi(sh, sh->rank[base_slot(i)]), w);
         }
     }
 }
@@ -670,7 +746,7 @@ static bool compose(size_t at) {
 #endif
     at %= frame_shades.n;
     for (size_t i = 0; i < LED_COUNT; i++) {
-        pixels[i] = frame_shades.at_level[at > 0 ? at : frame_shades.rank[slots[positions[i]]]];
+        pixels[i] = frame_shades.at_level[at > 0 ? at : frame_shades.rank[base_slot(i)]];
     }
 
 #if IS_ENABLED(CONFIG_LANTERN_STAIN)
@@ -742,6 +818,39 @@ static void paint(struct k_work *work) {
 }
 
 static void submit(void) { k_work_submit_to_queue(zmk_workqueue_lowprio_work_q(), &paint_work); }
+
+#if IS_ENABLED(CONFIG_LANTERN_SCATTER)
+
+static void scatter_tick(struct k_work *work);
+static K_WORK_DELAYABLE_DEFINE(scatter_work, scatter_tick);
+
+/* The low priority work queue only: a new throw and a frame, and the next
+ * throw CONFIG_LANTERN_SCATTER_MS on, while lit; a tick that finds the LEDs
+ * dark re-arms nothing, so the item runs at most twice after a blank, a
+ * queued run and a timed one (the header says why the blank does not cancel
+ * it). */
+static void scatter_tick(struct k_work *work) {
+    ARG_UNUSED(work);
+    if (!atomic_get(&lit)) {
+        return;
+    }
+    scatter_roll();
+    k_work_reschedule_for_queue(zmk_workqueue_lowprio_work_q(), &scatter_work,
+                                K_MSEC(CONFIG_LANTERN_SCATTER_MS));
+    submit();
+}
+
+/* The light: a fresh throw, normally ahead of the light's frame on the low
+ * priority queue (behind a frame still queued from a blank just before). */
+static void scatter_start(void) {
+    k_work_reschedule_for_queue(zmk_workqueue_lowprio_work_q(), &scatter_work, K_NO_WAIT);
+}
+
+#else
+
+static void scatter_start(void) {}
+
+#endif /* IS_ENABLED(CONFIG_LANTERN_SCATTER) */
 
 #if IS_ENABLED(CONFIG_LANTERN_COUNTDOWN)
 
@@ -833,6 +942,7 @@ ZMK_SUBSCRIPTION(lantern_keys, zmk_position_state_changed);
 void lantern_keys_light(void) {
     atomic_set(&lit, 1);
     countdown_start();
+    scatter_start();
     submit();
 }
 
