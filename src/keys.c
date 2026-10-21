@@ -133,7 +133,20 @@
  *   FRAME_MS, costs a few percent of the CPU at most with eight live hits
  *   (about 0.7 ms a frame from the disassembly, Opus review 2026-10-21;
  *   unmeasured) on the preemptible low priority thread, and keeps the FPU
- *   out of it (above).
+ *   out of it (above). The coords, the square root and the distance are
+ *   CONFIG_LANTERN_GEOMETRY's, which each effect that measures the board
+ *   selects.
+ * - The disc (CONFIG_LANTERN_DISC): from a pressed key a rim spreads at
+ *   DISC_SPEED key units a second, and each LED it has passed starts at
+ *   HI_LEVEL and fades back to the picture over DISC_FADE_MS, so the disc is
+ *   brightest at its rim and dark behind it; inside it the palette's shades
+ *   pass in slot order, the LED's colour running once around the cyclic
+ *   gradient through the distinct shades while it fades, shade 0 at the rim.
+ *   QMK's SPLASH written from its idea (QMK is GPL: nothing copied). An LED
+ *   under two discs shows the stronger one's colour at their summed strength,
+ *   as under two rings. A hit lives DISC_MS, long enough for the rim to cross
+ *   a half of the Imprint and the last LED to fade; the cap (above) holds a
+ *   disc, which covers many LEDs at once, harder than it holds a ring.
  */
 
 #define DT_DRV_COMPAT lantern_keys
@@ -238,7 +251,18 @@ BUILD_ASSERT(LANTERN_PALETTE_SLOTS == 6 && HIT_SEQ_CYCLE % 60 == 0,
 #else
 #define RING_MS 0
 #endif
-#define HIT_LIFE_MS MAX(GLOW_MS, RING_MS)
+#if IS_ENABLED(CONFIG_LANTERN_DISC)
+/* Key units a second the disc's rim spreads, the ring's speed. */
+#define DISC_SPEED 12
+/* How long an LED the rim has passed takes to fade back to the picture. */
+#define DISC_FADE_MS 500
+/* A disc's life: the rim across a half of the Imprint (8.75 units, 729 ms at
+ * 12) and the last LED's fade. */
+#define DISC_MS 1500
+#else
+#define DISC_MS 0
+#endif
+#define HIT_LIFE_MS MAX(GLOW_MS, MAX(RING_MS, DISC_MS))
 
 #if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
 BUILD_ASSERT(HIT_LIFE_MS > 0, "CONFIG_LANTERN_EFFECTS without an effect: an effect sets its life");
@@ -246,9 +270,9 @@ BUILD_ASSERT(HIT_LIFE_MS <= UINT16_MAX, "a hit's age is kept in 16 bits");
 BUILD_ASSERT(HIT_LIFE_MS < HIT_TIME / 2, "a hit's age must be told from a wrapped time");
 #endif
 
-#if IS_ENABLED(CONFIG_LANTERN_THIN_RING)
+#if IS_ENABLED(CONFIG_LANTERN_GEOMETRY)
 BUILD_ASSERT(DT_INST_NODE_HAS_PROP(0, coords),
-             "CONFIG_LANTERN_THIN_RING needs lantern,keys coords: the ring is measured in key units");
+             "an effect that measures the board (CONFIG_LANTERN_GEOMETRY) needs lantern,keys coords");
 BUILD_ASSERT(COND_CODE_1(DT_INST_NODE_HAS_PROP(0, coords), (DT_INST_PROP_LEN(0, coords)), (0)) ==
                  2 * KEY_COUNT,
              "lantern,keys: coords needs an x and a y per key position of slots");
@@ -272,7 +296,7 @@ COND_CODE_1(DT_INST_NODE_HAS_PROP(0, coords), (DT_FOREACH_PROP_ELEM(NODE, coords
 static const struct device *const strip = DEVICE_DT_GET(STRIP);
 static const uint8_t positions[LED_COUNT] = DT_INST_PROP(0, positions);
 static const uint8_t slots[KEY_COUNT] = DT_INST_PROP(0, slots);
-#if IS_ENABLED(CONFIG_LANTERN_THIN_RING)
+#if IS_ENABLED(CONFIG_LANTERN_GEOMETRY)
 /* Each key position's x and y, in hundredths of a key unit (the header). */
 static const uint16_t coords[2 * KEY_COUNT] = DT_INST_PROP(0, coords);
 #endif
@@ -468,7 +492,7 @@ static void press_glow(const struct shades *sh, const struct hit live[], size_t 
 
 #endif /* IS_ENABLED(CONFIG_LANTERN_PRESS_GLOW) */
 
-#if IS_ENABLED(CONFIG_LANTERN_THIN_RING)
+#if IS_ENABLED(CONFIG_LANTERN_GEOMETRY)
 
 /* The integer square root of v, rounded down, bit by bit. */
 static uint32_t isqrt(uint32_t v) {
@@ -496,6 +520,10 @@ static uint32_t distance(uint8_t a, uint8_t b) {
 
     return isqrt((uint32_t)(dx * dx + dy * dy));
 }
+
+#endif /* IS_ENABLED(CONFIG_LANTERN_GEOMETRY) */
+
+#if IS_ENABLED(CONFIG_LANTERN_THIN_RING)
 
 /* Each hit's ring (the header): its radius RING_SPEED x the hit's age, full
  * on the radius and gone RING_WIDTH from it, fading out over RING_MS, in the
@@ -533,6 +561,50 @@ static void thin_ring(const struct shades *sh, const struct hit live[], size_t n
 
 #endif /* IS_ENABLED(CONFIG_LANTERN_THIN_RING) */
 
+#if IS_ENABLED(CONFIG_LANTERN_DISC)
+
+/* The cyclic gradient through the shades at HI_LEVEL: p, 0..255, is how far
+ * around, shade 0 at 0 and again past 255, each shade an equal arc, linear
+ * between neighbours. */
+static struct led_rgb gradient(const struct shades *sh, unsigned int p) {
+    unsigned int q = p * sh->n; /* 1/256 shades around; q >> 8 < n since p < 256 */
+
+    return mix(shade_hi(sh, q >> 8), shade_hi(sh, ((q >> 8) + 1) % sh->n), q & 0xFF);
+}
+
+/* Each hit's disc (the header): an LED the rim, DISC_SPEED x the hit's age
+ * out, reached tau ms ago is pulled toward gradient(tau / DISC_FADE_MS) with
+ * strength 1 - tau / DISC_FADE_MS. An LED under several discs takes the
+ * strongest one's colour at their summed strength. */
+static void disc(const struct shades *sh, const struct hit live[], size_t n) {
+    for (size_t i = 0; i < LED_COUNT; i++) {
+        unsigned int w = 0, strongest = 0, p = 0;
+
+        for (size_t h = 0; h < n; h++) {
+            /* hundredths / (units/s x 100 / 1000) = ms the rim takes */
+            uint32_t arrival = distance(positions[i], live[h].key) * 10 / DISC_SPEED;
+            if (live[h].age < arrival) {
+                continue;
+            }
+            uint32_t tau = live[h].age - arrival;
+            if (tau >= DISC_FADE_MS) {
+                continue;
+            }
+            unsigned int s = (DISC_FADE_MS - tau) * 256 / DISC_FADE_MS;
+            if (s > strongest) {
+                strongest = s;
+                p = tau * 256 / DISC_FADE_MS;
+            }
+            w += s;
+        }
+        if (w > 0) {
+            pixels[i] = mix(pixels[i], gradient(sh, p), MIN(w, 256));
+        }
+    }
+}
+
+#endif /* IS_ENABLED(CONFIG_LANTERN_DISC) */
+
 /* The frame: the picture of stage at, the effects over it and the cap; true
  * while an effect still moves. The low priority work queue only: it writes
  * frame_shades, pixels and picture and clears spent hits (the palette and the
@@ -557,6 +629,9 @@ static bool compose(size_t at) {
 #endif
 #if IS_ENABLED(CONFIG_LANTERN_THIN_RING)
     thin_ring(&frame_shades, live, moving);
+#endif
+#if IS_ENABLED(CONFIG_LANTERN_DISC)
+    disc(&frame_shades, live, moving);
 #endif
     hold_to_cap();
     return moving > 0;

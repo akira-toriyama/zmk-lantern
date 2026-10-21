@@ -139,10 +139,20 @@ config LANTERN_PRESS_GLOW
       shows the picture alone. Default n while canon t-6ttk tries the
       effects one image at a time.
 
+config LANTERN_GEOMETRY
+    bool
+    help
+      The board's geometry for the effects that measure it (src/keys.c): the
+      lantern,keys node's coords, an x and a y per key position in hundredths
+      of a key unit (asserted present and twice the key count), and the
+      distance between two keys through an integer square root. Each such
+      effect selects it; nothing to set.
+
 config LANTERN_THIN_RING
     bool "Spread a thin ring of the palette's next colour from each pressed key"
     depends on LANTERN_KEYS
     select LANTERN_EFFECTS
+    select LANTERN_GEOMETRY
     help
       While the key LEDs are lit, a ring one key wide spreads from each key
       this half presses at twelve key units a second and fades out over a
@@ -153,6 +163,23 @@ config LANTERN_THIN_RING
       position's x and y in hundredths of a key unit (asserted): src/keys.c
       measures the ring on the board. Default n while canon t-6ttk tries the
       effects one image at a time.
+
+config LANTERN_DISC
+    bool "Spread a disc from each pressed key, brightest at its rim, the palette's colours passing inside"
+    depends on LANTERN_KEYS
+    select LANTERN_EFFECTS
+    select LANTERN_GEOMETRY
+    help
+      While the key LEDs are lit, a rim spreads from each key this half
+      presses at twelve key units a second; a key it has passed lights at
+      full brightness (so the build refuses a LANTERN_BRIGHTNESS of 100) and
+      fades back to the picture over half a second, its
+      colour running once through the palette's colours in order as it
+      fades, so the disc is brightest at its rim, dark behind it, and the
+      day's colours pass inside it. A key under two discs shows the stronger
+      one's colour. Needs the lantern,keys node's coords, as the thin ring
+      does. Default n while canon t-6ttk tries the effects one image at a
+      time.
 
 config LANTERN_USB_LATENCY
     bool "Ask the split central for peripheral latency 0 while USB powers this half"

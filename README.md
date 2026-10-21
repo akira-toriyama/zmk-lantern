@@ -111,6 +111,14 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
   stronger one's colour. It measures the board from the node's `coords`,
   each key's x and y in hundredths of a key unit (canon's `imprint.json`
   times 100).
+- The disc (`CONFIG_LANTERN_DISC`, off by default likewise): from each key
+  this half presses a rim spreads at twelve key units a second, and a key it
+  has passed lights at full brightness within the frame's cap (above), which
+  holds a disc harder than a ring, and fades back to the picture over half a
+  second, its colour running once through the palette's colours in
+  order as it fades: brightest at the rim, dark behind it, the day's colours
+  passing inside. A key under two discs shows the stronger one's colour. It
+  measures the board as the thin ring does.
 
 ## The split link
 
@@ -259,8 +267,9 @@ to `0x000000`, which the LEDs show as slot 0.
    `CONFIG_LANTERN_COUNTDOWN` is on by default with the idle rule and the
    palette, a new picture every `CONFIG_LANTERN_COUNTDOWN_STAGE_MS` (10000):
    `=n` keeps the bands until the dark. `CONFIG_LANTERN_PRESS_GLOW=y` adds
-   the press glow, `CONFIG_LANTERN_THIN_RING=y` the thin ring (it needs
-   `coords`). On a split peripheral `CONFIG_LANTERN_USB_LATENCY` is on
+   the press glow, `CONFIG_LANTERN_THIN_RING=y` the thin ring and
+   `CONFIG_LANTERN_DISC=y` the disc (both need `coords`). On a split
+   peripheral `CONFIG_LANTERN_USB_LATENCY` is on
    by default with the rail; `=n` leaves the link at the central's latency.
 
 4. The palette's node, on every device of the split under the one name
