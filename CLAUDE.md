@@ -83,8 +83,9 @@ how to build. Usage: [README.md](README.md). English only.
   2026-10-19): the images carry `-lantern` and a stamp of canon's pinned
   inputs plus that variant, which `dongle.py check` reports as `debug`.
 - CI: `build.yml` → the local reusable `zmk-build.yml` (it says why not ZMK's);
-  `shellcheck.yml`; the fleet gates. No release workflow: the module ships no
-  image, consumers pin a commit.
+  `shellcheck.yml`; the fleet gates. `release.yml` keeps a rolling draft
+  release of the notes alone (glyph's reusable, verdict-only: the module ships
+  no image), tagged when published by hand; consumers still pin a commit.
 
 ## Invariants
 

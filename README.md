@@ -138,7 +138,7 @@ to `0x000000`, which the LEDs show as slot 0.
      projects:
        - name: zmk-lantern
          remote: akira-toriyama
-         revision: <commit sha>
+         revision: <commit sha> # or a release tag
          path: modules/zmk-lantern
    ```
 
@@ -257,7 +257,9 @@ Docker, a west workspace under `~/.cache/zmk-lantern`, the images in
 halves and the `imprint_dongle` shield) plus the module, not a keyboard's
 firmware: a consumer's keymap and roles are its own, and the check build's
 `positions` are the chain in key order, not a measurement. CI builds the same
-targets on every pull request and weekly against the moving branches.
+targets on every pull request and weekly against the moving branches. Every
+push to `main` refreshes one rolling draft release of the notes, with nothing
+attached; publishing the draft by hand creates the tag.
 
 Log lines (a `--logging` image, through canon's `dongle.py log` or any serial
 reader at 115200): `start: usb powered, boot light 1000 ms`, `lit: boot light`,
