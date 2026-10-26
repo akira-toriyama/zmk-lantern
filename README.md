@@ -209,17 +209,20 @@ the user's OK on sight (canon t-6ttk, t-5hqx).
   ring does, along one axis at a time.
 - The water (`CONFIG_LANTERN_WATER`; the pick's `water`): each pressed key
   starts waves, a front spreading at twelve key units a second with a
-  wavelength of two key units behind it, fading out over a second and a half
-  and weaker the farther from the key (with the hit the other half's presses
-  start waves too, which come in across the split faint). The waves of every
-  press add up: where two crests meet the surface rises higher, where a
-  crest meets a trough it stays still. A key is pulled from the picture
-  toward the palette's first colour on a crest and its last colour in a
-  trough, the colours between on the slopes, and as far as the surface is
-  from still, at full brightness within the frame's cap: the still surface
-  shows the picture (black with the no picture), and a key under the waves
-  flickers between the two colours six times a second. It measures the board
-  as the thin ring does.
+  wavelength of three key units behind it, fading out over a second and a
+  half and weaker the farther from the key (with the hit the other half's
+  presses start waves too, which come in across the split low: about a
+  fifth of a crest from an inner column, three fifths from a thumb). The
+  waves of every press add up: where two crests meet the surface rises
+  higher, where a crest meets a trough it stays still. A key is pulled from
+  the picture along the palette's colours by the surface's height, a full
+  crest to the first, a full trough to the last, a lower wave to the colours
+  between, and as far as the surface is from still, at full brightness
+  within the frame's cap: the still surface shows the picture (black with
+  the no picture), the pressed key's first waves flicker between the first
+  and last colours four times a second, and lower waves, later or farther
+  out, between colours nearer the middle. It measures the board as the thin
+  ring does.
 - The intro (`CONFIG_LANTERN_INTRO`, off by default while canon tries it):
   the boot light plays a six-second show instead of the picture, in red,
   blue and green up to full brightness within the frame's cap, not the
@@ -265,7 +268,7 @@ countdown's clock ignores it (a stock half as the central counts the other
 half's keys through its own listener, as ZMK's idle does there). The crossing
 ring draws it from the other half's key; the beams, the thin ring, the
 disc and the water do too, in their own colours (the beams' row comes in
-across the split, the water's waves faint), the stain dyes with it, and it
+across the split, the water's waves low), the stain dyes with it, and it
 counts in the press
 count the thin ring's colours follow. Delivery is not confirmed, as the
 palette's, and the hits share the central's run queue with the palette (the

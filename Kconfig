@@ -460,7 +460,7 @@ config LANTERN_BEAMS
       n, as the thin ring.
 
 config LANTERN_WATER
-    bool "Build the water: from each pressed key, waves over the keys, crests in the palette's first colour and troughs in its last"
+    bool "Build the water: from each pressed key, waves over the keys, crests toward the palette's first colour and troughs toward its last"
     depends on LANTERN_KEYS
     select LANTERN_EFFECTS
     select LANTERN_GEOMETRY
@@ -468,21 +468,24 @@ config LANTERN_WATER
       The effect water (src/effect.h), built into the image and drawn when
       the pick names it (LANTERN_EFFECT, LANTERN_EFFECT_DEFAULT): while the
       key LEDs are lit, each pressed key starts waves, a front spreading at
-      twelve key units a second with a wavelength of two key units behind
+      twelve key units a second with a wavelength of three key units behind
       it, fading out over a second and a half and weaker the farther from
       the key (and, where the hit node exists, LANTERN_HIT, a press of the
-      other half starts waves too, which come in across the split faint).
-      The waves of every press add up: where two crests meet the surface
-      rises higher, where a crest meets a trough it stays still. A key is
-      pulled from the picture toward the palette's first colour on a crest
-      and its last colour in a trough, the colours between on the slopes,
-      and as far as the surface is from still, so the still surface shows
-      the picture (black with the no picture) and a key under the waves
-      flickers between the two colours six times a second; at full
-      brightness within the frame's cap (so the build refuses a
-      LANTERN_BRIGHTNESS of 100). zmk-advanced-underglow-effects-vfx's
-      water, from its idea (nothing copied). Needs the node's coords, as
-      the thin ring does. Default n, as the thin ring.
+      other half starts waves too, which come in across the split low:
+      about a fifth of a crest from an inner column, three fifths from a
+      thumb). The waves of every press add up: where two crests meet the
+      surface rises higher, where a crest meets a trough it stays still. A
+      key is pulled from the picture along the palette's colours by the
+      surface's height, a full crest to the first, a full trough to the
+      last, a lower wave to the colours between, and as far as the surface
+      is from still, so the still surface shows the picture (black with the
+      no picture); the pressed key's first waves flicker between the first
+      and last colours four times a second, lower waves (later, or farther
+      out) between colours nearer the middle; at full brightness within the
+      frame's cap (so the build refuses a LANTERN_BRIGHTNESS of 100).
+      zmk-advanced-underglow-effects-vfx's water, from its idea (nothing
+      copied). Needs the node's coords, as the thin ring does. Default n,
+      as the thin ring.
 
 config LANTERN_HIT
     bool "Carry each half's key presses to the other half through the split central, for the effects that cross the split"
@@ -499,7 +502,7 @@ config LANTERN_HIT
       other half's key, the beams, the thin ring, the disc and the water do
       too, in their own colours (the beams' row comes in across the split,
       the disc then lives long enough to cross the board, the water's waves
-      come in faint), the
+      come in low, from a thumb higher), the
       stain dyes with it, and it counts in the press count the thin ring's
       colours follow, whichever of them the pick draws; its countdown's
       clock ignores it. The central sends

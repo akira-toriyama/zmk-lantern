@@ -243,20 +243,28 @@
  *   WATER_FALL), and the waves of every live press add up at each LED, so
  *   that two crests meeting rise higher and a crest meeting a trough stays
  *   still: zmk-advanced-underglow-effects-vfx's water, from its idea
- *   (nothing copied). The LED is pulled toward span(), the shades end to
- *   end, by the surface's height, a crest to shade 0 and a trough to the
- *   last shade, and as far as the height's size, so the still surface shows
- *   the picture (the no picture's black) and a key under the waves flickers
- *   between the two colours, once a wavelength (six times a second at the
- *   design's speed and wavelength). The design's px = G(0.5 - 0.5 w), over
- *   a lit picture, gave the still surface the middle shade; over the no
- *   picture's black the height's size is the brightness, or a still
- *   surface would glow (the one change from the design). With the hit the
- *   other half's presses start waves too, which come in across the split
- *   faint (from an inner column at about a fifth of a crest, 6.5 units
- *   off). The sine is a quarter-wave table of 65 entries folded (sine());
- *   the distance and its square root are the geometry's, as the thin
- *   ring's.
+ *   (nothing copied). The LED is pulled along span(), the shades end to
+ *   end, by the surface's height, a full crest to shade 0, a full trough to
+ *   the last shade and a lower wave to the shades between, and as far as
+ *   the height's size, so the still surface shows the picture (the no
+ *   picture's black), the pressed key's first waves flicker between the
+ *   first and last shades, once a wavelength (four times a second at the
+ *   speed and wavelength above), and lower waves, later or farther out,
+ *   between shades nearer the middle. Three changes from the design (canon
+ *   t-6ttk's research): its px = G(0.5 - 0.5 w) over a lit picture gave the
+ *   still surface the middle shade, and over the no picture's black the
+ *   height's size is the brightness, or a still surface would glow; span()
+ *   brings a blend of two shades back to full scale where G is a plain mix;
+ *   and the wavelength is three key units, not two, which on canon's grid
+ *   of keys a unit apart was two keys a wave, every key on a row or column
+ *   at the same height with the sign swapping key to key, a blinking
+ *   checkerboard that never showed the travel (Opus review, 2026-10-26).
+ *   With the hit the other half's presses start waves too, which come in
+ *   across the split low: from an inner column at about a fifth of a crest
+ *   (6.5 units off), from a thumb to the other half's thumb at three fifths
+ *   (1.5 units). The sine is a quarter-wave table of 65 entries folded
+ *   (sine()); the distance and its square root are the geometry's, as the
+ *   thin ring's.
  * - The solid (CONFIG_LANTERN_SOLID, canon t-skdt): every LED shows slot 0,
  *   so the countdown's pictures are the whole half in each shade in turn,
  *   shade 0's first. The node
@@ -519,9 +527,10 @@ BUILD_ASSERT(LANTERN_PALETTE_SLOTS == 6 && HIT_SEQ_CYCLE % 60 == 0,
 #endif
 #if IS_ENABLED(CONFIG_LANTERN_WATER)
 /* Key units a second the water's front spreads, the thin ring's speed, and
- * the wavelength behind it in hundredths of a unit, the design's 2.0. */
+ * the wavelength behind it in hundredths of a unit: three keys a wave on
+ * canon's grid (the header says why not the design's 2.0). */
 #define WATER_SPEED 12
-#define WATER_WAVE 200
+#define WATER_WAVE 300
 /* How long a hit draws the water, its waves fading out over it: the
  * design's 1.5 s. */
 #define WATER_MS 1500
