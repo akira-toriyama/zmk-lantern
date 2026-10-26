@@ -146,7 +146,8 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
   picture at the brightness share that and glow less. The brightness must
   stay below 100 % with an effect (asserted).
 - The thin ring (`CONFIG_LANTERN_THIN_RING`, off by default likewise): from
-  each key this half presses a ring one key wide spreads at twelve key units
+  each key this half presses (and, with the hit below, from the other half's
+  keys too, in across the split) a ring one key wide spreads at twelve key units
   a second and fades out over a second, so it has crossed the half when it
   is gone; each press takes the palette's next colour, at full brightness
   within the frame's cap (above), and a key under two rings shows the
@@ -154,7 +155,9 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
   each key's x and y in hundredths of a key unit (canon's `imprint.json`
   times 100).
 - The disc (`CONFIG_LANTERN_DISC`, off by default likewise): from each key
-  this half presses a rim spreads at twelve key units a second, and a key it
+  this half presses (and, with the hit below, from the other half's keys
+  too, the disc then living long enough to cross the whole board) a rim
+  spreads at twelve key units a second, and a key it
   has passed lights at full brightness within the frame's cap (above), which
   holds a disc harder than a ring, and fades back to the picture over half a
   second, its colour running once through the palette's colours in
@@ -166,10 +169,22 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
   crest still has 0.6 of its full strength, keeps the ring's colour at the
   picture's brightness from the moment the crest reaches it (where two rings
   have passed, the newer press's colour), so the half is painted over in the
-  day's colours as you type, each press in the next colour. The dye goes when
+  day's colours as you type, each press in the next colour (a ring in from
+  the other half dyes the keys within its reach too, the thumbs first). The dye goes when
   the countdown changes the picture (the next key
   brings the picture back and its ring dyes it afresh) and whenever the LEDs
   light; without the countdown it stays until the LEDs go dark.
+- The crossing ring (`CONFIG_LANTERN_CROSS_RING`, off by default likewise; it
+  brings the hit, below): the thin ring's shape, one key wide at twelve key
+  units a second, from a pressed key of either half across the whole board:
+  a press of this half spreads out through the other half, and a press of
+  the other half, relayed by the split central, comes in at the thumbs and
+  then the inner columns. It keeps its strength until it has left the board
+  (a second and a half on the Imprint), at full brightness within the
+  frame's cap (above), and its colour is the pressed key's band (the node's
+  `slots`), so both halves draw one press in one colour. A key under two
+  rings shows the stronger one's colour. It measures the board as the thin
+  ring does.
 - The intro (`CONFIG_LANTERN_INTRO`, off by default while canon tries it):
   the boot light plays a six-second show instead of the picture, in red,
   blue and green up to full brightness within the frame's cap, not the
@@ -202,6 +217,22 @@ LEDs light on USB power ([src/latency.c](src/latency.c)); the interval and
 the supervision timeout stay the central's. Zephyr holds a peripheral's
 request for the first 5 s of a connection, and the central's host accepts it
 (neither ZMK nor this module registers a callback that could refuse it).
+
+The hit (`CONFIG_LANTERN_HIT`, on wherever the `lantern,behavior-hit` node
+exists on a BLE split, named `hit` on every device like the palette's node):
+the split central sends each key press, a half's or its own, to every other
+half as one invocation of the node (param1 the key position), from a work
+queue of the module's own ([src/hit.c](src/hit.c)), and only to a half whose
+link runs at latency 0, the sign that USB powers it and its LEDs may be lit; a
+half on battery is dark and gets nothing. A half notes a relayed press as a
+hit for its effects while its LEDs are lit, as one of its own keys, and its
+countdown's clock ignores it (a stock half as the central counts the other
+half's keys through its own listener, as ZMK's idle does there). The crossing
+ring draws it from the other half's key; the thin ring and the disc do too,
+in their own colours, the stain dyes with it, and it counts in the press
+count the thin ring's colours follow. Delivery is not confirmed, as the
+palette's, and the hits share the central's run queue with the palette (the
+source says what a half that vanishes while lit costs).
 
 ## The palette
 
@@ -355,8 +386,10 @@ than six colours clears the rest to `0x000000`, which the LEDs show as slot
    glow).
    `CONFIG_LANTERN_PRESS_GLOW=y` adds the press glow,
    `CONFIG_LANTERN_THIN_RING=y` the thin ring, `CONFIG_LANTERN_DISC=y` the
-   disc and `CONFIG_LANTERN_STAIN=y` the stain, the ring that dyes (the three
-   need `coords`). On a split peripheral `CONFIG_LANTERN_USB_LATENCY` is on by
+   disc, `CONFIG_LANTERN_STAIN=y` the stain, the ring that dyes, and
+   `CONFIG_LANTERN_CROSS_RING=y` the crossing ring (the four need `coords`,
+   the last the hit node too, 4.). On a split peripheral
+   `CONFIG_LANTERN_USB_LATENCY` is on by
    default with the rail; `=n` leaves the link at the central's latency.
 
 4. The palette's node, on every device of the split under the one name
@@ -380,6 +413,21 @@ than six colours clears the rest to `0x000000`, which the LEDs show as slot
    each: `CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE=6` for two halves
    (ZMK's default is 5; both asserted at build time); the port comes with the
    central's CDC ACM port (`CONFIG_USB_CDC_ACM`).
+
+   The hit's node, likewise on every device under the one name
+   ([config/hit.dtsi](config/hit.dtsi) here), for the effects that cross the
+   split (the crossing ring); `CONFIG_LANTERN_HIT` is on wherever it exists:
+
+   ```dts
+   / {
+       behaviors {
+           hit: hit {
+               compatible = "lantern,behavior-hit";
+               #binding-cells = <2>;
+           };
+       };
+   };
+   ```
 
 ## Building this repository
 

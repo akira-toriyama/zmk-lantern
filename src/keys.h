@@ -3,18 +3,20 @@
  *
  * SPDX-License-Identifier: MIT
  *
- * The key LEDs' picture (src/keys.c), for the rail rule (src/on_usb_power.c)
- * and the palette (src/palette.c). Layer contract: this file is the strip's
- * one writer; callers say lit or dark, and when the boot light lasts, and
- * never touch a pixel. The frame is written on ZMK's low priority work queue;
- * the countdown's clock runs on the system work queue, so the light, the
- * blank and the boot light are called from there (the rail rule's thread),
- * the refresh from any thread.
+ * The key LEDs' picture (src/keys.c), for the rail rule (src/on_usb_power.c),
+ * the palette (src/palette.c) and the hit (src/hit.c). Layer contract: this
+ * file is the strip's one writer; callers say lit or dark, when the boot
+ * light lasts, and which key was pressed on the other half, and never touch
+ * a pixel. The frame is written on ZMK's low priority work queue; the
+ * countdown's clock runs on the system work queue, so the light, the blank
+ * and the boot light are called from there (the rail rule's thread), the
+ * refresh and the hit from any thread.
  */
 
 #pragma once
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #include <zephyr/sys/util.h>
 
@@ -46,4 +48,16 @@ void lantern_keys_refresh(void);
 void lantern_keys_boot_light(bool on);
 #else
 static inline void lantern_keys_boot_light(bool on) { ARG_UNUSED(on); }
+#endif
+
+/* A key press of another half, relayed by the split central (src/hit.c):
+ * noted as a hit for the effects, as this half's own press, while the LEDs
+ * are lit and the intro is not playing; the countdown's clock is not moved.
+ * Any of ZMK's threads, which are cooperative (src/keys.c says what a
+ * preemptible caller could leave behind). Without an effect
+ * (CONFIG_LANTERN_EFFECTS) this compiles to nothing. */
+#if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
+void lantern_keys_hit(uint8_t position);
+#else
+static inline void lantern_keys_hit(uint8_t position) { ARG_UNUSED(position); }
 #endif

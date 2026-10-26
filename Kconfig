@@ -187,7 +187,7 @@ config LANTERN_SOLID
       Every LED shows slot 0, the whole half in one colour. The countdown's
       pictures are then the whole half in each distinct colour in turn
       (colours that paint alike count once), slot 0's first. The node keeps
-      slots, which this picture does not read.
+      slots, which this picture does not read (the crossing ring does).
 
 config LANTERN_GRADIENT
     bool "The palette's colours blended across the board from left to right, by each key's x"
@@ -206,7 +206,8 @@ config LANTERN_GRADIENT
       the halves, so a colour whose place lies there never does. The
       countdown's other pictures are as with the bands, and the press glow
       brightens the key's blend. Needs the node's coords (asserted). The
-      node keeps slots, which this picture does not read.
+      node keeps slots, which this picture does not read (the crossing ring
+      does).
 
 config LANTERN_SCATTER
     bool "Throw the palette's slots over the keys at random, by the node's weights, a new throw every LANTERN_SCATTER_MS"
@@ -218,7 +219,8 @@ config LANTERN_SCATTER
       asserted; slots 1.. take their rounded share, slot 0, the heaviest
       colour, the rest), thrown again every LANTERN_SCATTER_MS while the
       LEDs are lit, keys or no keys, and at every light. Each half throws
-      for itself. The node keeps slots, which this picture does not read.
+      for itself. The node keeps slots, which this picture does not read
+      (the crossing ring does).
       Needs a random number source (Zephyr's sys_rand32_get: an entropy
       driver, as the nRF52840's RNG, or the test generator).
 
@@ -236,8 +238,9 @@ config LANTERN_NO_PICTURE
       LANTERN_COUNTDOWN_STAGE_MS after the last key; canon t-skdt tries it
       with LANTERN_COUNTDOWN=n. The press
       glow brightens a key's colour in the picture, which this has none of:
-      the build refuses the two together. The node keeps slots, which only
-      the boot light reads, and nothing with LANTERN_INTRO.
+      the build refuses the two together. The node keeps slots, which the
+      boot light reads here (not with LANTERN_INTRO) and the crossing ring
+      for its colours.
 
 endchoice
 
@@ -299,7 +302,9 @@ config LANTERN_THIN_RING
     select LANTERN_GEOMETRY
     help
       While the key LEDs are lit, a ring one key wide spreads from each key
-      this half presses at twelve key units a second and fades out over a
+      this half presses (and, where the hit node exists, LANTERN_HIT, from
+      the other half's keys too, in across the split) at twelve key units a
+      second and fades out over a
       second, so it has crossed the half when it is gone; each press takes
       the palette's next colour, at full brightness (so the build refuses a
       LANTERN_BRIGHTNESS of 100), and a key under two rings shows the
@@ -315,7 +320,10 @@ config LANTERN_DISC
     select LANTERN_GEOMETRY
     help
       While the key LEDs are lit, a rim spreads from each key this half
-      presses at twelve key units a second; a key it has passed lights at
+      presses (and, where the hit node exists, LANTERN_HIT, from the other
+      half's keys too, in across the split: the disc then lives long enough
+      to cross the whole board) at twelve key units a second; a key it has
+      passed lights at
       full brightness (so the build refuses a LANTERN_BRIGHTNESS of 100) and
       fades back to the picture over half a second, its
       colour running once through the palette's colours in order as it
@@ -336,12 +344,64 @@ config LANTERN_STAIN
       ring's colour at the picture's brightness from the moment the crest
       reaches it (where two rings have passed, the newer press's colour), so
       the half is painted over in the day's colours as you
-      type, each press in the palette's next colour. The dye goes when the
+      type, each press in the palette's next colour (a ring in from the
+      other half, LANTERN_HIT, dyes the keys within its reach too, the
+      thumbs first). The dye goes when the
       countdown changes the picture (LANTERN_COUNTDOWN_STAGE_MS after the
       last key; the next key brings the picture back and its ring dyes it
       afresh) and whenever the LEDs light; without the countdown it stays
       until the LEDs go dark. Default n while canon t-6ttk tries the effects
       one image at a time.
+
+config LANTERN_CROSS_RING
+    bool "Spread a thin ring from each pressed key across the whole board, both halves, in the key's band colour"
+    depends on LANTERN_KEYS
+    select LANTERN_EFFECTS
+    select LANTERN_GEOMETRY
+    select LANTERN_HIT
+    help
+      While the key LEDs are lit, a ring one key wide spreads from each
+      pressed key at twelve key units a second over the whole board: from a
+      key of this half out through the other half, and from a key of the
+      other half, which the split central relays here (LANTERN_HIT,
+      selected: this half and the central need the hit node, on a BLE
+      split), in at the thumbs and then the inner columns. The ring keeps
+      its strength until it has left the board, a second and a half on
+      canon's Imprint, where the thin ring fades within a half; its colour
+      is the pressed key's band (the lantern,keys node's slots), so both
+      halves draw one press in one colour, at full brightness within the
+      frame's cap (so the build refuses a LANTERN_BRIGHTNESS of 100); a key
+      under two rings shows the stronger one's colour. Needs the node's
+      coords, as the thin ring does. Default n while canon t-6ttk tries the
+      effects one image at a time.
+
+config LANTERN_HIT
+    bool "Carry each half's key presses to the other half through the split central, for the effects that cross the split"
+    default y
+    depends on DT_HAS_LANTERN_BEHAVIOR_HIT_ENABLED
+    depends on ZMK_SPLIT_BLE
+    help
+      The split central sends each key press, a half's or its own, to every
+      other half as one invocation of the lantern,behavior-hit node, which
+      ZMK's split transport carries by the node's name: the node is named
+      hit on every device (src/hit.c, the binding), param1 the key position.
+      A half notes a relayed press as a hit for its effects while its LEDs
+      are lit, as one of its own keys: LANTERN_CROSS_RING draws it from the
+      other half's key, the thin ring and the disc do too, in their own
+      colours (the disc then lives long enough to cross the board), the
+      stain dyes with it, and it counts in the press count the thin ring's
+      colours follow; its countdown's clock ignores it. The central sends
+      only to a half whose link runs at peripheral latency 0, which a half
+      asks for while USB powers it (LANTERN_USB_LATENCY, on by default): a
+      half on battery is dark, and writes to it would wait up to 31
+      connection events each and, in a run, dry the TX pool on which the run
+      queue's drain blocks with the lit half's writes behind; a consumer
+      that turns LANTERN_USB_LATENCY off on its halves gets no relay. The
+      sending runs on a work queue of the module's own, never the system
+      work queue, and the hits share the central's run queue with the
+      palette (src/hit.c says why, and what a vanished half costs). Default
+      y where the node is present on a BLE split: the node is the switch,
+      as the palette's.
 
 config LANTERN_USB_LATENCY
     bool "Ask the split central for peripheral latency 0 while USB powers this half"

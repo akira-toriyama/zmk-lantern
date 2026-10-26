@@ -28,10 +28,14 @@ how to build. Usage: [README.md](README.md). English only.
   picture, every key black under the effects and the bands for the boot
   light (`CONFIG_LANTERN_NO_PICTURE`, not with the press glow); the
   effects that move the picture after a key, the press
-  glow, the thin ring, the disc and the stain (`CONFIG_LANTERN_PRESS_GLOW`,
-  `CONFIG_LANTERN_THIN_RING`, `CONFIG_LANTERN_DISC`, `CONFIG_LANTERN_STAIN`,
+  glow, the thin ring, the disc, the stain and the crossing ring
+  (`CONFIG_LANTERN_PRESS_GLOW`, `CONFIG_LANTERN_THIN_RING`,
+  `CONFIG_LANTERN_DISC`, `CONFIG_LANTERN_STAIN`, `CONFIG_LANTERN_CROSS_RING`,
   off by default while canon t-6ttk tries them one image at a time;
   src/keys.c, the node's `coords` through `CONFIG_LANTERN_GEOMETRY`); the
+  hit, each half's key presses relayed to the other half by the split
+  central for the effects that cross the split (`CONFIG_LANTERN_HIT`;
+  [src/hit.c](src/hit.c), binding `lantern,behavior-hit`); the
   intro, a six-second show in red, blue and green from the outer keys to the
   thumbs that the boot light plays instead of the picture, opening at boot
   and again whenever USB power arrives
@@ -99,6 +103,10 @@ how to build. Usage: [README.md](README.md). English only.
   `CONFIG_LANTERN_EFFECTS=y` and `CONFIG_LANTERN_FRAMES=y`, the thin ring
   and the disc `CONFIG_LANTERN_GEOMETRY=y` too;
   `CONFIG_LANTERN_STAIN=y` adds `CONFIG_LANTERN_THIN_RING=y`;
+  `CONFIG_LANTERN_CROSS_RING=y` adds `CONFIG_LANTERN_EFFECTS=y`,
+  `CONFIG_LANTERN_GEOMETRY=y` and `CONFIG_LANTERN_HIT=y`, which the hit node
+  (`config/hit.dtsi`, on every target) turns on by itself, with `hit.c.obj`
+  in zmk.map;
   `CONFIG_LANTERN_INTRO=y` adds `CONFIG_LANTERN_FRAMES=y` and
   `CONFIG_LANTERN_GEOMETRY=y` and drops `CONFIG_LANTERN_BOOT_LIGHT_MS`;
   a half shows `CONFIG_LANTERN_BANDS=y`, or `CONFIG_LANTERN_SOLID=y`,
@@ -213,7 +221,27 @@ how to build. Usage: [README.md](README.md). English only.
   param1/param2, so the central and the halves must agree on the name and on
   the packing (`src/palette.c`: param1 = pair << 24 | the first slot's
   0xRRGGBB, param2 = the second's). A change to either is a change on every
-  device at once (canon flashes all four targets at a pin bump).
+  device at once (canon flashes all four targets at a pin bump). **The hit's
+  node is named `hit` on every device, its invocation a wire format too**
+  (`src/hit.c`: param1 = the key position, param2 = 0, press only): the
+  central sends it with `zmk_split_central_invoke_behavior()` from the
+  module's own work queue, never the system work queue (a put into ZMK's run
+  queue waits up to 100 ms or more when it is full, and the system work
+  queue carries the host's Bluetooth TX and the halves' key events), and
+  only to a half whose link is at peripheral latency 0, the sign of USB
+  power (`src/latency.c`); a half on battery gets nothing. The hits share
+  the run queue with the palette: a lit half that vanishes keeps its link
+  for the supervision timeout, and hits relayed to it meanwhile can fill
+  the queue (the source header). The slot of a link comes from ZMK's
+  `peripheral_slot_index_for_conn()`, declared in `src/hit.c` since ZMK has
+  no header for it: a rename or a static there fails the link, loudly, a
+  changed signature silently (C links by name). A half notes a relayed
+  press from the Bluetooth receive queue (`lantern_keys_hit()`:
+  `src/keys.c`'s hit ring advances by compare-and-set, so any of ZMK's
+  cooperative threads may note; `keys.h` lists the hit among the callers)
+  and never moves the countdown's clock with it. With the hit built, the
+  thin ring and the disc draw the other half's presses too, and the disc's
+  life covers the whole board (`DISC_MS`), not a half.
 - **Every palette change goes through the behavior**, on the central too: the
   port only parses and replies (`lantern_palette_send()`, which clears the
   slots it is not given), and the central stores its copy by the same handler

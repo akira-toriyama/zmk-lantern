@@ -1,0 +1,14 @@
+# Copyright (c) 2026 akira-toriyama
+# SPDX-License-Identifier: MIT
+
+description: |
+  The hit behavior (CONFIG_LANTERN_HIT, src/hit.c): one node, named hit, on
+  the split central and on every half, in the keymap's behaviors or an
+  overlay (a name of at most 8 characters, as the palette's). Never bound to
+  a key: the central's code sends it to a half with one key press of another
+  half (param1 = the key position, param2 = 0), and the half notes it as a
+  hit for the effects that cross the split (the crossing ring, src/keys.c).
+
+compatible: "lantern,behavior-hit"
+
+include: two_param.yaml

@@ -26,6 +26,7 @@
 #include <zephyr/dt-bindings/gpio/gpio.h>
 
 #include "palette.dtsi"
+#include "hit.dtsi"
 
 &{/EXT_POWER} {
     status = "disabled";

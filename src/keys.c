@@ -101,10 +101,15 @@
  *   the three pairs of a palette do, is latched and not lost (Opus review,
  *   2026-10-20).
  * - Effects (CONFIG_LANTERN_EFFECTS, which each effect selects): the half's
- *   own presses go into a ring of the last HITS, each a key position, the
- *   press's number (the count of presses, cycling) and the low 18 bits of the
- *   press's uptime in one atomic, written on the system work queue (the key
- *   listener, while lit; a full ring drops the oldest) and read by the frame,
+ *   own presses, and the other half's that the split central relays
+ *   (lantern_keys_hit(), src/hit.c), go into a ring of the last HITS, each a
+ *   key position, the press's number (the count of presses, cycling) and the
+ *   low 18 bits of the press's uptime in one atomic, written while lit (the
+ *   key listener on the system work queue, a relayed press on the Bluetooth
+ *   receive queue, or on the system work queue on a central with key LEDs:
+ *   the ring's index and the count advance by compare-and-set, so no lock; a
+ *   full ring drops the oldest, which with both halves' presses in it and the
+ *   crossing ring's life takes about ten presses a second) and read by the frame,
  *   which clears each hit that has run its course, so an 18-bit time never
  *   wraps into a live one; the blank clears them all, and a press that lights
  *   an idle half shows no effect. While one moves, the frame arms frame_work,
@@ -164,8 +169,10 @@
  *   QMK's SPLASH written from its idea (QMK is GPL: nothing copied). An LED
  *   under two discs shows the stronger one's colour at their summed strength,
  *   as under two rings. A hit lives DISC_MS, long enough for the rim to cross
- *   a half of the Imprint and the last LED to fade; the cap (above) holds a
- *   disc, which covers many LEDs at once, harder than it holds a ring.
+ *   a half of the Imprint and the last LED to fade, or the whole board where
+ *   the hit (src/hit.c) brings the other half's presses, whose discs come in
+ *   across the split; the cap (above) holds a disc, which covers many LEDs
+ *   at once, harder than it holds a ring.
  * - The stain (CONFIG_LANTERN_STAIN): the thin ring dyes the keys it passes.
  *   An LED within STAIN_REACH of the press keeps the ring's shade as its
  *   picture colour, at the picture's level like a band, from the frame in
@@ -181,10 +188,26 @@
  *   picture (the next key brings it back, and its ring dyes it afresh) and
  *   when the LEDs blank. It indexes the shades, so a new palette recolours
  *   the dye with it, and a dye past the new shade count shows the picture.
+ * - The crossing ring (CONFIG_LANTERN_CROSS_RING): the thin ring's shape, one
+ *   key wide at CROSS_SPEED key units a second, from a pressed key of either
+ *   half across the whole board: a press of this half spreads out through
+ *   the other half, and a press of the other half, relayed by the central
+ *   (src/hit.c), comes in at the thumbs (the two clusters sit 1.5 units
+ *   apart) and then the inner columns. It keeps its strength
+ *   until it has left the board (CROSS_MS covers canon's Imprint, whose
+ *   farthest two keys are 16.8 units apart; a wider board cuts it short),
+ *   where the thin ring fades within a half, and its colour is the pressed
+ *   key's band, the node's slots, so that both halves draw one press in one
+ *   colour, where the thin ring's count of presses differs between them. A
+ *   relayed press reaches the other half a few connection events late
+ *   (7.5 ms each on canon's link, which a USB-powered half attends every one
+ *   of, src/latency.c), a tenth of a key unit each at the ring's speed;
+ *   nothing backdates it (canon t-6ttk: a toy, optimistic is fine).
  * - The solid (CONFIG_LANTERN_SOLID, canon t-skdt): every LED shows slot 0,
  *   so the countdown's pictures are the whole half in each shade in turn,
  *   shade 0's first, and the press glow brightens slot 0's shade. The node
- *   still carries slots, unread.
+ *   still carries slots, which this picture does not read (the crossing ring
+ *   does, for its colours).
  * - The gradient (CONFIG_LANTERN_GRADIENT, canon t-skdt): ramp() puts each
  *   key on one line through the shades in slot order by its x on the whole
  *   board (the coords): the leftmost key at shade 0, the rightmost at the
@@ -199,7 +222,8 @@
  *   board's ends are measured once, at the first frame that shows the
  *   gradient. The countdown's other pictures and the stain's dye are shades
  *   as with the bands; the press glow brightens the LED's blend. The node
- *   still carries slots, unread.
+ *   still carries slots, which this picture does not read (the crossing ring
+ *   does, for its colours).
  * - The scatter (CONFIG_LANTERN_SCATTER, canon t-skdt): the picture is the
  *   palette's slots thrown over this half's LEDs at random in place of the
  *   bands, each slot on as many LEDs as its share of the node's
@@ -216,8 +240,9 @@
  *   behind one still queued from a blank just before, which then shows the
  *   old throw for one frame. sys_rand32_get() is Zephyr's xoshiro128++ on a
  *   half (CONFIG_XOSHIRO_RANDOM_GENERATOR; thread context, the first call
- *   seeds from the nRF RNG). The node still carries slots, which only the
- *   bands and the no picture's boot light read. Each half throws for itself:
+ *   seeds from the nRF RNG). The node still carries slots, which the bands,
+ *   the no picture's boot light and the crossing ring read, not this
+ *   picture. Each half throws for itself:
  *   the two are independent, with the same shares.
  * - The no picture (CONFIG_LANTERN_NO_PICTURE, canon t-skdt): every LED
  *   black while lit, so that only the effects show, over black keys: an
@@ -234,8 +259,9 @@
  *   frame, so on USB the keys turn black (on battery the blank follows
  *   anyway). With the countdown on, its first picture is otherwise the black
  *   one and the others the whole half in a shade, as with the bands. The
- *   node still carries slots, which only the boot light reads. The intro
- *   (below), when built, takes the boot light's frames instead.
+ *   node still carries slots, which the boot light reads here, and the
+ *   crossing ring for its colours. The intro (below), when built, takes the
+ *   boot light's frames instead.
  * - The intro (CONFIG_LANTERN_INTRO, canon t-5v1f): a show in place of the
  *   boot light's picture, LANTERN_INTRO_MS long (keys.h), which the rail
  *   rule plays at boot and whenever USB power arrives (src/on_usb_power.c),
@@ -356,7 +382,11 @@ BUILD_ASSERT(PICTURE_LEVEL <= LEVEL,
  * at any brightness. */
 BUILD_ASSERT(HI_LEVEL > LEVEL, "CONFIG_LANTERN_BRIGHTNESS 100 leaves the frame's cap no room for "
                                "an effect, which brightens to full scale");
-#define HITS 8
+/* The presses an effect still draws: with the hit (src/hit.c) both halves'
+ * presses share the ring, and the crossing ring lives CROSS_MS, so eight held
+ * only five presses a second before the oldest, still on the board, went in
+ * one frame (Opus review, 2026-10-26). */
+#define HITS 16
 /* A hit in one atomic: (position + 1) << 24 | seq << HIT_SEQ_SHIFT | the
  * press's time, the low 18 bits of k_uptime_get_32() in ms (262 s). seq is
  * the count of presses mod HIT_SEQ_CYCLE: an effect that gives each press the
@@ -396,12 +426,32 @@ BUILD_ASSERT(LANTERN_PALETTE_SLOTS == 6 && HIT_SEQ_CYCLE % 60 == 0,
 /* How long an LED the rim has passed takes to fade back to the picture. */
 #define DISC_FADE_MS 500
 /* A disc's life: the rim across a half of the Imprint (8.75 units, 729 ms at
- * 12) and the last LED's fade. */
+ * 12) and the last LED's fade; with the hit (src/hit.c) the other half's
+ * presses come in too, and the rim must cross the whole board (16.8 units,
+ * 1397 ms) before the last LED fades, or the far keys went black mid-fade
+ * (Opus review, 2026-10-26). */
+#if IS_ENABLED(CONFIG_LANTERN_HIT)
+#define DISC_MS 1900
+#else
 #define DISC_MS 1500
+#endif
 #else
 #define DISC_MS 0
 #endif
-#define HIT_LIFE_MS MAX(GLOW_MS, MAX(RING_MS, DISC_MS))
+#if IS_ENABLED(CONFIG_LANTERN_CROSS_RING)
+/* Key units a second the crossing ring's radius grows, the thin ring's
+ * speed; full on the radius and gone CROSS_WIDTH hundredths of a unit from
+ * it, one key wide. */
+#define CROSS_SPEED 12
+#define CROSS_WIDTH 100
+/* How long a hit draws the crossing ring: until the ring has passed the
+ * farthest key of canon's Imprint from any key (16.8 units) by its width,
+ * 1.48 s at 12 (the header). */
+#define CROSS_MS 1600
+#else
+#define CROSS_MS 0
+#endif
+#define HIT_LIFE_MS MAX(MAX(GLOW_MS, RING_MS), MAX(DISC_MS, CROSS_MS))
 #if IS_ENABLED(CONFIG_LANTERN_STAIN)
 /* The least strength, of 256, a ring's crest must still have to dye: the
  * design's 0.6. */
@@ -427,7 +477,7 @@ BUILD_ASSERT(!IS_ENABLED(CONFIG_LANTERN_PRESS_GLOW) || !IS_ENABLED(CONFIG_LANTER
 #if IS_ENABLED(CONFIG_LANTERN_GEOMETRY)
 BUILD_ASSERT(DT_INST_NODE_HAS_PROP(0, coords),
              "what measures the board (CONFIG_LANTERN_GEOMETRY: the thin ring, the disc, the "
-             "gradient or the intro) needs lantern,keys coords");
+             "crossing ring, the gradient or the intro) needs lantern,keys coords");
 BUILD_ASSERT(COND_CODE_1(DT_INST_NODE_HAS_PROP(0, coords), (DT_INST_PROP_LEN(0, coords)), (0)) ==
                  2 * KEY_COUNT,
              "lantern,keys: coords needs an x and a y per key position of slots");
@@ -653,10 +703,12 @@ static void scatter_roll(void) {
 #if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
 
 /* The ring of the last HITS presses (the header), packed as HIT_TIME says; 0
- * is no hit. Set on the system work queue; the frame clears a spent hit with
- * a compare-and-set. */
+ * is no hit. Written from any thread: the next index and the count of
+ * presses advance by compare-and-set, and the frame clears a spent hit the
+ * same way. */
 static atomic_t hits[HITS];
-static size_t hit_next;
+static atomic_t hit_next;
+static atomic_t hit_seq; /* the count of presses noted, mod HIT_SEQ_CYCLE */
 
 struct hit {
     uint8_t key;  /* a key position */
@@ -664,19 +716,26 @@ struct hit {
     uint16_t age; /* ms since the press, below HIT_LIFE_MS */
 };
 
-/* System work queue: the count of presses noted, mod HIT_SEQ_CYCLE. */
-static uint8_t hit_seq;
+/* counter's value, and counter advanced to the next, mod cycle, by
+ * compare-and-set: two threads never take one value. */
+static uint32_t take_next(atomic_t *counter, uint32_t cycle) {
+    atomic_val_t v;
 
-/* System work queue. A full ring drops the oldest. */
-static void hit_note(uint32_t position) {
-    uint32_t v = ((position + 1) << 24) | ((uint32_t)hit_seq << HIT_SEQ_SHIFT) |
-                 (k_uptime_get_32() & HIT_TIME);
-    atomic_set(&hits[hit_next], (atomic_val_t)v);
-    hit_next = (hit_next + 1) % HITS;
-    hit_seq = (hit_seq + 1) % HIT_SEQ_CYCLE;
+    do {
+        v = atomic_get(counter);
+    } while (!atomic_cas(counter, v, (v + 1) % (atomic_val_t)cycle));
+    return (uint32_t)v;
 }
 
-/* System work queue. */
+/* Any thread. A full ring drops the oldest. */
+static void hit_note(uint32_t position) {
+    uint32_t seq = take_next(&hit_seq, HIT_SEQ_CYCLE);
+    uint32_t v = ((position + 1) << 24) | (seq << HIT_SEQ_SHIFT) | (k_uptime_get_32() & HIT_TIME);
+
+    atomic_set(&hits[take_next(&hit_next, HITS)], (atomic_val_t)v);
+}
+
+/* Any thread. */
 static void hits_clear(void) {
     for (size_t j = 0; j < HITS; j++) {
         atomic_set(&hits[j], 0);
@@ -906,6 +965,43 @@ static void disc(const struct shades *sh, const struct hit live[], size_t n) {
 }
 
 #endif /* IS_ENABLED(CONFIG_LANTERN_DISC) */
+
+#if IS_ENABLED(CONFIG_LANTERN_CROSS_RING)
+
+/* Each hit's crossing ring (the header): its radius CROSS_SPEED x the hit's
+ * age, full on the radius and gone CROSS_WIDTH from it, in the shade of the
+ * pressed key's slot. An LED under several rings takes the strongest one's
+ * colour at their summed strength. */
+static void cross_ring(const struct shades *sh, const struct hit live[], size_t n) {
+    for (size_t i = 0; i < LED_COUNT; i++) {
+        unsigned int w = 0, strongest = 0;
+        size_t pick = 0;
+
+        for (size_t h = 0; h < n; h++) {
+            if (live[h].age >= CROSS_MS) {
+                continue;
+            }
+            /* ms x units/s / 1000 x 100 hundredths */
+            uint32_t r = (uint32_t)live[h].age * CROSS_SPEED / 10;
+            uint32_t d = distance(positions[i], live[h].key);
+            uint32_t off = d > r ? d - r : r - d;
+            if (off >= CROSS_WIDTH) {
+                continue;
+            }
+            unsigned int s = (CROSS_WIDTH - off) * 256 / CROSS_WIDTH;
+            if (s > strongest) {
+                strongest = s;
+                pick = h;
+            }
+            w += s;
+        }
+        if (w > 0) {
+            pixels[i] = mix(pixels[i], shade_hi(sh, sh->rank[slots[live[pick].key]]), MIN(w, 256));
+        }
+    }
+}
+
+#endif /* IS_ENABLED(CONFIG_LANTERN_CROSS_RING) */
 
 #if IS_ENABLED(CONFIG_LANTERN_INTRO)
 
@@ -1243,6 +1339,9 @@ static bool compose(size_t at) {
 #if IS_ENABLED(CONFIG_LANTERN_DISC)
     disc(&frame_shades, live, moving);
 #endif
+#if IS_ENABLED(CONFIG_LANTERN_CROSS_RING)
+    cross_ring(&frame_shades, live, moving);
+#endif
     hold_to_cap();
     return moving > 0;
 #else
@@ -1409,6 +1508,21 @@ static int key_listener(const zmk_event_t *eh) {
 
 ZMK_LISTENER(lantern_keys, key_listener);
 ZMK_SUBSCRIPTION(lantern_keys, zmk_position_state_changed);
+
+#endif
+
+#if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
+
+/* Any of ZMK's threads (keys.h): a relayed press is a hit as the half's own,
+ * under the same rule as the listener's, and no key of the countdown's clock.
+ * ZMK's threads are cooperative: a preemptible caller blanked between the
+ * check and the note could leave a hit for the next light. */
+void lantern_keys_hit(uint8_t position) {
+    if (position < KEY_COUNT && atomic_get(&lit) && !intro_plays()) {
+        hit_note(position);
+        submit();
+    }
+}
 
 #endif
 
