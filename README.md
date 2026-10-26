@@ -47,7 +47,13 @@ battery, shown when each was plugged in (canon t-0967). The countdown
 canon's trial images (a palette of five colours): a new picture every
 10.000 s from the last key, the bands after every fifth, the bands back at a
 key, `dark: idle` at ZMK's timeout; a cable plugged in after a boot lit the
-stage the keys' clock said (canon t-gsm2, t-x82q).
+stage the keys' clock said (canon t-gsm2, t-x82q). The effects, on both
+halves with the Imprint Dongle relaying (canon's trial images, one effect at
+a time, 2026-10-21 to 2026-10-26, then its product images with the pick,
+2026-10-26): the thin ring, the disc, the stain, the crossing ring in across
+the split, and the beams (2026-10-26, canon's product conf plus
+`CONFIG_LANTERN_BEAMS=y`, the pick `beams` sent from the dongle's port), each
+the user's OK on sight (canon t-6ttk, t-5hqx).
 
 ## What it does
 
