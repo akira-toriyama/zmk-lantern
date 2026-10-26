@@ -31,7 +31,8 @@
     X(THIN_RING, 0, "thin-ring")                                                                   \
     X(DISC, 1, "disc")                                                                             \
     X(STAIN, 2, "stain")                                                                           \
-    X(CROSS_RING, 3, "cross-ring")
+    X(CROSS_RING, 3, "cross-ring")                                                                 \
+    X(BEAMS, 4, "beams")
 
 /* Each effect's bit in a pick: LANTERN_EFFECT_THIN_RING and so on. */
 enum lantern_effect {

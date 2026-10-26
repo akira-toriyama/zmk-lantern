@@ -1,7 +1,8 @@
 // The hit behavior's node (src/hit.c), the same on every device of the
 // split, as the palette's (config/palette.dtsi says why one name): the
 // central relays each half's key presses to the other half through it, for
-// the effects that cross the split (src/keys.c, the crossing ring). A
+// the effects that cross the split (src/keys.c: the crossing ring, the
+// beams). A
 // consumer with a keymap of its own puts it among the keymap's behaviors
 // (canon: config/imprint_behaviors.dtsi); this check build includes this
 // file from every overlay.

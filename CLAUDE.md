@@ -28,9 +28,10 @@ how to build. Usage: [README.md](README.md). English only.
   picture, every key black under the effects and the bands for the boot
   light (`CONFIG_LANTERN_NO_PICTURE`); the
   effects that move the picture after a key, the thin ring, the disc, the
-  stain and the crossing ring (`CONFIG_LANTERN_THIN_RING`,
+  stain, the crossing ring and the beams (`CONFIG_LANTERN_THIN_RING`,
   `CONFIG_LANTERN_DISC`, `CONFIG_LANTERN_STAIN`, `CONFIG_LANTERN_CROSS_RING`,
-  each built into the image by the consumer's conf, off by default;
+  `CONFIG_LANTERN_BEAMS`, each built into the image by the consumer's conf,
+  off by default;
   src/keys.c, the node's `coords` through `CONFIG_LANTERN_GEOMETRY`), and the
   pick of which built effects draw, the host's over the central's port, kept
   across boots, or the Kconfig choice `LANTERN_EFFECT_DEFAULT`
@@ -105,7 +106,8 @@ how to build. Usage: [README.md](README.md). English only.
   `CONFIG_LANTERN_PORT=y` and `port.c.obj`; the dongle's nothing of the rail
   or the keys; every target `CONFIG_LANTERN_EFFECT=y` and `effect.c.obj` from
   the effect node (`config/effect.dtsi`, on every target).
-  `--kconfig CONFIG_LANTERN_THIN_RING=y` or `CONFIG_LANTERN_DISC=y` adds
+  `--kconfig CONFIG_LANTERN_THIN_RING=y`, `CONFIG_LANTERN_DISC=y` or
+  `CONFIG_LANTERN_BEAMS=y` adds
   `CONFIG_LANTERN_EFFECTS=y` and `CONFIG_LANTERN_FRAMES=y`,
   `CONFIG_LANTERN_GEOMETRY=y` and, the choice `LANTERN_EFFECT_DEFAULT` with
   no line of its own, `CONFIG_LANTERN_EFFECT_DEFAULT_<the first built
@@ -254,8 +256,8 @@ how to build. Usage: [README.md](README.md). English only.
   `src/keys.c`'s hit ring advances by compare-and-set, so any of ZMK's
   cooperative threads may note; `keys.h` lists the hit among the callers)
   and never moves the countdown's clock with it. With the hit built, the
-  thin ring and the disc draw the other half's presses too, and the disc's
-  life covers the whole board (`DISC_MS`), not a half.
+  beams, the thin ring and the disc draw the other half's presses too, and
+  the disc's life covers the whole board (`DISC_MS`), not a half.
 - **Every palette change goes through the behavior**, on the central too: the
   port only parses and replies (`lantern_palette_send()`, which clears the
   slots it is not given), and the central stores its copy by the same handler
