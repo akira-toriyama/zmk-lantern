@@ -12,7 +12,8 @@
  * to its idle dark, the picture changes every CONFIG_LANTERN_COUNTDOWN_STAGE_MS,
  * a stage: the bands, then the whole half in each colour of the palette in
  * turn, then the bands again; and the effects (canon t-6ttk), a picture that
- * moves after a key. This file is the strip's one writer. A frame goes out
+ * moves after a key, of which the pick (src/effect.c, canon t-5hqx) says
+ * which draw. This file is the strip's one writer. A frame goes out
  * when something changed: when the rail rule lights or blanks the LEDs
  * (src/on_usb_power.c), when the palette changes while they are lit, when the
  * countdown moves a stage, at each throw of the scatter, when the boot light
@@ -116,7 +117,18 @@
  *   a delayable item on the same queue that runs the same handler, FRAME_MS
  *   ahead; a black frame cancels it, so no frame follows the blank's. That
  *   timer and the cap below are the moving frames' (CONFIG_LANTERN_FRAMES),
- *   which the intro selects too. An
+ *   which the intro selects too. Which effects draw is the pick's
+ *   (src/effect.h): the image carries every effect the consumer's conf turns
+ *   on, and each frame reads the pick the host stored (lantern_effect_get(),
+ *   an atomic), keeps the bits built here and draws those, every one of them
+ *   over the last (the grammar allows several; canon sends one); with no pick
+ *   stored, or none of its bits built, the frame draws the one the Kconfig
+ *   choice LANTERN_EFFECT_DEFAULT names, the only pick a consumer without a
+ *   host has. A hit lives the longest life of the effects built, and a frame
+ *   keeps moving only while a hit is within the life of an effect that
+ *   draws. When the pick changes, src/effect.c clears the hits
+ *   (lantern_keys_effect_changed()) and the frame clears the stain's dye,
+ *   so a ring half-way out does not turn into the new effect's shape. An
  *   effect pulls an LED from the picture toward its colour (mix()), never
  *   adds to it: added to a bright band it would saturate to white. Its
  *   colours go up to HI_LEVEL, full scale, and then the frame's channel sum
@@ -131,16 +143,10 @@
  *   alike. Integers only, for the effects and the intro alike: the low
  *   priority queue's 768-byte stack is shared with ZMK's battery sampling,
  *   and a thread that once uses the FPU keeps a larger context from then on.
- * - The press glow (CONFIG_LANTERN_PRESS_GLOW): a pressed key's LED jumps to
- *   its colour in the picture beneath any dye (its slot's shade, its blend in
- *   the gradient) at HI_LEVEL and falls back to what it showed over GLOW_MS,
- *   QMK's SOLID_REACTIVE_SIMPLE written from its idea (QMK is GPL: nothing
- *   copied). Pressing every key of a half shows the chain order (positions)
- *   key by key, which the bands show only band by band. Full scale because
- *   twice LEVEL, the first try, was not seen on hardware: under the keycaps
- *   16 % to 32 % for half a second read as no change (canon t-6ttk,
- *   2026-10-21). The no picture gives a key no colour to brighten, so the
- *   build refuses the two together.
+ * - The effects brighten to full scale because twice LEVEL, the first try
+ *   (the press glow, dropped after canon t-6ttk's scores), was not seen on
+ *   hardware: under the keycaps 16 % to 32 % for half a second read as no
+ *   change (2026-10-21).
  * - The thin ring (CONFIG_LANTERN_THIN_RING): from a pressed key a ring one
  *   key wide spreads at RING_SPEED key units a second and fades out over
  *   RING_MS, so it has crossed the half when it is gone; each press takes
@@ -185,8 +191,10 @@
  *   about three units (Opus review, 2026-10-21). The newest ring to have
  *   passed an LED dyes it. The dye is the frame thread's alone (stains[],
  *   written where the ring is drawn) and goes when the countdown moves the
- *   picture (the next key brings it back, and its ring dyes it afresh) and
- *   when the LEDs blank. It indexes the shades, so a new palette recolours
+ *   picture (the next key brings it back, and its ring dyes it afresh), when
+ *   the pick changes and when the LEDs blank. In the pick the stain is the
+ *   thin ring that dyes: its bit draws the ring, the thin ring's bit the ring
+ *   alone, and both together the dyeing ring. It indexes the shades, so a new palette recolours
  *   the dye with it, and a dye past the new shade count shows the picture.
  * - The crossing ring (CONFIG_LANTERN_CROSS_RING): the thin ring's shape, one
  *   key wide at CROSS_SPEED key units a second, from a pressed key of either
@@ -205,7 +213,7 @@
  *   nothing backdates it (canon t-6ttk: a toy, optimistic is fine).
  * - The solid (CONFIG_LANTERN_SOLID, canon t-skdt): every LED shows slot 0,
  *   so the countdown's pictures are the whole half in each shade in turn,
- *   shade 0's first, and the press glow brightens slot 0's shade. The node
+ *   shade 0's first. The node
  *   still carries slots, which this picture does not read (the crossing ring
  *   does, for its colours).
  * - The gradient (CONFIG_LANTERN_GRADIENT, canon t-skdt): ramp() puts each
@@ -221,7 +229,7 @@
  *   between the halves, so a shade whose place lies there never does. The
  *   board's ends are measured once, at the first frame that shows the
  *   gradient. The countdown's other pictures and the stain's dye are shades
- *   as with the bands; the press glow brightens the LED's blend. The node
+ *   as with the bands. The node
  *   still carries slots, which this picture does not read (the crossing ring
  *   does, for its colours).
  * - The scatter (CONFIG_LANTERN_SCATTER, canon t-skdt): the picture is the
@@ -327,6 +335,7 @@
 #include <zmk/events/position_state_changed.h>
 #endif
 
+#include "effect.h"
 #include "keys.h"
 #include "palette.h"
 
@@ -368,7 +377,8 @@ BUILD_ASSERT(PICTURE_LEVEL <= LEVEL,
              "could pass the frame's cap");
 
 #if IS_ENABLED(CONFIG_LANTERN_FRAMES)
-/* The brightest channel of an effect's colour: full scale (the header). */
+/* The brightest channel of an effect's colour: full scale (the header says
+ * why not twice the picture's). */
 #define HI_LEVEL 255
 #define FRAME_MS 30
 /* The channel sum no frame exceeds: every LED white at LEVEL, plus CAP_KEYS
@@ -404,11 +414,6 @@ BUILD_ASSERT(LANTERN_PALETTE_SLOTS == 6 && HIT_SEQ_CYCLE % 60 == 0,
 
 /* Each effect's life, how long after the press it still draws; 0 when it is
  * not built. A hit lives the longest. */
-#if IS_ENABLED(CONFIG_LANTERN_PRESS_GLOW)
-#define GLOW_MS 500
-#else
-#define GLOW_MS 0
-#endif
 #if IS_ENABLED(CONFIG_LANTERN_THIN_RING)
 #define RING_MS 1000
 /* Key units a second the ring's radius grows: at 12 it has crossed a half of
@@ -451,7 +456,7 @@ BUILD_ASSERT(LANTERN_PALETTE_SLOTS == 6 && HIT_SEQ_CYCLE % 60 == 0,
 #else
 #define CROSS_MS 0
 #endif
-#define HIT_LIFE_MS MAX(MAX(GLOW_MS, RING_MS), MAX(DISC_MS, CROSS_MS))
+#define HIT_LIFE_MS MAX(RING_MS, MAX(DISC_MS, CROSS_MS))
 #if IS_ENABLED(CONFIG_LANTERN_STAIN)
 /* The least strength, of 256, a ring's crest must still have to dye: the
  * design's 0.6. */
@@ -469,10 +474,15 @@ BUILD_ASSERT(STAIN_REACH > 0, "STAIN_LEAST leaves the ring no reach");
 BUILD_ASSERT(HIT_LIFE_MS > 0, "CONFIG_LANTERN_EFFECTS without an effect: an effect sets its life");
 BUILD_ASSERT(HIT_LIFE_MS <= UINT16_MAX, "a hit's age is kept in 16 bits");
 BUILD_ASSERT(HIT_LIFE_MS < HIT_TIME / 2, "a hit's age must be told from a wrapped time");
+/* The pick (the header): what this image draws, and what it draws without
+ * one. The Kconfig choice names one built effect; the stain's bit draws the
+ * thin ring too, which its Kconfig selects. */
+#define EFFECTS_BUILT ((uint32_t)LANTERN_EFFECT_BUILT)
+#define EFFECT_DEFAULT ((uint32_t)LANTERN_EFFECT_DEFAULT)
+BUILD_ASSERT(EFFECTS_BUILT != 0, "CONFIG_LANTERN_EFFECTS without an effect in LANTERN_EFFECT_LIST");
+BUILD_ASSERT(__builtin_popcount(EFFECT_DEFAULT) == 1 && (EFFECT_DEFAULT & EFFECTS_BUILT) != 0,
+             "the choice LANTERN_EFFECT_DEFAULT must name one effect this image builds");
 #endif
-BUILD_ASSERT(!IS_ENABLED(CONFIG_LANTERN_PRESS_GLOW) || !IS_ENABLED(CONFIG_LANTERN_NO_PICTURE),
-             "CONFIG_LANTERN_PRESS_GLOW brightens a key's colour in the picture, and "
-             "CONFIG_LANTERN_NO_PICTURE paints none");
 
 #if IS_ENABLED(CONFIG_LANTERN_GEOMETRY)
 BUILD_ASSERT(DT_INST_NODE_HAS_PROP(0, coords),
@@ -609,9 +619,10 @@ static struct shades frame_shades;
 #if IS_ENABLED(CONFIG_LANTERN_STAIN)
 /* The frame's thread: each LED's dye, a shade's rank + 1, 0 for none (the
  * header), and the stage (before the modulo: with one shade the modulo would
- * never move) the last frame showed, whose move clears the dye. */
+ * never move) and the pick the last frame showed, whose move clears the dye. */
 static uint8_t stains[LED_COUNT];
 static size_t stained_at;
+static uint32_t drawn_effects;
 #endif
 
 #if IS_ENABLED(CONFIG_LANTERN_GRADIENT)
@@ -768,9 +779,8 @@ static size_t hits_read(struct hit live[HITS]) {
     return n;
 }
 
-/* Shade r at HI_LEVEL. A gradient's press glow brightens the blend instead,
- * so a build with that glow alone of the effects leaves it unused. */
-static struct led_rgb __maybe_unused shade_hi(const struct shades *sh, size_t r) {
+/* Shade r at HI_LEVEL. */
+static struct led_rgb shade_hi(const struct shades *sh, size_t r) {
     return scale(sh->rgb[r], HI_LEVEL);
 }
 
@@ -814,31 +824,6 @@ static void hold_to_cap(void) {
 
 #endif /* IS_ENABLED(CONFIG_LANTERN_FRAMES) */
 
-#if IS_ENABLED(CONFIG_LANTERN_PRESS_GLOW)
-
-/* Each pressed key's LED pulled toward its colour in the picture at HI_LEVEL
- * (its slot's shade, its blend in the gradient; never a dye), all the way at
- * the press and not at all GLOW_MS later; the freshest press of a key wins. */
-static void press_glow(const struct shades *sh, const struct hit live[], size_t n) {
-    for (size_t i = 0; i < LED_COUNT; i++) {
-        unsigned int w = 0;
-        for (size_t h = 0; h < n; h++) {
-            if (live[h].key == positions[i] && live[h].age < GLOW_MS) {
-                w = MAX(w, 256 - (unsigned int)live[h].age * 256 / GLOW_MS);
-            }
-        }
-        if (w > 0) {
-#if IS_ENABLED(CONFIG_LANTERN_GRADIENT)
-            pixels[i] = mix(pixels[i], ramp(sh, i, HI_LEVEL), w);
-#else
-            pixels[i] = mix(pixels[i], shade_hi(sh, sh->rank[base_slot(i)]), w);
-#endif
-        }
-    }
-}
-
-#endif /* IS_ENABLED(CONFIG_LANTERN_PRESS_GLOW) */
-
 #if IS_ENABLED(CONFIG_LANTERN_GEOMETRY)
 
 /* The integer square root of v, rounded down, bit by bit. The gradient
@@ -876,8 +861,12 @@ static uint32_t __maybe_unused distance(uint8_t a, uint8_t b) {
 /* Each hit's ring (the header): its radius RING_SPEED x the hit's age, full
  * on the radius and gone RING_WIDTH from it, fading out over RING_MS, in the
  * shade the hit's number picks. An LED under several rings takes the
- * strongest one's colour at their summed strength. */
-static void thin_ring(const struct shades *sh, const struct hit live[], size_t n) {
+ * strongest one's colour at their summed strength. With stain, the ring dyes
+ * the LEDs its crest reaches (the stain's bit in the pick). */
+static void thin_ring(const struct shades *sh, const struct hit live[], size_t n, bool stain) {
+#if !IS_ENABLED(CONFIG_LANTERN_STAIN)
+    ARG_UNUSED(stain);
+#endif
     for (size_t i = 0; i < LED_COUNT; i++) {
         unsigned int w = 0, strongest = 0;
         size_t pick = 0;
@@ -893,7 +882,8 @@ static void thin_ring(const struct shades *sh, const struct hit live[], size_t n
             uint32_t r = (uint32_t)live[h].age * RING_SPEED / 10;
             uint32_t d = distance(positions[i], live[h].key);
 #if IS_ENABLED(CONFIG_LANTERN_STAIN)
-            if (r >= d && d <= STAIN_REACH && (dye == 0 || live[h].age < live[dye - 1].age)) {
+            if (stain && r >= d && d <= STAIN_REACH &&
+                (dye == 0 || live[h].age < live[dye - 1].age)) {
                 dye = h + 1;
             }
 #endif
@@ -1278,11 +1268,42 @@ static inline bool intro_plays(void) { return false; }
 
 #endif /* IS_ENABLED(CONFIG_LANTERN_INTRO) */
 
-/* The frame: the picture of stage at, the effects over it and the cap, or
- * the intro's frame while it plays; true while an effect still moves or the
- * intro plays. The low priority work queue only: it writes frame_shades,
- * pixels and picture and clears spent hits (the palette and the hits are
- * atomics, read from there). */
+#if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
+
+/* The effects this frame draws (the header): the pick's bits built here, or
+ * the default. */
+static uint32_t active_effects(void) {
+    uint32_t pick;
+
+    if (lantern_effect_get(&pick) && (pick & EFFECTS_BUILT) != 0) {
+        return pick & EFFECTS_BUILT;
+    }
+    return EFFECT_DEFAULT;
+}
+
+/* How long after a press the effects in fx still draw. */
+static uint32_t effects_life(uint32_t fx) {
+    uint32_t life = 0;
+
+    if (fx & (LANTERN_EFFECT_THIN_RING | LANTERN_EFFECT_STAIN)) {
+        life = MAX(life, (uint32_t)RING_MS);
+    }
+    if (fx & LANTERN_EFFECT_DISC) {
+        life = MAX(life, (uint32_t)DISC_MS);
+    }
+    if (fx & LANTERN_EFFECT_CROSS_RING) {
+        life = MAX(life, (uint32_t)CROSS_MS);
+    }
+    return life;
+}
+
+#endif /* IS_ENABLED(CONFIG_LANTERN_EFFECTS) */
+
+/* The frame: the picture of stage at, the picked effects over it and the cap,
+ * or the intro's frame while it plays; true while a picked effect still moves
+ * or the intro plays. The low priority work queue only: it writes
+ * frame_shades, pixels, picture and the stain's state and clears spent hits
+ * (the palette, the pick and the hits are atomics, read from there). */
 static bool compose(size_t at) {
 #if IS_ENABLED(CONFIG_LANTERN_INTRO)
     if (intro_plays()) {
@@ -1293,10 +1314,14 @@ static bool compose(size_t at) {
     bool have = IS_ENABLED(CONFIG_LANTERN_PALETTE) && lantern_palette_get(palette);
 
     shades(palette, have, &frame_shades);
+#if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
+    uint32_t fx = active_effects();
+#endif
 #if IS_ENABLED(CONFIG_LANTERN_STAIN)
-    if (at != stained_at) {
+    if (at != stained_at || fx != drawn_effects) {
         memset(stains, 0, sizeof(stains));
         stained_at = at;
+        drawn_effects = fx;
     }
 #endif
     at %= frame_shades.n;
@@ -1327,23 +1352,31 @@ static bool compose(size_t at) {
 
 #if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
     struct hit live[HITS];
-    size_t moving = hits_read(live);
+    size_t n = hits_read(live);
+    uint32_t life = effects_life(fx);
+    bool moving = false;
 
     memcpy(picture, pixels, sizeof(pixels));
-#if IS_ENABLED(CONFIG_LANTERN_PRESS_GLOW)
-    press_glow(&frame_shades, live, moving);
-#endif
 #if IS_ENABLED(CONFIG_LANTERN_THIN_RING)
-    thin_ring(&frame_shades, live, moving);
+    if (fx & (LANTERN_EFFECT_THIN_RING | LANTERN_EFFECT_STAIN)) {
+        thin_ring(&frame_shades, live, n, (fx & LANTERN_EFFECT_STAIN) != 0);
+    }
 #endif
 #if IS_ENABLED(CONFIG_LANTERN_DISC)
-    disc(&frame_shades, live, moving);
+    if (fx & LANTERN_EFFECT_DISC) {
+        disc(&frame_shades, live, n);
+    }
 #endif
 #if IS_ENABLED(CONFIG_LANTERN_CROSS_RING)
-    cross_ring(&frame_shades, live, moving);
+    if (fx & LANTERN_EFFECT_CROSS_RING) {
+        cross_ring(&frame_shades, live, n);
+    }
 #endif
     hold_to_cap();
-    return moving > 0;
+    for (size_t h = 0; h < n; h++) {
+        moving = moving || live[h].age < life;
+    }
+    return moving;
 #else
     return false;
 #endif
@@ -1520,6 +1553,14 @@ ZMK_SUBSCRIPTION(lantern_keys, zmk_position_state_changed);
 void lantern_keys_hit(uint8_t position) {
     if (position < KEY_COUNT && atomic_get(&lit) && !intro_plays()) {
         hit_note(position);
+        submit();
+    }
+}
+
+/* Any thread (keys.h): the hits go now, the dye at the frame this sends. */
+void lantern_keys_effect_changed(void) {
+    hits_clear();
+    if (atomic_get(&lit)) {
         submit();
     }
 }

@@ -122,8 +122,7 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
   still shows it has power, unless the intro plays in its place; on the
   cable the keys turn black when it ends.
   With the countdown on, its first picture is the black one and the others
-  the whole half in a colour; the press glow, which brightens a key's colour
-  in the picture, is refused with it.
+  the whole half in a colour.
 - The countdown (`CONFIG_LANTERN_COUNTDOWN`, on by default with the idle rule
   and the palette): from the half's last key, the picture changes every
   `CONFIG_LANTERN_COUNTDOWN_STAGE_MS` (default 10000): the bands, then the
@@ -134,18 +133,18 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
   plugged into a half that typed a while ago lights the stage its keys say.
   The clock is the half's own keys: a sensor or pointing input counts for
   ZMK's idle, not for the stages. One colour: the bands until the dark.
-- The press glow (`CONFIG_LANTERN_PRESS_GLOW`, off by default while canon
-  tries the effects one at a time): while the LEDs are lit, the LED of a key
-  this half presses jumps to its colour in the picture beneath any dye (its
-  band's in the bands, its blend in the gradient) at full brightness and
-  falls back to what the key showed over 500 ms. Pressing every key of a half
-  shows which LED sits under which key, one key at a time. An effect pulls an
-  LED toward its colour and never dims the picture; a frame draws at most what
-  every LED white plus two keys white at full brightness would (an estimate of
-  280 + 100 mA at 16 %, unmeasured), so more keys glowing at once on a white
-  picture at the brightness share that and glow less. The brightness must
-  stay below 100 % with an effect (asserted).
-- The thin ring (`CONFIG_LANTERN_THIN_RING`, off by default likewise): from
+- The effects: a picture that moves after a key, the four below. The
+  consumer's conf builds the ones it wants into the image
+  (`CONFIG_LANTERN_THIN_RING`, `CONFIG_LANTERN_DISC`, `CONFIG_LANTERN_STAIN`,
+  `CONFIG_LANTERN_CROSS_RING`, each off by default), and the pick says which
+  of them draw (the pick, below): the host's, kept across boots, or without
+  one the effect the Kconfig choice `LANTERN_EFFECT_DEFAULT` names. An effect
+  pulls an LED toward its colour at full brightness and never dims the
+  picture; a frame draws at most what every LED white plus two keys white at
+  full brightness would (an estimate of 280 + 100 mA at 16 %, unmeasured), so
+  more keys lit at once by an effect on a white picture share that and dim
+  alike. The brightness must stay below 100 % with an effect (asserted).
+- The thin ring (`CONFIG_LANTERN_THIN_RING`; the pick's `thin-ring`): from
   each key this half presses (and, with the hit below, from the other half's
   keys too, in across the split) a ring one key wide spreads at twelve key units
   a second and fades out over a second, so it has crossed the half when it
@@ -154,7 +153,7 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
   stronger one's colour. It measures the board from the node's `coords`,
   each key's x and y in hundredths of a key unit (canon's `imprint.json`
   times 100).
-- The disc (`CONFIG_LANTERN_DISC`, off by default likewise): from each key
+- The disc (`CONFIG_LANTERN_DISC`; the pick's `disc`): from each key
   this half presses (and, with the hit below, from the other half's keys
   too, the disc then living long enough to cross the whole board) a rim
   spreads at twelve key units a second, and a key it
@@ -164,18 +163,19 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
   order as it fades: brightest at the rim, dark behind it, the day's colours
   passing inside. A key under two discs shows the stronger one's colour. It
   measures the board as the thin ring does.
-- The stain (`CONFIG_LANTERN_STAIN`, off by default likewise; it brings the
-  thin ring): a key within about 4.8 key units of the press, where the ring's
+- The stain (`CONFIG_LANTERN_STAIN`; the pick's `stain`, the thin ring that
+  dyes, and it brings the thin ring): a key within about 4.8 key units of the press, where the ring's
   crest still has 0.6 of its full strength, keeps the ring's colour at the
   picture's brightness from the moment the crest reaches it (where two rings
   have passed, the newer press's colour), so the half is painted over in the
   day's colours as you type, each press in the next colour (a ring in from
   the other half dyes the keys within its reach too, the thumbs first). The dye goes when
   the countdown changes the picture (the next key
-  brings the picture back and its ring dyes it afresh) and whenever the LEDs
-  light; without the countdown it stays until the LEDs go dark.
-- The crossing ring (`CONFIG_LANTERN_CROSS_RING`, off by default likewise; it
-  brings the hit, below): the thin ring's shape, one key wide at twelve key
+  brings the picture back and its ring dyes it afresh), when the pick changes
+  and whenever the LEDs light; without the countdown it stays until the LEDs
+  go dark.
+- The crossing ring (`CONFIG_LANTERN_CROSS_RING`; the pick's `cross-ring`, and
+  it brings the hit, below): the thin ring's shape, one key wide at twelve key
   units a second, from a pressed key of either half across the whole board:
   a press of this half spreads out through the other half, and a press of
   the other half, relayed by the split central, comes in at the thumbs and
@@ -249,7 +249,7 @@ than six colours clears the rest to `0x000000`, which the LEDs show as slot
   sets slots 0.. and clears the rest, answered with `palette ok` and the six
   slots as stored; `palette` or `palette?` is answered with the six slots, or
   `palette none` before any; a bad line gets `palette error: <reason>`
-  ([src/palette_port.c](src/palette_port.c) is the grammar). The central's code
+  ([src/port.c](src/port.c) is the grammar). The central's code
   invokes the `lantern,behavior-palette` node, which ZMK's split transport
   carries to every half by the node's name, one pair of slots per invocation
   ([src/palette.c](src/palette.c)); nothing is bound to a key.
@@ -262,10 +262,48 @@ than six colours clears the rest to `0x000000`, which the LEDs show as slot
 - `CONFIG_LANTERN_PALETTE` is on wherever the node exists (the consumer's
   keymap or an overlay, named `palette` on every device of the split, the
   central included: that name is what the transport carries) and
-  `CONFIG_LANTERN_PALETTE_PORT` on a split central with a CDC ACM port. A
+  `CONFIG_LANTERN_PORT`, the port that reads the palette's and the pick's
+  lines, on a split central with a CDC ACM port. A
   split central needs `CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING=y`
   (asserted at build time). A device without a `lantern,keys` node, such as a
   dongle, keeps and forwards the palette without painting anything.
+
+## The pick
+
+Which of the effects built into a half's image draw, chosen by the host and
+kept by the central and every half in their settings (`lantern/effect/mask`),
+so that the effect changes without a flash (canon's effect of the day,
+t-5hqx). The image carries every effect the consumer's conf builds; a half
+draws the picked ones it has, every one of them over the last when the pick
+names several, and with no pick stored, or none of its effects built, the one
+the Kconfig choice `LANTERN_EFFECT_DEFAULT` names (`CONFIG_LANTERN_EFFECT_DEFAULT_CROSS_RING`
+and so on, one member per built effect): the only pick a keyboard without a
+host has.
+
+- The host writes a text line on the central's USB CDC ACM port (canon:
+  `scripts/dongle.py effect`): `effect <name> [<name> ...]` picks these
+  effects on every half and the central, answered with `effect ok` and the
+  pick's names in the table's order; `effect` or `effect?` is answered with
+  the names, or `effect none` before any; a name not in the table gets
+  `effect error: no such effect` and changes nothing
+  ([src/port.c](src/port.c) is the grammar). The names, and the bit each
+  carries on the wire: `thin-ring`, `disc`, `stain`, `cross-ring`
+  ([src/effect.h](src/effect.h)'s table; a new effect is a line there, its
+  Kconfig and its draw in src/keys.c). The central's code invokes the
+  `lantern,behavior-effect` node, which ZMK's split transport carries to every
+  half by the node's name ([src/effect.c](src/effect.c)); nothing is bound to
+  a key.
+- A half that was away when the host wrote gets the pick with the palette, a
+  second after each of its battery reports; a half writes its flash only when
+  the pick changed. A change of the pick clears the effects' state (a ring
+  half-way out, the stain's dye), so the new effect starts clean. A device
+  stores the host's bits as sent, the ones its image lacks included, so the
+  reply names the pick as made and an image with more effects shows it.
+- `CONFIG_LANTERN_EFFECT` is on wherever the node exists (named `effect` on
+  every device of the split, as the palette's). The central's run queue must
+  hold the palette's three invocations and the pick's one for every half at
+  once: `CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE=8` for two halves
+  (asserted at build time).
 
 ## Using it in a ZMK config
 
@@ -384,11 +422,14 @@ than six colours clears the rest to `0x000000`, which the LEDs show as slot
    `CONFIG_LANTERN_NO_PICTURE=y` leaves every key black for the effects (the
    boot light shows the bands unless the intro plays; not with the press
    glow).
-   `CONFIG_LANTERN_PRESS_GLOW=y` adds the press glow,
-   `CONFIG_LANTERN_THIN_RING=y` the thin ring, `CONFIG_LANTERN_DISC=y` the
-   disc, `CONFIG_LANTERN_STAIN=y` the stain, the ring that dyes, and
-   `CONFIG_LANTERN_CROSS_RING=y` the crossing ring (the four need `coords`,
-   the last the hit node too, 4.). On a split peripheral
+   `CONFIG_LANTERN_THIN_RING=y` builds the thin ring into the image,
+   `CONFIG_LANTERN_DISC=y` the disc, `CONFIG_LANTERN_STAIN=y` the stain, the
+   ring that dyes, and `CONFIG_LANTERN_CROSS_RING=y` the crossing ring (the
+   four need `coords`, the last the hit node too, 4.); which of them draw is
+   the pick's (the effect node, 4., and `dongle.py effect`), and without one
+   the choice `LANTERN_EFFECT_DEFAULT` (`CONFIG_LANTERN_EFFECT_DEFAULT_CROSS_RING=y`
+   on canon's halves; the first built effect unless a line says otherwise).
+   On a split peripheral
    `CONFIG_LANTERN_USB_LATENCY` is on by
    default with the rail; `=n` leaves the link at the central's latency.
 
@@ -409,10 +450,25 @@ than six colours clears the rest to `0x000000`, which the LEDs show as slot
 
    The split central's conf needs
    `CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING=y` and a run queue
-   that holds a whole palette for every half at once, three invocations
-   each: `CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE=6` for two halves
-   (ZMK's default is 5; both asserted at build time); the port comes with the
-   central's CDC ACM port (`CONFIG_USB_CDC_ACM`).
+   that holds a whole palette and the pick for every half at once, four
+   invocations each: `CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE=8` for
+   two halves (ZMK's default is 5; both asserted at build time); the port
+   comes with the central's CDC ACM port (`CONFIG_USB_CDC_ACM`).
+
+   The effect's node, likewise on every device under the one name
+   ([config/effect.dtsi](config/effect.dtsi) here), for the pick of the
+   effects; `CONFIG_LANTERN_EFFECT` is on wherever it exists:
+
+   ```dts
+   / {
+       behaviors {
+           effect: effect {
+               compatible = "lantern,behavior-effect";
+               #binding-cells = <2>;
+           };
+       };
+   };
+   ```
 
    The hit's node, likewise on every device under the one name
    ([config/hit.dtsi](config/hit.dtsi) here), for the effects that cross the
@@ -453,5 +509,7 @@ reader at 115200): `start: usb powered, boot light 1000 ms`, `lit: boot light`,
 when power arrives), and the countdown's
 `stage N` at every move; the palette's:
 `slots 0-1 RRGGBB RRGGBB stored` (or `unchanged`) on every device, and on the
-central `N colour(s) from <port>` and `resent to half N`; the picture logs
-only a frame the strip refused (`frame not written`).
+central `N colour(s) from <port>` and `resent to half N`; the pick's: `effect
+0000000X stored` (or `unchanged`) on every device, and on the central `pick
+0000000X from <port>` and `resent to half N`; the picture logs only a frame
+the strip refused (`frame not written`).

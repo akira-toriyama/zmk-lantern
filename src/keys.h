@@ -4,13 +4,14 @@
  * SPDX-License-Identifier: MIT
  *
  * The key LEDs' picture (src/keys.c), for the rail rule (src/on_usb_power.c),
- * the palette (src/palette.c) and the hit (src/hit.c). Layer contract: this
- * file is the strip's one writer; callers say lit or dark, when the boot
- * light lasts, and which key was pressed on the other half, and never touch
- * a pixel. The frame is written on ZMK's low priority work queue; the
+ * the palette (src/palette.c), the hit (src/hit.c) and the pick of the
+ * effects (src/effect.c). Layer contract: this file is the strip's one
+ * writer; callers say lit or dark, when the boot light lasts, which key was
+ * pressed on the other half and that the pick changed, and never touch a
+ * pixel. The frame is written on ZMK's low priority work queue; the
  * countdown's clock runs on the system work queue, so the light, the blank
  * and the boot light are called from there (the rail rule's thread), the
- * refresh and the hit from any thread.
+ * refresh, the hit and the pick's change from any thread.
  */
 
 #pragma once
@@ -60,4 +61,14 @@ static inline void lantern_keys_boot_light(bool on) { ARG_UNUSED(on); }
 void lantern_keys_hit(uint8_t position);
 #else
 static inline void lantern_keys_hit(uint8_t position) { ARG_UNUSED(position); }
+#endif
+
+/* The pick of the effects changed (src/effect.c): the effects' state goes
+ * (the hits, and the stain's dye at the next frame) and the LEDs are
+ * repainted while lit, so the old effect's rings do not turn into the new
+ * one's shape. Any thread. Without an effect this compiles to nothing. */
+#if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
+void lantern_keys_effect_changed(void);
+#else
+static inline void lantern_keys_effect_changed(void) {}
 #endif

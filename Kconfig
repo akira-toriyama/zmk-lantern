@@ -204,8 +204,8 @@ config LANTERN_GRADIENT
       board: the left half shows the first stretch, the right half the last.
       A colour shows pure only on a key at its place; no key sits between
       the halves, so a colour whose place lies there never does. The
-      countdown's other pictures are as with the bands, and the press glow
-      brightens the key's blend. Needs the node's coords (asserted). The
+      countdown's other pictures are as with the bands. Needs the node's
+      coords (asserted). The
       node keeps slots, which this picture does not read (the crossing ring
       does).
 
@@ -235,12 +235,10 @@ config LANTERN_NO_PICTURE
       the keys turn black when it ends. With the
       countdown on, its first picture is the black one and the others the
       whole half in a colour, as with the bands, from
-      LANTERN_COUNTDOWN_STAGE_MS after the last key; canon t-skdt tries it
-      with LANTERN_COUNTDOWN=n. The press
-      glow brightens a key's colour in the picture, which this has none of:
-      the build refuses the two together. The node keeps slots, which the
-      boot light reads here (not with LANTERN_INTRO) and the crossing ring
-      for its colours.
+      LANTERN_COUNTDOWN_STAGE_MS after the last key; canon's product images
+      carry it with LANTERN_COUNTDOWN=n (t-skdt). The node keeps slots, which
+      the boot light reads here (not with LANTERN_INTRO) and the crossing
+      ring for its colours.
 
 endchoice
 
@@ -266,24 +264,62 @@ config LANTERN_EFFECTS
     help
       The effects' engine in src/keys.c: the ring of the half's last
       presses and the pull from the picture toward an effect's colour, on
-      the moving frames and their cap (LANTERN_FRAMES). Each effect selects
-      it; nothing to set.
+      the moving frames and their cap (LANTERN_FRAMES), and the pick of
+      which built effects draw (LANTERN_EFFECT, the choice
+      LANTERN_EFFECT_DEFAULT). Each effect selects it; nothing to set.
 
-config LANTERN_PRESS_GLOW
-    bool "Light a pressed key's LED brighter in its colour in the picture, back to the picture in half a second"
-    depends on LANTERN_KEYS
-    select LANTERN_EFFECTS
+config LANTERN_EFFECT
+    bool "Take the pick of the effects from the split central's host, and keep it across boots"
+    default y
+    depends on DT_HAS_LANTERN_BEHAVIOR_EFFECT_ENABLED
+    depends on SETTINGS
     help
-      While the key LEDs are lit, the LED of a key this half presses jumps
-      to its colour in the picture beneath any dye (its band's in the bands,
-      its blend in the gradient) at full brightness (so the build refuses a
-      LANTERN_BRIGHTNESS of 100) and falls back
-      to what the key showed over 500 ms (src/keys.c). Pressing every key
-      of a half shows which LED sits under which key, one key at a time,
-      where the bands show it only band by band. The press that lights an
-      idle half shows the picture alone. Not with LANTERN_NO_PICTURE, which
-      gives a key no colour to brighten (asserted). Default n while canon
-      t-6ttk tries the effects one image at a time.
+      Which of the effects built into a half's image draw, chosen at run
+      time: the host hands the split central a pick, one or more of the
+      effects by name (LANTERN_PORT), the central invokes the
+      lantern,behavior-effect node, which ZMK's split transport carries to
+      every half by its name (the node is named effect on every device,
+      src/effect.c, the binding), and the central and every half keep the
+      pick in their settings ("lantern/effect/mask"). A half draws the
+      picked effects it builds; with no pick stored, or none of its effects
+      built, it draws the one LANTERN_EFFECT_DEFAULT names. On a split
+      central the pick is resent to a half at each of its battery reports,
+      with the palette (src/palette.c says why that signal), so a half that
+      was away gets it when it is back; the run queue must then hold the
+      palette's three invocations and this one for every half at once,
+      CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE at least 4 x the
+      peripheral count (8 for two halves; asserted). canon's
+      scripts/dongle.py effect sends the pick (t-5hqx), and changes the
+      effect of the day without flashing. Default y where the node is
+      present: the node is the switch, as the palette's.
+
+choice LANTERN_EFFECT_DEFAULT
+    prompt "The effect a half draws while no pick is stored, or none of the pick's effects is built"
+    depends on LANTERN_EFFECTS
+    help
+      One of the effects built into the image (each member depends on its
+      effect): what a half shows before the host's first pick (src/effect.c)
+      and whenever the stored pick names no effect this image builds, and
+      the only pick a consumer without a host has. canon's is the crossing
+      ring (t-5hqx). Without a line the first built effect in this order.
+
+config LANTERN_EFFECT_DEFAULT_THIN_RING
+    bool "The thin ring"
+    depends on LANTERN_THIN_RING
+
+config LANTERN_EFFECT_DEFAULT_DISC
+    bool "The disc"
+    depends on LANTERN_DISC
+
+config LANTERN_EFFECT_DEFAULT_STAIN
+    bool "The stain, the thin ring that dyes"
+    depends on LANTERN_STAIN
+
+config LANTERN_EFFECT_DEFAULT_CROSS_RING
+    bool "The crossing ring"
+    depends on LANTERN_CROSS_RING
+
+endchoice
 
 config LANTERN_GEOMETRY
     bool
@@ -296,12 +332,14 @@ config LANTERN_GEOMETRY
       picture for the coords alone; nothing to set.
 
 config LANTERN_THIN_RING
-    bool "Spread a thin ring of the palette's next colour from each pressed key"
+    bool "Build the thin ring: a thin ring of the palette's next colour from each pressed key"
     depends on LANTERN_KEYS
     select LANTERN_EFFECTS
     select LANTERN_GEOMETRY
     help
-      While the key LEDs are lit, a ring one key wide spreads from each key
+      The effect thin-ring (src/effect.h), built into the image and drawn
+      when the pick names it (LANTERN_EFFECT, LANTERN_EFFECT_DEFAULT):
+      while the key LEDs are lit, a ring one key wide spreads from each key
       this half presses (and, where the hit node exists, LANTERN_HIT, from
       the other half's keys too, in across the split) at twelve key units a
       second and fades out over a
@@ -310,16 +348,18 @@ config LANTERN_THIN_RING
       LANTERN_BRIGHTNESS of 100), and a key under two rings shows the
       stronger one's colour. Needs the lantern,keys node's coords, each key
       position's x and y in hundredths of a key unit (asserted): src/keys.c
-      measures the ring on the board. Default n while canon t-6ttk tries the
-      effects one image at a time.
+      measures the ring on the board. Default n: a consumer builds the
+      effects it wants to pick from.
 
 config LANTERN_DISC
-    bool "Spread a disc from each pressed key, brightest at its rim, the palette's colours passing inside"
+    bool "Build the disc: a disc from each pressed key, brightest at its rim, the palette's colours passing inside"
     depends on LANTERN_KEYS
     select LANTERN_EFFECTS
     select LANTERN_GEOMETRY
     help
-      While the key LEDs are lit, a rim spreads from each key this half
+      The effect disc (src/effect.h), built into the image and drawn when
+      the pick names it (LANTERN_EFFECT, LANTERN_EFFECT_DEFAULT): while
+      the key LEDs are lit, a rim spreads from each key this half
       presses (and, where the hit node exists, LANTERN_HIT, from the other
       half's keys too, in across the split: the disc then lives long enough
       to cross the whole board) at twelve key units a second; a key it has
@@ -330,15 +370,17 @@ config LANTERN_DISC
       fades, so the disc is brightest at its rim, dark behind it, and the
       day's colours pass inside it. A key under two discs shows the stronger
       one's colour. Needs the lantern,keys node's coords, as the thin ring
-      does. Default n while canon t-6ttk tries the effects one image at a
-      time.
+      does. Default n, as the thin ring.
 
 config LANTERN_STAIN
-    bool "Let the thin ring dye the keys it passes in its colour, until the countdown moves the picture"
+    bool "Build the stain: the thin ring dyeing the keys it passes in its colour, until the countdown moves the picture"
     depends on LANTERN_KEYS
     select LANTERN_THIN_RING
     help
-      The thin ring (LANTERN_THIN_RING, selected) leaves its colour behind: a
+      The effect stain (src/effect.h), built into the image and drawn when
+      the pick names it (LANTERN_EFFECT, LANTERN_EFFECT_DEFAULT; the pick's
+      thin-ring is the ring without the dye, and this is the ring with it):
+      the thin ring (LANTERN_THIN_RING, selected) leaves its colour behind: a
       key within about 4.8 key units of the press, where the ring's crest
       still has 0.6 of its full strength (it fades as it spreads), keeps the
       ring's colour at the picture's brightness from the moment the crest
@@ -349,18 +391,20 @@ config LANTERN_STAIN
       thumbs first). The dye goes when the
       countdown changes the picture (LANTERN_COUNTDOWN_STAGE_MS after the
       last key; the next key brings the picture back and its ring dyes it
-      afresh) and whenever the LEDs light; without the countdown it stays
-      until the LEDs go dark. Default n while canon t-6ttk tries the effects
-      one image at a time.
+      afresh), when the pick changes and whenever the LEDs light; without
+      the countdown it stays until the LEDs go dark. Default n, as the thin
+      ring.
 
 config LANTERN_CROSS_RING
-    bool "Spread a thin ring from each pressed key across the whole board, both halves, in the key's band colour"
+    bool "Build the crossing ring: a thin ring from each pressed key across the whole board, both halves, in the key's band colour"
     depends on LANTERN_KEYS
     select LANTERN_EFFECTS
     select LANTERN_GEOMETRY
     select LANTERN_HIT
     help
-      While the key LEDs are lit, a ring one key wide spreads from each
+      The effect cross-ring (src/effect.h), built into the image and drawn
+      when the pick names it (LANTERN_EFFECT, LANTERN_EFFECT_DEFAULT):
+      while the key LEDs are lit, a ring one key wide spreads from each
       pressed key at twelve key units a second over the whole board: from a
       key of this half out through the other half, and from a key of the
       other half, which the split central relays here (LANTERN_HIT,
@@ -372,8 +416,7 @@ config LANTERN_CROSS_RING
       halves draw one press in one colour, at full brightness within the
       frame's cap (so the build refuses a LANTERN_BRIGHTNESS of 100); a key
       under two rings shows the stronger one's colour. Needs the node's
-      coords, as the thin ring does. Default n while canon t-6ttk tries the
-      effects one image at a time.
+      coords, as the thin ring does. Default n, as the thin ring.
 
 config LANTERN_HIT
     bool "Carry each half's key presses to the other half through the split central, for the effects that cross the split"
@@ -386,11 +429,12 @@ config LANTERN_HIT
       ZMK's split transport carries by the node's name: the node is named
       hit on every device (src/hit.c, the binding), param1 the key position.
       A half notes a relayed press as a hit for its effects while its LEDs
-      are lit, as one of its own keys: LANTERN_CROSS_RING draws it from the
+      are lit, as one of its own keys: the crossing ring draws it from the
       other half's key, the thin ring and the disc do too, in their own
       colours (the disc then lives long enough to cross the board), the
       stain dyes with it, and it counts in the press count the thin ring's
-      colours follow; its countdown's clock ignores it. The central sends
+      colours follow, whichever of them the pick draws; its countdown's
+      clock ignores it. The central sends
       only to a half whose link runs at peripheral latency 0, which a half
       asks for while USB powers it (LANTERN_USB_LATENCY, on by default): a
       half on battery is dark, and writes to it would wait up to 31
@@ -428,7 +472,7 @@ config LANTERN_PALETTE
     depends on SETTINGS
     help
       Six colours (0xRRGGBB, slots 0..5) that the host hands the split
-      central (LANTERN_PALETTE_PORT) and that the central and every half keep
+      central (LANTERN_PORT) and that the central and every half keep
       in their settings ("lantern/palette/colours"); a half's key LEDs show
       them in the picture (LANTERN_KEYS; the bands by default), repainted
       when a palette arrives while they are lit and shown at every boot. A
@@ -443,28 +487,32 @@ config LANTERN_PALETTE
       needs CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING, asserted at
       build time; and its run queue must hold a whole palette for every
       half at once, CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE at
-      least 3 x the peripheral count (6 for two halves; ZMK's default is 5),
-      asserted too. Default y where the node is present: the node is the
-      switch, as the lantern,rail node is for LANTERN_ON_USB_POWER.
+      least 3 x the peripheral count (ZMK's default is 5), asserted too, and
+      one more a half with the pick (LANTERN_EFFECT: 8 for two halves).
+      Default y where the node is present: the node is the switch, as the
+      lantern,rail node is for LANTERN_ON_USB_POWER.
 
-config LANTERN_PALETTE_PORT
-    bool "Take palette commands on the split central's USB CDC ACM port"
+config LANTERN_PORT
+    bool "Take palette and effect commands on the split central's USB CDC ACM port"
     default y
-    depends on LANTERN_PALETTE
+    depends on LANTERN_PALETTE || LANTERN_EFFECT
     depends on ZMK_SPLIT_ROLE_CENTRAL
     depends on USB_CDC_ACM
     select UART_INTERRUPT_DRIVEN
     help
-      A text line "palette RRGGBB [RRGGBB ...]" (one to six colours) on any
-      CDC ACM port of the split central sets slots 0.. on every half and on
-      the central and clears the rest, answered with "palette ok" and the six
-      slots; "palette" or
-      "palette?" asks for them (src/palette_port.c is the whole grammar).
-      canon's scripts/dongle.py palette sends it to the Imprint Dongle. The
-      port's rate is untouched: 1200 baud is zmk-beacon's bootloader entry.
-      The reply is written without waiting for a reader; a line that does
-      not begin with "palette" gets none. It takes the UART interrupt
-      callback of every CDC ACM port, of which a device keeps one: a
-      consumer that gives a port to a shell or another reader sets this n.
+      Text lines on any CDC ACM port of the split central (src/port.c is the
+      whole grammar): "palette RRGGBB [RRGGBB ...]" (one to six colours)
+      sets slots 0.. on every half and on the central and clears the rest,
+      answered with "palette ok" and the six slots, and "palette" or
+      "palette?" asks for them (LANTERN_PALETTE); "effect <name> [<name>
+      ...]" (src/effect.h's names) picks the effects on every half and on
+      the central, answered with "effect ok" and the names, and "effect" or
+      "effect?" asks (LANTERN_EFFECT). canon's scripts/dongle.py palette and
+      effect send them to the Imprint Dongle. The port's rate is untouched:
+      1200 baud is zmk-beacon's bootloader entry. A reply is written without
+      waiting for a reader; a line that begins with neither word gets none.
+      It takes the UART interrupt callback of every CDC ACM port, of which a
+      device keeps one, which is why one file reads both words: a consumer
+      that gives a port to a shell or another reader sets this n.
 
 endmenu

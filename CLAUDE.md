@@ -26,13 +26,16 @@ how to build. Usage: [README.md](README.md). English only.
   `scatter-weights` and thrown again every ten seconds
   (`CONFIG_LANTERN_SCATTER`, `CONFIG_LANTERN_SCATTER_MS`), and the no
   picture, every key black under the effects and the bands for the boot
-  light (`CONFIG_LANTERN_NO_PICTURE`, not with the press glow); the
-  effects that move the picture after a key, the press
-  glow, the thin ring, the disc, the stain and the crossing ring
-  (`CONFIG_LANTERN_PRESS_GLOW`, `CONFIG_LANTERN_THIN_RING`,
+  light (`CONFIG_LANTERN_NO_PICTURE`); the
+  effects that move the picture after a key, the thin ring, the disc, the
+  stain and the crossing ring (`CONFIG_LANTERN_THIN_RING`,
   `CONFIG_LANTERN_DISC`, `CONFIG_LANTERN_STAIN`, `CONFIG_LANTERN_CROSS_RING`,
-  off by default while canon t-6ttk tries them one image at a time;
-  src/keys.c, the node's `coords` through `CONFIG_LANTERN_GEOMETRY`); the
+  each built into the image by the consumer's conf, off by default;
+  src/keys.c, the node's `coords` through `CONFIG_LANTERN_GEOMETRY`), and the
+  pick of which built effects draw, the host's over the central's port, kept
+  across boots, or the Kconfig choice `LANTERN_EFFECT_DEFAULT`
+  (`CONFIG_LANTERN_EFFECT`; [src/effect.c](src/effect.c), the effects' table
+  [src/effect.h](src/effect.h), binding `lantern,behavior-effect`); the
   hit, each half's key presses relayed to the other half by the split
   central for the effects that cross the split (`CONFIG_LANTERN_HIT`;
   [src/hit.c](src/hit.c), binding `lantern,behavior-hit`); the
@@ -43,13 +46,14 @@ how to build. Usage: [README.md](README.md). English only.
   script in src/keys.c, its opening on USB power in src/on_usb_power.c); the
   split link's peripheral
   latency, 0 while USB powers a split peripheral and the central's on battery
-  (`CONFIG_LANTERN_USB_LATENCY`; [src/latency.c](src/latency.c)); and the palette: six
+  (`CONFIG_LANTERN_USB_LATENCY`; [src/latency.c](src/latency.c)); the palette: six
   colours the host hands the
-  split central over its USB CDC ACM port, which the central and every half
-  keep in their settings (`CONFIG_LANTERN_PALETTE`, `CONFIG_LANTERN_PALETTE_PORT`;
-  [src/palette.c](src/palette.c), [src/palette_port.c](src/palette_port.c),
-  binding `lantern,behavior-palette`). Each source's header carries its design
-  and every reason.
+  split central, which the central and every half
+  keep in their settings (`CONFIG_LANTERN_PALETTE`;
+  [src/palette.c](src/palette.c), binding `lantern,behavior-palette`); and
+  the host's port, the split central's USB CDC ACM port reading the
+  palette's and the pick's lines (`CONFIG_LANTERN_PORT`; [src/port.c](src/port.c)).
+  Each source's header carries its design and every reason.
   Device names follow canon's
   [docs/glossary.md](https://github.com/akira-toriyama/canon/blob/main/docs/glossary.md):
   Cyboard Imprint (the halves), Imprint Dongle, Prospector Dongle.
@@ -60,7 +64,7 @@ how to build. Usage: [README.md](README.md). English only.
   Cyboard's stock Imprint halves and its `imprint_dongle` shield plus the
   consumer-side lines each needs (`config/imprint.conf`, `config/imprint.overlay`,
   `config/imprint_left.conf`, `config/imprint_dongle.{conf,overlay}`,
-  `config/palette.dtsi`). With Cyboard's stock roles the left half is a split
+  `config/palette.dtsi`, `config/hit.dtsi`, `config/effect.dtsi`). With Cyboard's stock roles the left half is a split
   central (canon's is a peripheral): the check build compiles the palette's
   central side on the left half and the dongle, its half side on both halves.
   Its `lantern,keys` node takes the chain in key order (`positions`), a
@@ -96,12 +100,15 @@ how to build. Usage: [README.md](README.md). English only.
   `chain-length = < 0x1d >` (29), and `keys.c.obj`, `on_usb_power.c.obj` and
   `palette.c.obj` in `zmk.map`; a split peripheral half's (canon's both, the
   stock right) `CONFIG_LANTERN_USB_LATENCY=y` and `latency.c.obj` too; a split
-  central's (the dongle, the stock left half) `CONFIG_LANTERN_PALETTE_PORT=y`
-  and `palette_port.c.obj`, never the latency, the dongle's nothing of the
-  rail or the keys. `--kconfig CONFIG_LANTERN_PRESS_GLOW=y`,
-  `CONFIG_LANTERN_THIN_RING=y` or `CONFIG_LANTERN_DISC=y` adds
-  `CONFIG_LANTERN_EFFECTS=y` and `CONFIG_LANTERN_FRAMES=y`, the thin ring
-  and the disc `CONFIG_LANTERN_GEOMETRY=y` too;
+  central's (the dongle, the stock left half) `CONFIG_LANTERN_PORT=y`
+  and `port.c.obj`, never the latency, the dongle's nothing of the
+  rail or the keys; every target `CONFIG_LANTERN_EFFECT=y` and `effect.c.obj`
+  from the effect node (`config/effect.dtsi`, on every target).
+  `--kconfig CONFIG_LANTERN_THIN_RING=y` or `CONFIG_LANTERN_DISC=y` adds
+  `CONFIG_LANTERN_EFFECTS=y` and `CONFIG_LANTERN_FRAMES=y`,
+  `CONFIG_LANTERN_GEOMETRY=y` and, the choice `LANTERN_EFFECT_DEFAULT` with
+  no line of its own, `CONFIG_LANTERN_EFFECT_DEFAULT_<the first built
+  effect>=y` unless a line names another;
   `CONFIG_LANTERN_STAIN=y` adds `CONFIG_LANTERN_THIN_RING=y`;
   `CONFIG_LANTERN_CROSS_RING=y` adds `CONFIG_LANTERN_EFFECTS=y`,
   `CONFIG_LANTERN_GEOMETRY=y` and `CONFIG_LANTERN_HIT=y`, which the hit node
@@ -230,7 +237,12 @@ how to build. Usage: [README.md](README.md). English only.
   queue waits up to 100 ms or more when it is full, and the system work
   queue carries the host's Bluetooth TX and the halves' key events), and
   only to a half whose link is at peripheral latency 0, the sign of USB
-  power (`src/latency.c`); a half on battery gets nothing. The hits share
+  power (`src/latency.c`); a half on battery gets nothing. **The effect's
+  node is named `effect` on every device, its invocation a wire format too**
+  (`src/effect.c`: param1 = the pick, a mask of `src/effect.h`'s bits, param2
+  = 0, press only), **and so are the bits and the names of
+  `LANTERN_EFFECT_LIST`** (the settings value, the port's words, canon's
+  `dongle.py effect`): never renumber or rename a line, append one. The hits share
   the run queue with the palette: a lit half that vanishes keeps its link
   for the supervision timeout, and hits relayed to it meanwhile can fill
   the queue (the source header). The slot of a link comes from ZMK's
@@ -249,9 +261,10 @@ how to build. Usage: [README.md](README.md). English only.
   the halves run. The handler repaints the key LEDs when a pair changed, only
   while they are lit; at boot the first frame reads the palette itself. A
   black slot other than 0 paints slot 0; a grey or black slot 0 paints white.
-- **The central's run queue holds a whole palette for every half at once**
-  (`CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE` at least three
-  invocations a half, 6 for two halves, asserted in `src/palette.c`): a set
+- **The central's run queue holds a whole palette and the pick for every half
+  at once** (`CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE` at least
+  four invocations a half, 8 for two halves, asserted in `src/effect.c`;
+  `src/palette.c` asserts the palette's three alone): a set
   from the port queues every half's three in one go, ZMK's own thread
   drains them with one GATT write each, and a put into a full queue waits
   up to 100 ms for the drain and then drops the oldest queued command. With
@@ -261,22 +274,34 @@ how to build. Usage: [README.md](README.md). English only.
   source header; on an idle link 5 drops nothing either). A change of
   `LANTERN_PALETTE_SLOTS` moves the requirement and the settings value's
   size, which a device flashed across it ignores until the host sends again.
-- **The resend rides on the halves' battery reports**
+- **The resends ride on the halves' battery reports**
   (`zmk_peripheral_battery_state_changed`, hence the asserted
   `CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING`): ZMK's split central
   raises no event of its own for a half's connection, and the report after a
-  (re)connection is the one signal it does raise. The send waits a second for
-  the discovery to finish; a half saves only a changed palette.
-- The port's line is central-only and never touches the port's rate: 1200
-  baud is zmk-beacon's bootloader entry, 2400 its screen dump, both the CDC
-  driver's rate callback; this file is the UART interrupt callback, which
-  nothing else in a canon image sets. **The callback runs on the USB device
-  work queue (1 KiB of stack) and only collects bytes**: a complete line goes
-  through a message queue to the system work queue, where the parse, the
-  behavior and the reply run (Opus review 2026-10-19: the behavior path's
-  frames do not fit the USB queue's stack with margin). Replies are never
-  commands: a line shaped like a reply is ignored, so an echoing host cannot
-  start a loop; before the settings have loaded a command gets an error.
+  (re)connection is the one signal it does raise. The palette's and the
+  pick's sends each wait a second for the discovery to finish; a half saves
+  only a changed palette or pick.
+- **The pick picks among the effects built, and never hides what the host
+  sent**: a half draws the pick's bits its image builds, every one over the
+  last, and the default (`LANTERN_EFFECT_DEFAULT`, one built effect, asserted)
+  when no pick is stored or none of its bits is built; a device stores the
+  host's bits as sent, so the port answers the pick as made and an image
+  flashed with more effects shows it. A change of the pick clears the hits
+  (`lantern_keys_effect_changed()`) and the stain's dye (the frame compares
+  the pick it drew), never the palette. The stain's bit draws the thin ring
+  with the dye, the thin ring's the ring alone.
+- The port (`src/port.c`) is central-only, reads every word (the palette's,
+  the pick's) in one file because a device keeps one UART callback, and never
+  touches the port's rate: 1200 baud is zmk-beacon's bootloader entry, 2400
+  its screen dump, both the CDC driver's rate callback; this file is the UART
+  interrupt callback, which nothing else in a canon image sets. **The
+  callback runs on the USB device work queue (1 KiB of stack) and only
+  collects bytes**: a complete line goes through a message queue to the
+  system work queue, where the parse, the behavior and the reply run (Opus
+  review 2026-10-19: the behavior path's frames do not fit the USB queue's
+  stack with margin). Replies are never commands: a line shaped like a reply
+  is ignored, so an echoing host cannot start a loop; before the settings
+  have loaded a command gets an error.
 - **An effect never dims the picture, and a frame draws at most CAP**
   (`src/keys.c`): an effect pulls an LED from the picture toward its colour,
   and the cap takes any excess out of the effects' brightening alone. CAP is
@@ -286,9 +311,10 @@ how to build. Usage: [README.md](README.md). English only.
   `CONFIG_LANTERN_BRIGHTNESS`; the picture's own brightness,
   `CONFIG_LANTERN_PICTURE_BRIGHTNESS`, is at most that (Kconfig's range and
   a BUILD_ASSERT), since a brighter still picture could pass the cap and
-  leave the room negative. The press glow goes to full scale
+  leave the room negative. An effect goes to full scale
   because twice the picture's brightness was not seen under the keycaps on
-  hardware (canon t-6ttk, 2026-10-21). The intro draws under the same cap,
+  hardware (canon t-6ttk, 2026-10-21, the press glow, since dropped). The
+  intro draws under the same cap,
   over a black picture (the timer and the cap are `CONFIG_LANTERN_FRAMES`'s,
   which the effects' engine and the intro select). Effects and the intro
   run on ZMK's low priority queue, whose 768-byte stack ZMK's battery
@@ -298,8 +324,8 @@ how to build. Usage: [README.md](README.md). English only.
   shade count) so that an effect can give each press the palette's next
   shade without skipping one at the wrap. **The stain's dye is the frame
   thread's alone** (`stains[]`, written where the ring is drawn, applied to
-  the picture before the effects, cleared when the stage moves and at a
-  blank): nothing else reads or writes it. **The scatter's throw runs on the
+  the picture before the effects, cleared when the stage or the pick moves
+  and at a blank): nothing else reads or writes it. **The scatter's throw runs on the
   low priority queue too** (`scatter_work`, a delayable item the light arms
   and that re-arms itself while lit; the blank cancels nothing, since a
   cancel racing the light's re-arm could leave it neither queued nor timed,
@@ -323,7 +349,7 @@ how to build. Usage: [README.md](README.md). English only.
 - Hardware verification is canon's: flash with canon's `scripts/flash-dongle.sh
   imprint_left` / `imprint_right` (a data cable, USB power), read a `--logging`
   image's lines with its `dongle.py log`, set and ask the palette with its
-  `dongle.py palette`. Hardware claims here, in README and
+  `dongle.py palette` and the pick with its `dongle.py effect`. Hardware claims here, in README and
   in task bodies carry a date; README "Status" holds what was seen (the USB
   rule and the boot light on both halves, canon #263, 2026-10-19; the idle
   rule: the right half, canon's logging build with a 20 s timeout,

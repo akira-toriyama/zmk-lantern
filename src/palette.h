@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: MIT
  *
  * The palette's in-memory copy and the central's entry point (src/palette.c),
- * for the port (src/palette_port.c) and the key LEDs (src/keys.c). Layer
- * contract: the port parses and replies, and never stores or paints a colour
- * itself; every change goes through the palette behavior, on the central and
- * the halves alike; the key LEDs only read.
+ * for the port (src/port.c) and the key LEDs (src/keys.c). Layer contract: the
+ * port parses and replies, and never stores or paints a colour itself; every
+ * change goes through the palette behavior, on the central and the halves
+ * alike; the key LEDs only read.
  */
 
 #pragma once
@@ -18,6 +18,10 @@
 
 #define LANTERN_PALETTE_SLOTS 6
 #define LANTERN_PALETTE_RGB_MAX 0xFFFFFF
+/* The invocations a palette takes on the split transport, a pair of slots
+ * each (src/palette.c): what the central's run queue must hold a half, with
+ * the pick's one (src/effect.c). */
+#define LANTERN_PALETTE_PAIRS (LANTERN_PALETTE_SLOTS / 2)
 
 /* The six colours (0xRRGGBB, slot 0 first). False while no palette has been
  * set on this device, and colours[] is then left alone. */
