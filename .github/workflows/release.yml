@@ -1,0 +1,37 @@
+name: Release
+
+# glyph's reusable release workflow in its verdict-only mode (neither `app` nor
+# `binary`): the module ships no image, so a release is its notes. Every push
+# to main upserts the one rolling DRAFT release; publishing it by hand creates
+# the tag, so never publish from here. Consumers pin a commit (canon's firmware
+# stamp needs the full SHA), so a release moves nothing downstream. The @tag is
+# moved by the pull requests of glyph-pin-rewrite in akira-toriyama/.github.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Preview only (no draft write)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    uses: akira-toriyama/glyph/.github/workflows/release.yml@v5.1.0
+    with:
+      dry-run: ${{ github.event.inputs.dry_run == 'true' }}
+      install-notes: |
+        ## Install
+
+        zmk-lantern is a ZMK module, so there is nothing to download. Add it to your ZMK config's `config/west.yml` with `revision:` set to this release's tag or to the commit it points at, then follow [Using it in a ZMK config](https://github.com/akira-toriyama/zmk-lantern#using-it-in-a-zmk-config).
