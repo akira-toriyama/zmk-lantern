@@ -139,11 +139,11 @@ the user's OK on sight (canon t-6ttk, t-5hqx).
   plugged into a half that typed a while ago lights the stage its keys say.
   The clock is the half's own keys: a sensor or pointing input counts for
   ZMK's idle, not for the stages. One colour: the bands until the dark.
-- The effects: a picture that moves after a key, the five below. The
+- The effects: a picture that moves after a key, the six below. The
   consumer's conf builds the ones it wants into the image
   (`CONFIG_LANTERN_THIN_RING`, `CONFIG_LANTERN_DISC`, `CONFIG_LANTERN_STAIN`,
-  `CONFIG_LANTERN_CROSS_RING`, `CONFIG_LANTERN_BEAMS`, each off by default),
-  and the pick says which
+  `CONFIG_LANTERN_CROSS_RING`, `CONFIG_LANTERN_BEAMS`, `CONFIG_LANTERN_WATER`,
+  each off by default), and the pick says which
   of them draw (the pick, below): the host's, kept across boots, or without
   one the effect the Kconfig choice `LANTERN_EFFECT_DEFAULT` names. An effect
   pulls an LED toward its colour at full brightness and never dims the
@@ -207,6 +207,19 @@ the user's OK on sight (canon t-6ttk, t-5hqx).
   brightness within the frame's cap; a key under two beams shows the
   stronger one's colour. It measures the board from `coords` as the thin
   ring does, along one axis at a time.
+- The water (`CONFIG_LANTERN_WATER`; the pick's `water`): each pressed key
+  starts waves, a front spreading at twelve key units a second with a
+  wavelength of two key units behind it, fading out over a second and a half
+  and weaker the farther from the key (with the hit the other half's presses
+  start waves too, which come in across the split faint). The waves of every
+  press add up: where two crests meet the surface rises higher, where a
+  crest meets a trough it stays still. A key is pulled from the picture
+  toward the palette's first colour on a crest and its last colour in a
+  trough, the colours between on the slopes, and as far as the surface is
+  from still, at full brightness within the frame's cap: the still surface
+  shows the picture (black with the no picture), and a key under the waves
+  flickers between the two colours six times a second. It measures the board
+  as the thin ring does.
 - The intro (`CONFIG_LANTERN_INTRO`, off by default while canon tries it):
   the boot light plays a six-second show instead of the picture, in red,
   blue and green up to full brightness within the frame's cap, not the
@@ -250,9 +263,10 @@ half on battery is dark and gets nothing. A half notes a relayed press as a
 hit for its effects while its LEDs are lit, as one of its own keys, and its
 countdown's clock ignores it (a stock half as the central counts the other
 half's keys through its own listener, as ZMK's idle does there). The crossing
-ring draws it from the other half's key; the beams, the thin ring and the
-disc do too, in their own colours (the beams' row comes in across the
-split), the stain dyes with it, and it counts in the press
+ring draws it from the other half's key; the beams, the thin ring, the
+disc and the water do too, in their own colours (the beams' row comes in
+across the split, the water's waves faint), the stain dyes with it, and it
+counts in the press
 count the thin ring's colours follow. Delivery is not confirmed, as the
 palette's, and the hits share the central's run queue with the palette (the
 source says what a half that vanishes while lit costs).
@@ -311,7 +325,8 @@ has.
   the names, or `effect none` before any; a name not in the table gets
   `effect error: no such effect` and changes nothing
   ([src/port.c](src/port.c) is the grammar). The names, and the bit each
-  carries on the wire: `thin-ring`, `disc`, `stain`, `cross-ring`, `beams`
+  carries on the wire: `thin-ring`, `disc`, `stain`, `cross-ring`, `beams`,
+  `water`
   ([src/effect.h](src/effect.h)'s table; a new effect is a line there, its
   Kconfig and its draw in src/keys.c). The central's code invokes the
   `lantern,behavior-effect` node, which ZMK's split transport carries to every
@@ -450,9 +465,10 @@ has.
    glow).
    `CONFIG_LANTERN_THIN_RING=y` builds the thin ring into the image,
    `CONFIG_LANTERN_DISC=y` the disc, `CONFIG_LANTERN_STAIN=y` the stain, the
-   ring that dyes, `CONFIG_LANTERN_CROSS_RING=y` the crossing ring and
-   `CONFIG_LANTERN_BEAMS=y` the beams (the five need `coords`, the crossing
-   ring the hit node too, 4.); which of them draw is
+   ring that dyes, `CONFIG_LANTERN_CROSS_RING=y` the crossing ring,
+   `CONFIG_LANTERN_BEAMS=y` the beams and `CONFIG_LANTERN_WATER=y` the water
+   (the six need `coords`, the crossing ring the hit node too, 4.); which of
+   them draw is
    the pick's (the effect node, 4., and `dongle.py effect`), and without one
    the choice `LANTERN_EFFECT_DEFAULT` (`CONFIG_LANTERN_EFFECT_DEFAULT_CROSS_RING=y`
    on canon's halves; the first built effect unless a line says otherwise).

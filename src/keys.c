@@ -236,6 +236,27 @@
  *   LED under two beams takes the strongest one's colour at their summed
  *   strength. Along a line the distance is the difference of one coordinate,
  *   so the beams take no square root.
+ * - The water (CONFIG_LANTERN_WATER, canon t-6ttk): from a pressed key waves
+ *   spread, a front at WATER_SPEED key units a second and behind it the
+ *   sine of the front's distance past each key over WATER_WAVE, fading out
+ *   over WATER_MS and falling off with the distance from the key (by
+ *   WATER_FALL), and the waves of every live press add up at each LED, so
+ *   that two crests meeting rise higher and a crest meeting a trough stays
+ *   still: zmk-advanced-underglow-effects-vfx's water, from its idea
+ *   (nothing copied). The LED is pulled toward span(), the shades end to
+ *   end, by the surface's height, a crest to shade 0 and a trough to the
+ *   last shade, and as far as the height's size, so the still surface shows
+ *   the picture (the no picture's black) and a key under the waves flickers
+ *   between the two colours, once a wavelength (six times a second at the
+ *   design's speed and wavelength). The design's px = G(0.5 - 0.5 w), over
+ *   a lit picture, gave the still surface the middle shade; over the no
+ *   picture's black the height's size is the brightness, or a still
+ *   surface would glow (the one change from the design). With the hit the
+ *   other half's presses start waves too, which come in across the split
+ *   faint (from an inner column at about a fifth of a crest, 6.5 units
+ *   off). The sine is a quarter-wave table of 65 entries folded (sine());
+ *   the distance and its square root are the geometry's, as the thin
+ *   ring's.
  * - The solid (CONFIG_LANTERN_SOLID, canon t-skdt): every LED shows slot 0,
  *   so the countdown's pictures are the whole half in each shade in turn,
  *   shade 0's first. The node
@@ -496,7 +517,22 @@ BUILD_ASSERT(LANTERN_PALETTE_SLOTS == 6 && HIT_SEQ_CYCLE % 60 == 0,
 #else
 #define BEAMS_MS 0
 #endif
-#define HIT_LIFE_MS MAX(RING_MS, MAX(DISC_MS, MAX(CROSS_MS, BEAMS_MS)))
+#if IS_ENABLED(CONFIG_LANTERN_WATER)
+/* Key units a second the water's front spreads, the thin ring's speed, and
+ * the wavelength behind it in hundredths of a unit, the design's 2.0. */
+#define WATER_SPEED 12
+#define WATER_WAVE 200
+/* How long a hit draws the water, its waves fading out over it: the
+ * design's 1.5 s. */
+#define WATER_MS 1500
+/* The waves' fall-off with the distance from the pressed key: a wave at d
+ * hundredths of a unit is 1 / (1 + WATER_FALL x d / 1000) of one at the key,
+ * the design's 1 / (1 + 0.3 d) in key units. */
+#define WATER_FALL 3
+#else
+#define WATER_MS 0
+#endif
+#define HIT_LIFE_MS MAX(RING_MS, MAX(DISC_MS, MAX(CROSS_MS, MAX(BEAMS_MS, WATER_MS))))
 #if IS_ENABLED(CONFIG_LANTERN_STAIN)
 /* The least strength, of 256, a ring's crest must still have to dye: the
  * design's 0.6. */
@@ -527,7 +563,8 @@ BUILD_ASSERT(__builtin_popcount(EFFECT_DEFAULT) == 1 && (EFFECT_DEFAULT & EFFECT
 #if IS_ENABLED(CONFIG_LANTERN_GEOMETRY)
 BUILD_ASSERT(DT_INST_NODE_HAS_PROP(0, coords),
              "what measures the board (CONFIG_LANTERN_GEOMETRY: the thin ring, the disc, the "
-             "crossing ring, the beams, the gradient or the intro) needs lantern,keys coords");
+             "crossing ring, the beams, the water, the gradient or the intro) needs lantern,keys "
+             "coords");
 BUILD_ASSERT(COND_CODE_1(DT_INST_NODE_HAS_PROP(0, coords), (DT_INST_PROP_LEN(0, coords)), (0)) ==
                  2 * KEY_COUNT,
              "lantern,keys: coords needs an x and a y per key position of slots");
@@ -1096,6 +1133,85 @@ static void beams(const struct shades *sh, const struct hit live[], size_t n) {
 
 #endif /* IS_ENABLED(CONFIG_LANTERN_BEAMS) */
 
+#if IS_ENABLED(CONFIG_LANTERN_WATER)
+
+/* 127 x sin(2 pi i / 256) for i 0..64, the first quarter of the turn;
+ * sine() folds the other three onto it. */
+static const int8_t sine_quarter[65] = {
+    0,   3,   6,   9,   12,  16,  19,  22,  25,  28,  31,  34,  37,  40,  43,  46,  49,
+    51,  54,  57,  60,  63,  65,  68,  71,  73,  76,  78,  81,  83,  85,  88,  90,  92,
+    94,  96,  98,  100, 102, 104, 106, 107, 109, 111, 112, 113, 115, 116, 117, 118, 120,
+    121, 122, 122, 123, 124, 125, 125, 126, 126, 126, 127, 127, 127, 127};
+
+/* 127 x the sine of i / 256 of a turn, -127..127. */
+static int32_t sine(uint32_t i) {
+    i &= 0xFF;
+    if (i < 128) {
+        return sine_quarter[i < 64 ? i : 128 - i];
+    }
+    return -sine_quarter[i < 192 ? i - 128 : 256 - i];
+}
+
+/* The shades at HI_LEVEL end to end: p, 0..256, is how far from shade 0 at
+ * 0 to the last shade at 256, linear between neighbours, a blend brought
+ * back to full scale after the mix (mixed at that scale two hues dim each
+ * other, as the gradient's ramp() says). */
+static struct led_rgb span(const struct shades *sh, unsigned int p) {
+    if (sh->n == 1) {
+        return shade_hi(sh, 0);
+    }
+    /* 1/256 shades along: q >> 8 < n - 1 below p = 256, and at it the last
+     * shade itself */
+    unsigned int q = p * (sh->n - 1);
+    size_t k = q >> 8;
+
+    if ((q & 0xFF) == 0) {
+        return shade_hi(sh, k);
+    }
+    struct led_rgb m = mix(shade_hi(sh, k), shade_hi(sh, k + 1), q & 0xFF);
+    return scale(((uint32_t)m.r << 16) | ((uint32_t)m.g << 8) | m.b, HI_LEVEL);
+}
+
+/* Each hit's waves (the header): behind the front, WATER_SPEED x the hit's
+ * age out, the surface at an LED d from the press is the sine of the front's
+ * distance past it over WATER_WAVE, fading out over WATER_MS and falling off
+ * with d, and the LED's height is the sum over the hits, a crest and a
+ * trough cancelling. The LED is pulled toward span() of the height, a crest
+ * to shade 0 and a trough to the last shade, as far as the height's size. */
+static void water(const struct shades *sh, const struct hit live[], size_t n) {
+    for (size_t i = 0; i < LED_COUNT; i++) {
+        int32_t height = 0; /* 1/256 of a full crest, up or down */
+
+        for (size_t h = 0; h < n; h++) {
+            if (live[h].age >= WATER_MS) {
+                continue;
+            }
+            /* ms x units/s / 1000 x 100 hundredths */
+            uint32_t r = (uint32_t)live[h].age * WATER_SPEED / 10;
+            uint32_t d = distance(positions[i], live[h].key);
+            if (d > r) {
+                continue;
+            }
+            /* the fade and the fall-off, each of 256; their product of 256
+             * at most, so the term is within a crest, 256 */
+            uint32_t fade = (WATER_MS - live[h].age) * 256 / WATER_MS;
+            uint32_t fall = 256000 / (1000 + WATER_FALL * d);
+            int32_t s = sine(((r - d) % WATER_WAVE) * 256 / WATER_WAVE);
+
+            height += s * (int32_t)(fade * fall / 256) / 127;
+        }
+        if (height == 0) {
+            continue;
+        }
+        height = CLAMP(height, -256, 256);
+        unsigned int size = (unsigned int)(height < 0 ? -height : height);
+
+        pixels[i] = mix(pixels[i], span(sh, (unsigned int)(256 - height) / 2), size);
+    }
+}
+
+#endif /* IS_ENABLED(CONFIG_LANTERN_WATER) */
+
 #if IS_ENABLED(CONFIG_LANTERN_INTRO)
 
 /* An LED's depth: 0 at this half's outermost key, DEPTH_ONE at its innermost
@@ -1400,6 +1516,9 @@ static uint32_t effects_life(uint32_t fx) {
     if (fx & LANTERN_EFFECT_BEAMS) {
         life = MAX(life, (uint32_t)BEAMS_MS);
     }
+    if (fx & LANTERN_EFFECT_WATER) {
+        life = MAX(life, (uint32_t)WATER_MS);
+    }
     return life;
 }
 
@@ -1479,6 +1598,11 @@ static bool compose(size_t at) {
 #if IS_ENABLED(CONFIG_LANTERN_BEAMS)
     if (fx & LANTERN_EFFECT_BEAMS) {
         beams(&frame_shades, live, n);
+    }
+#endif
+#if IS_ENABLED(CONFIG_LANTERN_WATER)
+    if (fx & LANTERN_EFFECT_WATER) {
+        water(&frame_shades, live, n);
     }
 #endif
     hold_to_cap();
