@@ -23,13 +23,20 @@
  *   below): a resend after a half's battery report (src/palette.c: the one
  *   signal ZMK's central raises for a half that is back) queues the palette's
  *   three and this one to that half at once, and both halves may report
- *   together.
+ *   together. More in one go (a palette line and an effect line from the
+ *   port with a resend behind them, all put from the system work queue,
+ *   which ZMK's drain cannot preempt) waits 100 ms a put and drops the
+ *   oldest only when the drain stalls on a half that stopped acknowledging
+ *   (ZMK central.c; src/palette.c says why that is accepted).
  * - A mask is the host's bits as sent, the ones this image does not build
- *   included, so that a device flashed with more effects shows the pick it
- *   already holds, and the port answers with what the host sent; src/keys.c
- *   masks with what is built when it draws. Several bits draw together (the
- *   grammar allows it; canon sends one at a time, t-5hqx). 0 is no pick: the
- *   port refuses it, the halves show the default.
+ *   included, and the ones its table does not know either (a newer image's
+ *   central may send a bit this half's src/effect.h lacks), so that a device
+ *   flashed with more effects shows the pick it already holds, an older one
+ *   draws the bits it knows, and the port answers with the names this image
+ *   knows; src/keys.c masks with what is built when it draws. Several bits
+ *   draw together (the grammar allows it; canon sends one at a time, t-5hqx).
+ *   0 is no pick: the port refuses it, the handler too, and a stored 0 is
+ *   ignored at load; the halves then show the default.
  * - Settings: "lantern/effect/mask", the mask as one 32-bit value, saved when
  *   it changed or the first pick arrived, never for a pick a device already
  *   holds (a half is resent the pick at every battery report, as the
@@ -140,8 +147,8 @@ static int on_binding_pressed(struct zmk_behavior_binding *binding,
                               struct zmk_behavior_binding_event event) {
     ARG_UNUSED(event);
     uint32_t m = binding->param1;
-    if (m == 0 || (m & ~(uint32_t)LANTERN_EFFECT_ALL) != 0) {
-        LOG_WRN("no such pick %08x", m);
+    if (m == 0) {
+        LOG_WRN("an empty pick");
         return -EINVAL;
     }
     bool changed = (uint32_t)atomic_set(&mask, (atomic_val_t)m) != m;
@@ -187,6 +194,10 @@ static int on_set(const char *name, size_t len, settings_read_cb read_cb, void *
     ssize_t rc = read_cb(cb_arg, &copy, sizeof(copy));
     if (rc < 0) {
         return (int)rc;
+    }
+    if (copy == 0) {
+        LOG_WRN("stored empty pick ignored");
+        return -EINVAL;
     }
     atomic_set(&mask, (atomic_val_t)copy);
     atomic_set(&have_pick, 1);

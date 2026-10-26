@@ -22,7 +22,10 @@
  *     -> effect ok <name> [<name> ...]   the pick as stored, in the table's order
  *     -> effect error: <reason>
  *   effect  or  effect?           ask
- *     -> effect <name> [<name> ...]   or   effect none
+ *     -> effect <name> [<name> ...]   or   effect none   (also for a stored
+ *                                   pick whose bits this image's table does
+ *                                   not know: a reply must never be a bare
+ *                                   "effect", which is itself an ask)
  *
  * A colour is exactly six hex digits, either case; the reply writes upper
  * case. A name is one of the table's, exactly. A line that begins with
@@ -267,7 +270,7 @@ static const struct {
 static void reply_effect(const struct device *dev, const char *head) {
     uint32_t mask;
     char text[REPLY_MAX];
-    if (!lantern_effect_get(&mask)) {
+    if (!lantern_effect_get(&mask) || (mask & LANTERN_EFFECT_ALL) == 0) {
         snprintk(text, sizeof(text), "%s none", EFFECT_WORD);
     } else {
         int n = snprintk(text, sizeof(text), "%s%s", EFFECT_WORD, head);

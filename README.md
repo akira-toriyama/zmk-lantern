@@ -277,8 +277,9 @@ t-5hqx). The image carries every effect the consumer's conf builds; a half
 draws the picked ones it has, every one of them over the last when the pick
 names several, and with no pick stored, or none of its effects built, the one
 the Kconfig choice `LANTERN_EFFECT_DEFAULT` names (`CONFIG_LANTERN_EFFECT_DEFAULT_CROSS_RING`
-and so on, one member per built effect): the only pick a keyboard without a
-host has.
+and so on, one member per built effect; without a line the stain when it is
+built, else the first built effect): the only pick a keyboard without a host
+has.
 
 - The host writes a text line on the central's USB CDC ACM port (canon:
   `scripts/dongle.py effect`): `effect <name> [<name> ...]` picks these
@@ -298,7 +299,9 @@ host has.
   the pick changed. A change of the pick clears the effects' state (a ring
   half-way out, the stain's dye), so the new effect starts clean. A device
   stores the host's bits as sent, the ones its image lacks included, so the
-  reply names the pick as made and an image with more effects shows it.
+  reply names the pick as made (with the names this image knows; `effect
+  none` when it knows none of the stored bits) and an image with more
+  effects shows it.
 - `CONFIG_LANTERN_EFFECT` is on wherever the node exists (named `effect` on
   every device of the split, as the palette's). The central's run queue must
   hold the palette's three invocations and the pick's one for every half at

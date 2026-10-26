@@ -100,10 +100,11 @@ how to build. Usage: [README.md](README.md). English only.
   `chain-length = < 0x1d >` (29), and `keys.c.obj`, `on_usb_power.c.obj` and
   `palette.c.obj` in `zmk.map`; a split peripheral half's (canon's both, the
   stock right) `CONFIG_LANTERN_USB_LATENCY=y` and `latency.c.obj` too; a split
-  central's (the dongle, the stock left half) `CONFIG_LANTERN_PORT=y`
-  and `port.c.obj`, never the latency, the dongle's nothing of the
-  rail or the keys; every target `CONFIG_LANTERN_EFFECT=y` and `effect.c.obj`
-  from the effect node (`config/effect.dtsi`, on every target).
+  central's (the dongle, the stock left half) never the latency, and with a
+  CDC ACM port (the dongle's board has one, the stock left half none)
+  `CONFIG_LANTERN_PORT=y` and `port.c.obj`; the dongle's nothing of the rail
+  or the keys; every target `CONFIG_LANTERN_EFFECT=y` and `effect.c.obj` from
+  the effect node (`config/effect.dtsi`, on every target).
   `--kconfig CONFIG_LANTERN_THIN_RING=y` or `CONFIG_LANTERN_DISC=y` adds
   `CONFIG_LANTERN_EFFECTS=y` and `CONFIG_LANTERN_FRAMES=y`,
   `CONFIG_LANTERN_GEOMETRY=y` and, the choice `LANTERN_EFFECT_DEFAULT` with
@@ -283,10 +284,14 @@ how to build. Usage: [README.md](README.md). English only.
   only a changed palette or pick.
 - **The pick picks among the effects built, and never hides what the host
   sent**: a half draws the pick's bits its image builds, every one over the
-  last, and the default (`LANTERN_EFFECT_DEFAULT`, one built effect, asserted)
-  when no pick is stored or none of its bits is built; a device stores the
-  host's bits as sent, so the port answers the pick as made and an image
-  flashed with more effects shows it. A change of the pick clears the hits
+  last, and the default (`LANTERN_EFFECT_DEFAULT`, one built effect, asserted;
+  without a conf line the stain when built, else the first built in the
+  choice's order) when no pick is stored or none of its bits is built; a
+  device stores the host's bits as sent, bits its table does not know
+  included (a newer image's), so the port answers the pick as made with the
+  names it knows (`effect none` when it knows none: a bare `effect` would be
+  an ask, and an echoing host would loop) and an image flashed with more
+  effects shows it. Only an empty pick is refused, and ignored at load. A change of the pick clears the hits
   (`lantern_keys_effect_changed()`) and the stain's dye (the frame compares
   the pick it drew), never the palette. The stain's bit draws the thin ring
   with the dye, the thin ring's the ring alone.

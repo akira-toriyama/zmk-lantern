@@ -55,8 +55,9 @@
  *   by name alone). A half just connected shows the central's latency until
  *   Zephyr sends its held request (the connection's first 5 s), and gets
  *   nothing until then.
- * - The hits share ZMK's run queue with the palette (CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE,
- *   which src/palette.c sizes for a whole palette). A lit half that vanishes
+ * - The hits share ZMK's run queue with the palette and the pick
+ *   (CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE, which src/effect.c
+ *   sizes for a whole palette and the pick a half). A lit half that vanishes
  *   (unplugged, reflashed) keeps its link, at latency 0, until the
  *   supervision timeout (ZMK's 4 s), and the hits relayed to it meanwhile
  *   can fill the queue once the TX pool is dry: a palette set in that window

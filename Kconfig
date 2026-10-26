@@ -296,12 +296,17 @@ config LANTERN_EFFECT
 choice LANTERN_EFFECT_DEFAULT
     prompt "The effect a half draws while no pick is stored, or none of the pick's effects is built"
     depends on LANTERN_EFFECTS
+    default LANTERN_EFFECT_DEFAULT_STAIN if LANTERN_STAIN
     help
       One of the effects built into the image (each member depends on its
       effect): what a half shows before the host's first pick (src/effect.c)
       and whenever the stored pick names no effect this image builds, and
       the only pick a consumer without a host has. canon's is the crossing
-      ring (t-5hqx). Without a line the first built effect in this order.
+      ring (t-5hqx). Without a line: the stain when it is built (it builds
+      the thin ring too, and a conf that asks for the stain wants the dye;
+      Opus review 2026-10-26), else the first built effect in this order. A
+      conf that builds several effects for a keyboard without a host writes
+      the line.
 
 config LANTERN_EFFECT_DEFAULT_THIN_RING
     bool "The thin ring"
