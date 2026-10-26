@@ -10,7 +10,23 @@
  * (lantern_keys_light(), src/keys.c); dark = a black frame
  * (lantern_keys_blank()), then the rail off BLANK_MS later. At boot the LEDs
  * light for CONFIG_LANTERN_BOOT_LIGHT_MS whatever the power, then the rule
- * applies.
+ * applies; lantern_keys_boot_light() tells the picture the boot light's state
+ * before every light and again at its end with the LEDs lit, since the no
+ * picture, which paints every key black, shows the bands for it, and the
+ * intro plays in it (src/keys.c). With the intro (CONFIG_LANTERN_INTRO) the
+ * boot light lasts LANTERN_INTRO_MS (keys.h) and opens again whenever USB
+ * power arrives, unless it is already open: a cable plugged in, into an idle
+ * half too, plays the intro, then the rule applies as after a boot (the
+ * user's wish, canon t-5v1f: the light at power-on, by the switch or by the
+ * cable). The rule stays true while it is open, so only its deadline is
+ * pending, as at boot. The LIT step cannot tell that deadline from a rule
+ * change, so an arrival processed while a dark step (an unplug's or an
+ * idle's) is still queued would end its intro at once; the USB events cannot
+ * overtake that step:
+ * ZMK raises them from one work item that reads the live state, and the USB
+ * driver's queue is cooperative at the system queue's priority (Opus review,
+ * 2026-10-21). Raise the event or open the boot light from elsewhere and
+ * that breaks.
  *
  * - The rail is driven here, never by ZMK's zmk,ext-power-generic driver:
  *   its init turns the rail on, its settings handler restores a stored
@@ -55,15 +71,18 @@
  *   (canon's halves: 300000). SLEEP counts as idle (unreachable with
  *   CONFIG_ZMK_SLEEP=n). A cable plugged into an idle half lights nothing
  *   until its next input: USB is no activity to ZMK, and lighting on it would
- *   leave the LEDs on with no idle event to follow. On battery the idle input
+ *   leave the LEDs on with no idle event to follow; with the intro it plays
+ *   the intro and goes dark at its end, a timed light that needs no idle
+ *   event. On battery the idle input
  *   changes nothing (the rule is already false) and is only kept current.
  *   In canon's halves the only other subscriber ZMK links is battery.c, which
  *   pauses its sampling while idle (zmk.map, 2026-10-19). The countdown
  *   (src/keys.c) cuts the same timeout into stages for the picture, from its
  *   own clock of the half's keys; the dark stays this rule's.
- * - The frames: lantern_keys_light() and lantern_keys_blank() take no lock
- *   and block on nothing; each queues one frame on ZMK's low priority work
- *   queue (src/keys.c). settle-ms (the node) covers the LEDs' power-up before
+ * - The frames: lantern_keys_light(), lantern_keys_blank() and
+ *   lantern_keys_boot_light() take no lock and block on nothing; each queues
+ *   at most one frame on ZMK's low priority work queue (src/keys.c).
+ *   settle-ms (the node) covers the LEDs' power-up before
  *   the first frame, as the ext-power node's init-delay-ms did; BLANK_MS
  *   covers the black frame before the rail drops (a 29-LED frame at 4 MHz
  *   takes 1.4 ms, 7 ms at the Cyboard overlay's chain-length of 150). The
@@ -108,6 +127,14 @@ BUILD_ASSERT(IS_ENABLED(CONFIG_SETTINGS),
  * queue must reach the LEDs before the rail drops (the header). */
 #define BLANK_MS 100
 #define SETTLE_MS DT_INST_PROP(0, settle_ms)
+/* The boot light's length, and its name in the log. */
+#if IS_ENABLED(CONFIG_LANTERN_INTRO)
+#define BOOT_LIGHT_MS LANTERN_INTRO_MS
+#define BOOT_LIGHT "intro"
+#else
+#define BOOT_LIGHT_MS CONFIG_LANTERN_BOOT_LIGHT_MS
+#define BOOT_LIGHT "boot light"
+#endif
 
 static const struct gpio_dt_spec rail = GPIO_DT_SPEC_INST_GET(0, gpios);
 
@@ -157,11 +184,12 @@ static void apply_rule(void) {
 
 /* Rail on and settled: the picture, and the boot light's end. */
 static void light(void) {
+    lantern_keys_boot_light(boot_light);
     lantern_keys_light();
     phase = LIT;
-    LOG_INF("lit: %s", boot_light ? "boot light" : "usb powered");
+    LOG_INF("lit: %s", boot_light ? BOOT_LIGHT : "usb powered");
     if (boot_light) {
-        k_work_reschedule(&step_work, K_MSEC(CONFIG_LANTERN_BOOT_LIGHT_MS));
+        k_work_reschedule(&step_work, K_MSEC(BOOT_LIGHT_MS));
     }
 }
 
@@ -177,10 +205,10 @@ static void start(void) {
     started = true;
     usb_powered = zmk_usb_is_powered();
     idle = read_idle();
-    boot_light = CONFIG_LANTERN_BOOT_LIGHT_MS > 0;
+    boot_light = BOOT_LIGHT_MS > 0;
     want_lit = rule();
-    LOG_INF("start: usb %s, boot light %d ms", usb_powered ? "powered" : "absent",
-            CONFIG_LANTERN_BOOT_LIGHT_MS);
+    LOG_INF("start: usb %s, " BOOT_LIGHT " %d ms", usb_powered ? "powered" : "absent",
+            BOOT_LIGHT_MS);
 }
 
 static void step(struct k_work *work) {
@@ -212,6 +240,7 @@ static void step(struct k_work *work) {
     case LIT:
         if (boot_light) {
             boot_light = false;
+            lantern_keys_boot_light(false);
             want_lit = rule();
         }
         if (!want_lit) {
@@ -238,7 +267,14 @@ static int lantern_listener(const zmk_event_t *eh) {
     }
 
     if (as_zmk_usb_conn_state_changed(eh) != NULL) {
+        bool was = usb_powered;
+
         usb_powered = zmk_usb_is_powered();
+        if (IS_ENABLED(CONFIG_LANTERN_INTRO) && usb_powered && !was && !boot_light) {
+            /* never while one plays: nothing restarts it (the header) */
+            boot_light = true;
+            LOG_INF("intro: usb powered");
+        }
     } else if (as_zmk_activity_state_changed(eh) != NULL) {
         idle = read_idle();
     } else {

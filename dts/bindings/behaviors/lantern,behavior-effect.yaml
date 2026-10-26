@@ -1,0 +1,15 @@
+# Copyright (c) 2026 akira-toriyama
+# SPDX-License-Identifier: MIT
+
+description: |
+  The effect behavior (CONFIG_LANTERN_EFFECT, src/effect.c): one node, named
+  effect, on the split central and on every half, in the keymap's behaviors
+  or an overlay (a name of at most 8 characters, as the palette's). Never
+  bound to a key: the central's code invokes it with the pick, which of the
+  effects built into a half's image draw (param1 = a mask of src/effect.h's
+  bits, param2 = 0), and ZMK's split transport carries the same invocation to
+  the halves by the node's name.
+
+compatible: "lantern,behavior-effect"
+
+include: two_param.yaml

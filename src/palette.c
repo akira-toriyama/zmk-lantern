@@ -5,10 +5,11 @@
  *
  * The palette: six colours (0xRRGGBB, slots 0..5: five from the day's sprite
  * and a spare, canon t-0967) that the host hands the keyboard's split central
- * (src/palette_port.c), which every half and the central keep in their
- * settings across boots, and which a half's key LEDs show in the bands its
- * lantern,keys node draws (src/keys.c: slots 0..4 left to right across
- * canon's halves; effects to come, canon t-6ttk, read the same slots).
+ * (src/port.c), which every half and the central keep in their
+ * settings across boots, and which a half's key LEDs show in the picture
+ * (src/keys.c; by default the bands its lantern,keys node draws, slots 0..4
+ * left to right across canon's halves; its effects, canon t-6ttk, paint
+ * from the same colours).
  *
  * - One path for every change, the behavior `lantern,behavior-palette`: the
  *   central's code invokes it with zmk_behavior_invoke_binding(), whose
@@ -32,14 +33,17 @@
  *   queued command (app/src/split/bluetooth/central.c,
  *   split_bt_invoke_behavior_payload). A set from the port queues every
  *   half's three in one go, 6 for two halves. The queue is asserted to hold
- *   a whole palette for every half, PAIRS x the peripheral count (a consumer
- *   with two halves sets 6, canon's config/imprint_dongle.conf): a set that
+ *   a whole palette for every half, PAIRS x the peripheral count, and the
+ *   pick's one more a half (src/effect.c asserts the sum; a consumer with
+ *   two halves sets 8, canon's config/imprint_dongle.conf): a set that
  *   starts on an empty queue then goes in without waiting, and a drain
  *   stalled for 100 ms (a half that stopped acknowledging) drops commands
  *   queued before the set, never the set's own, where ZMK's 5 would drop
  *   the first half's slots 0-1, the ones seen (read 2026-10-19, ZMK
  *   4dd95d78; on an idle link 5 drops nothing either, the drain takes the
- *   first command while the sixth put waits). A resend is one half's three.
+ *   first command while the sixth put waits). A resend is one half's three,
+ *   with the pick's one (src/effect.c), both halves' at once when both
+ *   report together.
  * - Settings: "lantern/palette/colours", the six colours as one value, saved
  *   when a colour changed or the first palette arrived and not otherwise; a
  *   value of another size (stored by a build with another slot count) is
@@ -54,11 +58,12 @@
  *   matter. Zephyr hands a key to the handler whose name matches most of
  *   it, so this subtree and on_usb_power.c's "lantern" (which refuses every
  *   key) coexist.
- * - What the slots change: the picture src/keys.c paints, each key its
- *   slot's colour, at the device's brightness (CONFIG_LANTERN_BRIGHTNESS); a
- *   grey or black paints white, and a black slot other than 0 paints slot 0.
- *   A device without the keys node (canon's Imprint Dongle) keeps and
- *   forwards the palette and paints nothing.
+ * - What the slots change: the picture src/keys.c paints, each key its slot's
+ *   colour, at the picture's brightness (CONFIG_LANTERN_PICTURE_BRIGHTNESS,
+ *   CONFIG_LANTERN_BRIGHTNESS by default); a grey or black paints white, and
+ *   a black slot other than 0 paints slot 0. A device without the keys node
+ *   (canon's Imprint Dongle) keeps and forwards the palette and paints
+ *   nothing.
  * - Resend (a split central, CONFIG_ZMK_SPLIT_ROLE_CENTRAL): a half that was
  *   away when the host set the palette, or that lost its settings, gets it at
  *   its next battery report. ZMK's split central raises
@@ -75,8 +80,8 @@
  * - Threads: the behavior handler runs where ZMK runs behaviors, on a half the
  *   Bluetooth receive work queue that delivers the central's write (ZMK
  *   app/src/split/bluetooth/service.c, CONFIG_BT_RECV_WORKQ_BT), on the
- *   central the system work queue (the port's line, src/palette_port.c, and
- *   the resend); the settings handlers run on the main thread inside
+ *   central the system work queue (the port's line, src/port.c, and the
+ *   resend); the settings handlers run on the main thread inside
  *   settings_load(); the port's reply and lantern_palette_get() read on the
  *   system work queue, and src/keys.c reads on ZMK's low priority work
  *   queue. The colours and the two flags are atomics, read and
@@ -143,7 +148,7 @@ BUILD_ASSERT(IS_ENABLED(CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING),
 #define BEHAVIOR_NAME DEVICE_DT_NAME(DT_DRV_INST(0))
 #define SUBTREE "lantern/palette"
 #define KEY SUBTREE "/colours"
-#define PAIRS (LANTERN_PALETTE_SLOTS / 2)
+#define PAIRS LANTERN_PALETTE_PAIRS
 #define PAIR_SHIFT 24
 #define RESEND_DELAY_MS 1000
 

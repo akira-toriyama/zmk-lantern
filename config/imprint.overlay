@@ -12,15 +12,22 @@
 //
 // The key LEDs are the module's too (src/keys.c): the lantern,keys node names
 // Cyboard's strip (its chain-length set to the real LED count, 29 a half;
-// the shield's 150 is a placeholder) and tells the key under each LED and
-// the palette slot each key shows. This check build, on Cyboard's stock
-// keymap (imprint_function_row, 76 keys), takes the chain in key order for
-// positions, which a consumer measures on its hardware instead (canon
-// t-69g7), and paints slots 0..4 left to right in five bands.
+// the shield's 150 is a placeholder) and tells the key under each LED, the
+// palette slot each key shows and where each key is. This check build, on
+// Cyboard's stock keymap (imprint_function_row, 76 keys), takes the chain in
+// key order for positions, which a consumer measures on its hardware instead
+// (canon t-69g7), paints slots 0..4 left to right in five bands, and lays
+// the keys on a grid for coords (hundredths of a key unit: the five rows a
+// unit apart, the halves 6.5 units apart, the two bottom keys and the thumbs
+// below), a stand-in for the consumer's physical layout (canon: imprint.json
+// times 100) that the effects measuring the board take, and canon's shares
+// for the scatter.
 
 #include <zephyr/dt-bindings/gpio/gpio.h>
 
 #include "palette.dtsi"
+#include "hit.dtsi"
+#include "effect.dtsi"
 
 &{/EXT_POWER} {
     status = "disabled";
@@ -63,5 +70,16 @@
                       2 2 2    2 2 2
                       2 2 2    2 2 2
         >;
+        coords = <
+               0 100    100 100    200 100    300 100    400 100    500 100   1150 100   1250 100   1350 100   1450 100   1550 100   1650 100
+               0 200    100 200    200 200    300 200    400 200    500 200   1150 200   1250 200   1350 200   1450 200   1550 200   1650 200
+               0 300    100 300    200 300    300 300    400 300    500 300   1150 300   1250 300   1350 300   1450 300   1550 300   1650 300
+               0 400    100 400    200 400    300 400    400 400    500 400   1150 400   1250 400   1350 400   1450 400   1550 400   1650 400
+               0 500    100 500    200 500    300 500    400 500    500 500   1150 500   1250 500   1350 500   1450 500   1550 500   1650 500
+                                   200 600    300 600                                   1350 600   1450 600
+             550 650    650 650    750 650    900 650   1000 650   1100 650
+             550 750    650 750    750 750    900 750   1000 750   1100 750
+        >;
+        scatter-weights = <50 20 10 5 5 0>;
     };
 };
