@@ -187,7 +187,8 @@ config LANTERN_SOLID
       Every LED shows slot 0, the whole half in one colour. The countdown's
       pictures are then the whole half in each distinct colour in turn
       (colours that paint alike count once), slot 0's first. The node keeps
-      slots, which this picture does not read (the crossing ring does).
+      slots, which this picture does not read (the crossing ring and the
+      beams do).
 
 config LANTERN_GRADIENT
     bool "The palette's colours blended across the board from left to right, by each key's x"
@@ -207,7 +208,7 @@ config LANTERN_GRADIENT
       countdown's other pictures are as with the bands. Needs the node's
       coords (asserted). The
       node keeps slots, which this picture does not read (the crossing ring
-      does).
+      and the beams do).
 
 config LANTERN_SCATTER
     bool "Throw the palette's slots over the keys at random, by the node's weights, a new throw every LANTERN_SCATTER_MS"
@@ -220,7 +221,7 @@ config LANTERN_SCATTER
       colour, the rest), thrown again every LANTERN_SCATTER_MS while the
       LEDs are lit, keys or no keys, and at every light. Each half throws
       for itself. The node keeps slots, which this picture does not read
-      (the crossing ring does).
+      (the crossing ring and the beams do).
       Needs a random number source (Zephyr's sys_rand32_get: an entropy
       driver, as the nRF52840's RNG, or the test generator).
 
@@ -324,6 +325,10 @@ config LANTERN_EFFECT_DEFAULT_CROSS_RING
     bool "The crossing ring"
     depends on LANTERN_CROSS_RING
 
+config LANTERN_EFFECT_DEFAULT_BEAMS
+    bool "The beams"
+    depends on LANTERN_BEAMS
+
 endchoice
 
 config LANTERN_GEOMETRY
@@ -423,6 +428,33 @@ config LANTERN_CROSS_RING
       under two rings shows the stronger one's colour. Needs the node's
       coords, as the thin ring does. Default n, as the thin ring.
 
+config LANTERN_BEAMS
+    bool "Build the beams: from each pressed key, light running outward along its row and its column, in the key's band colour"
+    depends on LANTERN_KEYS
+    select LANTERN_EFFECTS
+    select LANTERN_GEOMETRY
+    help
+      The effect beams (src/effect.h), built into the image and drawn when
+      the pick names it (LANTERN_EFFECT, LANTERN_EFFECT_DEFAULT): while the
+      key LEDs are lit, four beams leave each pressed key at twelve key
+      units a second, two along its row and two along its column, each
+      four fifths of a key wide and fading out over a second, so the row's
+      have left the half well before they are gone (and, where the hit node
+      exists, LANTERN_HIT, a press of the other half sends its row's beam
+      in across the split: from an inner column it arrives at about half
+      strength, from an outer one all but spent, from a thumb nearly at
+      full strength). A key is on the row or the column when its y or x is
+      within half a key unit of the pressed key's, so canon's thumb
+      clusters, half a unit off the bottom row and the inner column, make
+      rows and columns of their own, two rows of three and three columns of
+      two, and the two clusters share their rows. The colour is the
+      pressed key's band (the lantern,keys node's slots), as the crossing
+      ring's, so both halves draw one press in one colour, at full
+      brightness within the frame's cap (so the build refuses a
+      LANTERN_BRIGHTNESS of 100); a key under two beams shows the stronger
+      one's colour. Needs the node's coords, as the thin ring does. Default
+      n, as the thin ring.
+
 config LANTERN_HIT
     bool "Carry each half's key presses to the other half through the split central, for the effects that cross the split"
     default y
@@ -435,8 +467,9 @@ config LANTERN_HIT
       hit on every device (src/hit.c, the binding), param1 the key position.
       A half notes a relayed press as a hit for its effects while its LEDs
       are lit, as one of its own keys: the crossing ring draws it from the
-      other half's key, the thin ring and the disc do too, in their own
-      colours (the disc then lives long enough to cross the board), the
+      other half's key, the beams, the thin ring and the disc do too, in
+      their own colours (the beams' row comes in across the split, the disc
+      then lives long enough to cross the board), the
       stain dyes with it, and it counts in the press count the thin ring's
       colours follow, whichever of them the pick draws; its countdown's
       clock ignores it. The central sends

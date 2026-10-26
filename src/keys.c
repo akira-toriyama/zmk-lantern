@@ -111,8 +111,11 @@
  *   the ring's index and the count advance by compare-and-set, so no lock; a
  *   full ring drops the oldest, which with both halves' presses in it and the
  *   crossing ring's life takes about ten presses a second) and read by the frame,
- *   which clears each hit that has run its course, so an 18-bit time never
- *   wraps into a live one; the blank clears them all, and a press that lights
+ *   which clears each hit past the picked effects' life, so an 18-bit time
+ *   never wraps into a live one (cleared only at HIT_LIFE_MS, the longest
+ *   built, a hit the picked effects had finished with sat in the ring until
+ *   a frame ran, and after 262 s of lit silence read as fresh: Opus review,
+ *   2026-10-26); the blank clears them all, and a press that lights
  *   an idle half shows no effect. While one moves, the frame arms frame_work,
  *   a delayable item on the same queue that runs the same handler, FRAME_MS
  *   ahead; a black frame cancels it, so no frame follows the blank's. That
@@ -124,9 +127,9 @@
  *   over the last (the grammar allows several; canon sends one); with no pick
  *   stored, or none of its bits built, the frame draws the one the Kconfig
  *   choice LANTERN_EFFECT_DEFAULT names, the only pick a consumer without a
- *   host has. A hit lives the longest life of the effects built, and a frame
- *   keeps moving only while a hit is within the life of an effect that
- *   draws. When the pick changes, src/effect.c clears the hits
+ *   host has. A hit lives the picked effects' life, the longest among those
+ *   that draw, and a frame keeps moving while one lives. When the pick
+ *   changes, src/effect.c clears the hits
  *   (lantern_keys_effect_changed()) and the frame clears the stain's dye,
  *   so a ring half-way out does not turn into the new effect's shape. An
  *   effect pulls an LED from the picture toward its colour (mix()), never
@@ -211,11 +214,33 @@
  *   (7.5 ms each on canon's link, which a USB-powered half attends every one
  *   of, src/latency.c), a tenth of a key unit each at the ring's speed;
  *   nothing backdates it (canon t-6ttk: a toy, optimistic is fine).
+ * - The beams (CONFIG_LANTERN_BEAMS, canon t-6ttk): from a pressed key four
+ *   beams run outward at BEAMS_SPEED key units a second, two along its row
+ *   and two along its column, each full at its head and gone BEAMS_WIDTH from
+ *   it, fading out over BEAMS_MS as the thin ring does. A key is on the row
+ *   or the column when its y or x is within BEAMS_LINE of the pressed key's:
+ *   canon's rows and columns sit a unit apart, and its thumbs half a unit off
+ *   the bottom row and the inner column, so the thumb clusters are two rows
+ *   of three and three columns of two, and the two clusters share their
+ *   rows, a unit and a half apart. QMK's cross and nexus from their idea
+ *   (nothing copied). The colour is the pressed key's band, as the crossing
+ *   ring's, so a beam that crosses the split keeps its colour: with the hit
+ *   a press of the other half sends its row's beam in here, from an inner
+ *   column at about half strength (the inner columns of canon's Imprint are
+ *   6.5 units apart, 542 ms at 12; 117 of 256 at the head, less by the
+ *   frame's phase), from an outer one all but spent (the outermost's 10 of
+ *   255), and from a thumb nearly at full strength, the strongest crossing;
+ *   the column's beams never leave their half. The design's fade of 0.6 s had the row's
+ *   beam die in the gap (the inner column's reaching the other half at a
+ *   tenth of its strength); a second, the thin ring's, lets it arrive. An
+ *   LED under two beams takes the strongest one's colour at their summed
+ *   strength. Along a line the distance is the difference of one coordinate,
+ *   so the beams take no square root.
  * - The solid (CONFIG_LANTERN_SOLID, canon t-skdt): every LED shows slot 0,
  *   so the countdown's pictures are the whole half in each shade in turn,
  *   shade 0's first. The node
  *   still carries slots, which this picture does not read (the crossing ring
- *   does, for its colours).
+ *   and the beams do, for their colours).
  * - The gradient (CONFIG_LANTERN_GRADIENT, canon t-skdt): ramp() puts each
  *   key on one line through the shades in slot order by its x on the whole
  *   board (the coords): the leftmost key at shade 0, the rightmost at the
@@ -231,7 +256,7 @@
  *   gradient. The countdown's other pictures and the stain's dye are shades
  *   as with the bands. The node
  *   still carries slots, which this picture does not read (the crossing ring
- *   does, for its colours).
+ *   and the beams do, for their colours).
  * - The scatter (CONFIG_LANTERN_SCATTER, canon t-skdt): the picture is the
  *   palette's slots thrown over this half's LEDs at random in place of the
  *   bands, each slot on as many LEDs as its share of the node's
@@ -249,8 +274,8 @@
  *   old throw for one frame. sys_rand32_get() is Zephyr's xoshiro128++ on a
  *   half (CONFIG_XOSHIRO_RANDOM_GENERATOR; thread context, the first call
  *   seeds from the nRF RNG). The node still carries slots, which the bands,
- *   the no picture's boot light and the crossing ring read, not this
- *   picture. Each half throws for itself:
+ *   the no picture's boot light, the crossing ring and the beams read, not
+ *   this picture. Each half throws for itself:
  *   the two are independent, with the same shares.
  * - The no picture (CONFIG_LANTERN_NO_PICTURE, canon t-skdt): every LED
  *   black while lit, so that only the effects show, over black keys: an
@@ -268,7 +293,7 @@
  *   anyway). With the countdown on, its first picture is otherwise the black
  *   one and the others the whole half in a shade, as with the bands. The
  *   node still carries slots, which the boot light reads here, and the
- *   crossing ring for its colours. The intro (below), when built, takes the
+ *   crossing ring and the beams for their colours. The intro (below), when built, takes the
  *   boot light's frames instead.
  * - The intro (CONFIG_LANTERN_INTRO, canon t-5v1f): a show in place of the
  *   boot light's picture, LANTERN_INTRO_MS long (keys.h), which the rail
@@ -413,7 +438,8 @@ BUILD_ASSERT(LANTERN_PALETTE_SLOTS == 6 && HIT_SEQ_CYCLE % 60 == 0,
 #endif
 
 /* Each effect's life, how long after the press it still draws; 0 when it is
- * not built. A hit lives the longest. */
+ * not built. A hit lives the picked effects' (hits_read()); HIT_LIFE_MS, the
+ * longest built, bounds it (the asserts below). */
 #if IS_ENABLED(CONFIG_LANTERN_THIN_RING)
 #define RING_MS 1000
 /* Key units a second the ring's radius grows: at 12 it has crossed a half of
@@ -456,7 +482,21 @@ BUILD_ASSERT(LANTERN_PALETTE_SLOTS == 6 && HIT_SEQ_CYCLE % 60 == 0,
 #else
 #define CROSS_MS 0
 #endif
-#define HIT_LIFE_MS MAX(RING_MS, MAX(DISC_MS, CROSS_MS))
+#if IS_ENABLED(CONFIG_LANTERN_BEAMS)
+/* Key units a second a beam's head runs, the thin ring's speed; full at the
+ * head and gone BEAMS_WIDTH hundredths of a unit from it, the design's 0.8. */
+#define BEAMS_SPEED 12
+#define BEAMS_WIDTH 80
+/* A key is on the pressed key's row or column within this many hundredths of
+ * a unit of its y or x (the header). */
+#define BEAMS_LINE 50
+/* How long a hit draws the beams, fading out over it: the design's 600 had
+ * the row's beam die between canon's halves (the header). */
+#define BEAMS_MS 1000
+#else
+#define BEAMS_MS 0
+#endif
+#define HIT_LIFE_MS MAX(RING_MS, MAX(DISC_MS, MAX(CROSS_MS, BEAMS_MS)))
 #if IS_ENABLED(CONFIG_LANTERN_STAIN)
 /* The least strength, of 256, a ring's crest must still have to dye: the
  * design's 0.6. */
@@ -487,7 +527,7 @@ BUILD_ASSERT(__builtin_popcount(EFFECT_DEFAULT) == 1 && (EFFECT_DEFAULT & EFFECT
 #if IS_ENABLED(CONFIG_LANTERN_GEOMETRY)
 BUILD_ASSERT(DT_INST_NODE_HAS_PROP(0, coords),
              "what measures the board (CONFIG_LANTERN_GEOMETRY: the thin ring, the disc, the "
-             "crossing ring, the gradient or the intro) needs lantern,keys coords");
+             "crossing ring, the beams, the gradient or the intro) needs lantern,keys coords");
 BUILD_ASSERT(COND_CODE_1(DT_INST_NODE_HAS_PROP(0, coords), (DT_INST_PROP_LEN(0, coords)), (0)) ==
                  2 * KEY_COUNT,
              "lantern,keys: coords needs an x and a y per key position of slots");
@@ -724,7 +764,7 @@ static atomic_t hit_seq; /* the count of presses noted, mod HIT_SEQ_CYCLE */
 struct hit {
     uint8_t key;  /* a key position */
     uint8_t seq;  /* the press's number, mod HIT_SEQ_CYCLE */
-    uint16_t age; /* ms since the press, below HIT_LIFE_MS */
+    uint16_t age; /* ms since the press, below the picked effects' life */
 };
 
 /* counter's value, and counter advanced to the next, mod cycle, by
@@ -753,12 +793,16 @@ static void hits_clear(void) {
     }
 }
 
-/* The frame's thread. The hits still alive, into live; returns how many.
- * One that has run its course is cleared, unless a newer press took its
- * place meanwhile (the compare-and-set). The clock is read after the hit, so
- * a press noted while this runs is never later than now: read before, the
- * press could be later, and its age would wrap to an expired one. */
-static size_t hits_read(struct hit live[HITS]) {
+/* The frame's thread. The hits within life ms of their press, into live;
+ * returns how many. One past it is cleared, unless a newer press took its
+ * place meanwhile (the compare-and-set). life is the picked effects'
+ * (effects_life()), at most HIT_LIFE_MS: cleared only at HIT_LIFE_MS, a hit
+ * the picked effects had finished with sat in the ring until a frame ran,
+ * and after HIT_TIME ms of lit silence read as fresh (the header). The clock
+ * is read after the hit, so a press noted while this runs is never later
+ * than now: read before, the press could be later, and its age would wrap to
+ * an expired one. */
+static size_t hits_read(struct hit live[HITS], uint32_t life) {
     size_t n = 0;
 
     for (size_t j = 0; j < HITS; j++) {
@@ -768,7 +812,7 @@ static size_t hits_read(struct hit live[HITS]) {
         }
         uint32_t now = k_uptime_get_32() & HIT_TIME;
         uint32_t age = (now - ((uint32_t)v & HIT_TIME)) & HIT_TIME;
-        if (age >= HIT_LIFE_MS) {
+        if (age >= life) {
             (void)atomic_cas(&hits[j], v, 0);
             continue;
         }
@@ -992,6 +1036,65 @@ static void cross_ring(const struct shades *sh, const struct hit live[], size_t 
 }
 
 #endif /* IS_ENABLED(CONFIG_LANTERN_CROSS_RING) */
+
+#if IS_ENABLED(CONFIG_LANTERN_BEAMS)
+
+static uint32_t apart(uint16_t a, uint16_t b) { return a > b ? a - b : b - a; }
+
+/* Whether key position a lies on b's row or column (the header), and then
+ * how far along it, in hundredths of a key unit; b itself lies on both, at 0. */
+static bool along_line(uint8_t a, uint8_t b, uint32_t *along) {
+    uint32_t dx = apart(coords[2 * a], coords[2 * b]);
+    uint32_t dy = apart(coords[2 * a + 1], coords[2 * b + 1]);
+
+    if (dy < BEAMS_LINE) {
+        *along = dx;
+        return true;
+    }
+    if (dx < BEAMS_LINE) {
+        *along = dy;
+        return true;
+    }
+    return false;
+}
+
+/* Each hit's beams (the header): their heads BEAMS_SPEED x the hit's age out
+ * along the pressed key's row and column, full at the head and gone
+ * BEAMS_WIDTH from it, fading out over BEAMS_MS, in the shade of the pressed
+ * key's slot. An LED under several beams takes the strongest one's colour at
+ * their summed strength. */
+static void beams(const struct shades *sh, const struct hit live[], size_t n) {
+    for (size_t i = 0; i < LED_COUNT; i++) {
+        unsigned int w = 0, strongest = 0;
+        size_t pick = 0;
+
+        for (size_t h = 0; h < n; h++) {
+            uint32_t along;
+
+            if (live[h].age >= BEAMS_MS || !along_line(positions[i], live[h].key, &along)) {
+                continue;
+            }
+            /* ms x units/s / 1000 x 100 hundredths */
+            uint32_t r = (uint32_t)live[h].age * BEAMS_SPEED / 10;
+            uint32_t off = along > r ? along - r : r - along;
+            if (off >= BEAMS_WIDTH) {
+                continue;
+            }
+            unsigned int s = (BEAMS_WIDTH - off) * 256 / BEAMS_WIDTH;
+            s = s * (BEAMS_MS - live[h].age) / BEAMS_MS;
+            if (s > strongest) {
+                strongest = s;
+                pick = h;
+            }
+            w += s;
+        }
+        if (w > 0) {
+            pixels[i] = mix(pixels[i], shade_hi(sh, sh->rank[slots[live[pick].key]]), MIN(w, 256));
+        }
+    }
+}
+
+#endif /* IS_ENABLED(CONFIG_LANTERN_BEAMS) */
 
 #if IS_ENABLED(CONFIG_LANTERN_INTRO)
 
@@ -1294,6 +1397,9 @@ static uint32_t effects_life(uint32_t fx) {
     if (fx & LANTERN_EFFECT_CROSS_RING) {
         life = MAX(life, (uint32_t)CROSS_MS);
     }
+    if (fx & LANTERN_EFFECT_BEAMS) {
+        life = MAX(life, (uint32_t)BEAMS_MS);
+    }
     return life;
 }
 
@@ -1352,9 +1458,7 @@ static bool compose(size_t at) {
 
 #if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
     struct hit live[HITS];
-    size_t n = hits_read(live);
-    uint32_t life = effects_life(fx);
-    bool moving = false;
+    size_t n = hits_read(live, effects_life(fx));
 
     memcpy(picture, pixels, sizeof(pixels));
 #if IS_ENABLED(CONFIG_LANTERN_THIN_RING)
@@ -1372,11 +1476,14 @@ static bool compose(size_t at) {
         cross_ring(&frame_shades, live, n);
     }
 #endif
-    hold_to_cap();
-    for (size_t h = 0; h < n; h++) {
-        moving = moving || live[h].age < life;
+#if IS_ENABLED(CONFIG_LANTERN_BEAMS)
+    if (fx & LANTERN_EFFECT_BEAMS) {
+        beams(&frame_shades, live, n);
     }
-    return moving;
+#endif
+    hold_to_cap();
+    /* every live hit is within the picked effects' life (hits_read) */
+    return n > 0;
 #else
     return false;
 #endif

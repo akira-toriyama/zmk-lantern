@@ -133,10 +133,11 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
   plugged into a half that typed a while ago lights the stage its keys say.
   The clock is the half's own keys: a sensor or pointing input counts for
   ZMK's idle, not for the stages. One colour: the bands until the dark.
-- The effects: a picture that moves after a key, the four below. The
+- The effects: a picture that moves after a key, the five below. The
   consumer's conf builds the ones it wants into the image
   (`CONFIG_LANTERN_THIN_RING`, `CONFIG_LANTERN_DISC`, `CONFIG_LANTERN_STAIN`,
-  `CONFIG_LANTERN_CROSS_RING`, each off by default), and the pick says which
+  `CONFIG_LANTERN_CROSS_RING`, `CONFIG_LANTERN_BEAMS`, each off by default),
+  and the pick says which
   of them draw (the pick, below): the host's, kept across boots, or without
   one the effect the Kconfig choice `LANTERN_EFFECT_DEFAULT` names. An effect
   pulls an LED toward its colour at full brightness and never dims the
@@ -185,6 +186,21 @@ stage the keys' clock said (canon t-gsm2, t-x82q).
   `slots`), so both halves draw one press in one colour. A key under two
   rings shows the stronger one's colour. It measures the board as the thin
   ring does.
+- The beams (`CONFIG_LANTERN_BEAMS`; the pick's `beams`): from each pressed
+  key four beams run outward at twelve key units a second, two along its row
+  and two along its column, each four fifths of a key wide and fading out
+  over a second, so the row's have left the half well before they are gone,
+  and with the hit a press of the other half sends its row's beam in across
+  the split (from an inner column at about half strength, from an outer one
+  all but spent, from a thumb nearly at full strength). A key is on the row
+  or the column when its y or x is within half a key unit of the pressed
+  key's, so canon's thumb clusters, half a unit off the bottom row and the
+  inner column, make rows and columns of their own, two rows of three and
+  three columns of two, and the two clusters share their rows. The
+  colour is the pressed key's band, as the crossing ring's, at full
+  brightness within the frame's cap; a key under two beams shows the
+  stronger one's colour. It measures the board from `coords` as the thin
+  ring does, along one axis at a time.
 - The intro (`CONFIG_LANTERN_INTRO`, off by default while canon tries it):
   the boot light plays a six-second show instead of the picture, in red,
   blue and green up to full brightness within the frame's cap, not the
@@ -228,8 +244,9 @@ half on battery is dark and gets nothing. A half notes a relayed press as a
 hit for its effects while its LEDs are lit, as one of its own keys, and its
 countdown's clock ignores it (a stock half as the central counts the other
 half's keys through its own listener, as ZMK's idle does there). The crossing
-ring draws it from the other half's key; the thin ring and the disc do too,
-in their own colours, the stain dyes with it, and it counts in the press
+ring draws it from the other half's key; the beams, the thin ring and the
+disc do too, in their own colours (the beams' row comes in across the
+split), the stain dyes with it, and it counts in the press
 count the thin ring's colours follow. Delivery is not confirmed, as the
 palette's, and the hits share the central's run queue with the palette (the
 source says what a half that vanishes while lit costs).
@@ -288,7 +305,7 @@ has.
   the names, or `effect none` before any; a name not in the table gets
   `effect error: no such effect` and changes nothing
   ([src/port.c](src/port.c) is the grammar). The names, and the bit each
-  carries on the wire: `thin-ring`, `disc`, `stain`, `cross-ring`
+  carries on the wire: `thin-ring`, `disc`, `stain`, `cross-ring`, `beams`
   ([src/effect.h](src/effect.h)'s table; a new effect is a line there, its
   Kconfig and its draw in src/keys.c). The central's code invokes the
   `lantern,behavior-effect` node, which ZMK's split transport carries to every
@@ -427,8 +444,9 @@ has.
    glow).
    `CONFIG_LANTERN_THIN_RING=y` builds the thin ring into the image,
    `CONFIG_LANTERN_DISC=y` the disc, `CONFIG_LANTERN_STAIN=y` the stain, the
-   ring that dyes, and `CONFIG_LANTERN_CROSS_RING=y` the crossing ring (the
-   four need `coords`, the last the hit node too, 4.); which of them draw is
+   ring that dyes, `CONFIG_LANTERN_CROSS_RING=y` the crossing ring and
+   `CONFIG_LANTERN_BEAMS=y` the beams (the five need `coords`, the crossing
+   ring the hit node too, 4.); which of them draw is
    the pick's (the effect node, 4., and `dongle.py effect`), and without one
    the choice `LANTERN_EFFECT_DEFAULT` (`CONFIG_LANTERN_EFFECT_DEFAULT_CROSS_RING=y`
    on canon's halves; the first built effect unless a line says otherwise).
@@ -475,7 +493,8 @@ has.
 
    The hit's node, likewise on every device under the one name
    ([config/hit.dtsi](config/hit.dtsi) here), for the effects that cross the
-   split (the crossing ring); `CONFIG_LANTERN_HIT` is on wherever it exists:
+   split (the crossing ring, the beams); `CONFIG_LANTERN_HIT` is on wherever
+   it exists:
 
    ```dts
    / {
