@@ -235,7 +235,8 @@ t-5hqx).
   board's width away, at full brightness within the frame's cap (with the
   hit the bar runs on through the other half: a press of the other half
   brings it in across the split at about two thirds of its strength from
-  an inner column, nearly full from a thumb); a key under two darts shows
+  an inner column, less by the frame's phase, nearly full from a thumb);
+  a key under two darts shows
   the stronger one's colour. It measures the board from `coords` as the
   thin ring does, along the rows only.
 - The intro (`CONFIG_LANTERN_INTRO`, off by default while canon tries it):

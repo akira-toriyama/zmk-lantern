@@ -509,7 +509,8 @@ config LANTERN_DART
       (and, where the hit node exists, LANTERN_HIT, the bar runs on
       through the other half: a press of the other half brings it in
       across the split at about two thirds of its strength from an inner
-      column, nearly full from a thumb); at full brightness within the
+      column, less by the frame's phase, nearly full from a thumb); at
+      full brightness within the
       frame's cap (so the build refuses a LANTERN_BRIGHTNESS of 100).
       zmk-advanced-underglow-effects-vfx's dart, from its idea (nothing
       copied). Needs the node's coords, as the thin ring does. Default n,
@@ -527,10 +528,11 @@ config LANTERN_HIT
       hit on every device (src/hit.c, the binding), param1 the key position.
       A half notes a relayed press as a hit for its effects while its LEDs
       are lit, as one of its own keys: the crossing ring draws it from the
-      other half's key, the beams, the thin ring, the disc and the water do
-      too, in their own colours (the beams' row comes in across the split,
-      the disc then lives long enough to cross the board, the water's waves
-      come in low, from a thumb higher), the
+      other half's key, the beams, the thin ring, the disc, the water and
+      the dart do too, in their own colours (the beams' row comes in across
+      the split, the disc then lives long enough to cross the board, the
+      water's waves come in low, from a thumb higher, the dart's bar on its
+      way), the
       stain dyes with it, and it counts in the press count the thin ring's
       colours follow, whichever of them the pick draws; its countdown's
       clock ignores it. The central sends

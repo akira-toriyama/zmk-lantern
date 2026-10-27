@@ -281,8 +281,9 @@
  *   press of this half sends it out through the inner column and the
  *   thumbs, and a press of the other half, relayed, brings it in across
  *   the split (from an inner column, 6.5 units off on canon's Imprint,
- *   406 ms at 16 and two thirds of its strength; from a thumb, 1.5 units,
- *   nearly full) and on to the outer column. Along the rows the distance
+ *   406 ms at 16 and two thirds of its strength at the head, less by the
+ *   frame's phase; from a thumb, 1.5 units, nearly full) and on to the
+ *   outer column. Along the rows the distance
  *   is the difference of x, so the dart takes no square root. An LED under
  *   two darts takes the strongest one's colour at their summed strength.
  * - The solid (CONFIG_LANTERN_SOLID, canon t-skdt): every LED shows slot 0,
