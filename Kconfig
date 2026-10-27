@@ -118,9 +118,9 @@ config LANTERN_INTRO
       mirrored, from its outermost key to its innermost thumb, measured on
       the lantern,keys node's coords (asserted). Its colours are its own, not
       the palette's: red, blue and green up to full scale under the frame's
-      cap, and no other but the star's white head, tinted where it meets the
-      glitter (canon t-5v1f: the user's pick, after Pokemon's first games). A
-      key pressed while it plays shows no effect.
+      cap, and no other, white included, a key in one of the three at a time
+      (canon t-5v1f and t-ky8x: the user's pick, after Pokemon's first
+      games). A key pressed while it plays shows no effect.
 
 config LANTERN_OFF_WHEN_IDLE
     bool "Dark once ZMK's activity state leaves ACTIVE, lit again on activity"

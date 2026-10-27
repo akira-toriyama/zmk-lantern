@@ -346,41 +346,42 @@
  *   crossing ring and the beams for their colours. The intro (below), when built, takes the
  *   boot light's frames instead.
  * - The intro (CONFIG_LANTERN_INTRO, canon t-5v1f): a show in place of the
- *   boot light's picture, LANTERN_INTRO_MS long (keys.h), which the rail
- *   rule plays at boot and whenever USB power arrives (src/on_usb_power.c),
- *   in red, blue and green up to full scale, not the palette's colours (the
+ *   boot light's picture, LANTERN_INTRO_MS long (keys.h), which the rail rule
+ *   plays at boot and whenever USB power arrives (src/on_usb_power.c), in
+ *   red, blue and green up to full scale, not the palette's colours (the
  *   user's pick and order, after Pokemon's first games), and in no other
- *   colour but the star's white head: on hardware the user found the first
- *   script's end, a white burst leaving a rainbow, unrelated to the three
- *   and asked for other colours a little at most (2026-10-22). Each half
- *   plays it alone, mirrored: an LED's depth runs from 0 at the half's
+ *   colour, white included: on hardware the user found the first script's
+ *   end, a white burst leaving a rainbow, unrelated to the three and asked
+ *   for other colours a little at most (2026-10-22), then asked the star's
+ *   white head, the last of them, away too (canon t-ky8x, 2026-10-27). Each
+ *   half plays it alone, mirrored: an LED's depth runs from 0 at the half's
  *   outermost key to DEPTH_ONE at its innermost, by its key's distance
- *   (coords) from the bottom of the board's middle, the point between the
- *   two thumb clusters, so the show moves from the outer columns' top to the
- *   inner thumb. The script, in order: the star, a white head crossing the
- *   half in STAR_MS, each key it passes glittering for GLITTER_MS, every
- *   beat a primary or none at random (the dice: an integer hash of the LED,
- *   the beat and a seed taken at the start, so the frame keeps no state for
- *   it); the waves, red, blue and green WAVE_GAP_MS apart, each front
+ *   (coords) from the bottom of the board's middle, the point between the two
+ *   thumb clusters, so the show moves from the outer columns' top to the
+ *   inner thumb. The script, in order: the star, a head crossing the half in
+ *   STAR_MS, each key in the colour of its third of the depths (the thirds
+ *   the burst ends in, below), each key it passes glittering for GLITTER_MS,
+ *   every beat a primary or none at random (the dice: an integer hash of the
+ *   LED, the beat and a seed taken at the start, so the frame keeps no state
+ *   for it); the waves, red, blue and green WAVE_GAP_MS apart, each front
  *   crossing in WAVE_MS with a fading tail; the core, the deepest keys, each
  *   in the colour of the newest wave to reach it, so that a wave coming into
  *   the core never meets another colour there, with a flash at each wave's
  *   arrival, then pulsing for CHARGE_MS a colour a beat, the last wave's
  *   green, red, blue, green, and swelling outwards; and the burst, a red, a
- *   blue and a green ring from the core out BURST_GAP_MS apart, each
- *   crossing in BURST_MS, the last leaving each key it passes in its third
- *   of the depths, the outer red, the middle blue and the inner green (the
- *   waves' order from the outside), held THIRDS_HOLD_MS and faded out at
- *   once over THIRDS_FADE_MS, by the end, the script's only stretch with
- *   every key lit. A key shows one primary, the strongest of the light on
- *   it (the beat's alone on the charging core's keys), light of one colour
- *   adding up to full scale, so that no retiming of the acts can mix two;
- *   the star's white goes over it, tinted where the head meets the glitter.
- *   The frame's cap over a black picture holds the whole. Each frame is
- *   composed from the time since the start, so a late frame loses nothing;
- *   the depths are measured once, at the first frame. No effect is drawn
- *   and no press noted while it plays: a press noted then would show at its
- *   end as a disc already in flight.
+ *   blue and a green ring from the core out BURST_GAP_MS apart, each crossing
+ *   in BURST_MS, the last leaving each key it passes in its third of the
+ *   depths, the outer red, the middle blue and the inner green (the waves'
+ *   order from the outside), held THIRDS_HOLD_MS and faded out at once over
+ *   THIRDS_FADE_MS, by the end, the script's only stretch with every key lit.
+ *   A key shows one primary, the strongest of the light on it (the beat's
+ *   alone on the charging core's keys), light of one colour adding up to full
+ *   scale, so that no retiming of the acts can mix two, the star's head
+ *   included. The frame's cap over a black picture holds the whole. Each
+ *   frame is composed from the time since the start, so a late frame loses
+ *   nothing; the depths are measured once, at the first frame. No effect is
+ *   drawn and no press noted while it plays: a press noted then would show at
+ *   its end as a disc already in flight.
  */
 
 #define DT_DRV_COMPAT lantern_keys
@@ -1432,16 +1433,17 @@ static uint32_t dice(uint32_t x) {
 
 /* The intro's three colours in their order, red, blue, green, the order the
  * user wrote them (canon t-5v1f), as indexes into intro_led()'s c[]: the
- * waves', the rings' and the thirds' from the outside. */
+ * waves', the rings' and the thirds' from the outside, and the star's head's
+ * by the key's third. */
 static const uint8_t primary[3] = {0, 2, 1};
 
 /* LED i's colour t ms into the intro, before the cap: the strongest primary
- * of the light on it, c[0] red, c[1] green, c[2] blue, and the star's white
- * over it (the header). */
+ * of the light on it, c[0] red, c[1] green, c[2] blue (the header). */
 static struct led_rgb intro_led(size_t i, uint32_t t, uint32_t seed) {
     int32_t d = depth[i];
     uint32_t c[3] = {0, 0, 0};
-    uint32_t star = 0;
+    /* the key's third of the depths: the star's head's colour and the thirds' */
+    size_t third = MIN((uint32_t)d * 3 / DEPTH_ONE, 2u);
 
     /* the star */
     int32_t off = (int32_t)(t * DEPTH_ONE / STAR_MS) - d;
@@ -1449,7 +1451,7 @@ static struct led_rgb intro_led(size_t i, uint32_t t, uint32_t seed) {
         off = -off;
     }
     if (off < STAR_REACH) {
-        star = (uint32_t)(STAR_REACH - off) * 255 / STAR_REACH;
+        c[primary[third]] += (uint32_t)(STAR_REACH - off) * 255 / STAR_REACH;
     }
     uint32_t passed = (uint32_t)d * STAR_MS / DEPTH_ONE;
     if (t >= passed && t - passed < GLITTER_MS) {
@@ -1546,7 +1548,6 @@ static struct led_rgb intro_led(size_t i, uint32_t t, uint32_t seed) {
         }
         passed = 2 * BURST_GAP_MS + (uint32_t)(DEPTH_ONE - d) * BURST_MS / DEPTH_ONE;
         uint32_t fade = 2 * BURST_GAP_MS + BURST_MS + THIRDS_HOLD_MS;
-        size_t third = MIN((uint32_t)d * 3 / DEPTH_ONE, 2u);
 
         if (since >= passed && since < fade) {
             c[primary[third]] += THIRDS_LEVEL;
@@ -1559,12 +1560,12 @@ static struct led_rgb intro_led(size_t i, uint32_t t, uint32_t seed) {
     if (c[2] > c[top]) {
         top = 2;
     }
-    uint32_t p = MIN(c[top], 255u);
+    uint8_t p = (uint8_t)MIN(c[top], 255u);
 
     return (struct led_rgb){
-        .r = (uint8_t)MIN((top == 0 ? p : 0) + star, 255u),
-        .g = (uint8_t)MIN((top == 1 ? p : 0) + star, 255u),
-        .b = (uint8_t)MIN((top == 2 ? p : 0) + star, 255u),
+        .r = top == 0 ? p : 0,
+        .g = top == 1 ? p : 0,
+        .b = top == 2 ? p : 0,
     };
 }
 
