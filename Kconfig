@@ -109,7 +109,7 @@ config LANTERN_INTRO
     select LANTERN_FRAMES
     select LANTERN_GEOMETRY
     help
-      The boot light plays the intro, a ten-second show (src/keys.c tells it),
+      The boot light plays the intro, a ten-second show (src/intro.c tells it),
       instead of the picture, and opens at boot, cable or not, and again
       whenever USB power arrives, so a cable plugged in shows it too, into an
       idle half as well; then LANTERN_ON_USB_POWER's rule applies, as after
@@ -265,8 +265,9 @@ config LANTERN_EFFECTS
     help
       The effects' engine in src/keys.c: the ring of the half's last
       presses and the pull from the picture toward an effect's colour, on
-      the moving frames and their cap (LANTERN_FRAMES), and the pick of
-      which built effects draw (LANTERN_EFFECT, the choice
+      the moving frames and their cap (LANTERN_FRAMES), the table of the
+      built effects (one file an effect under src/effects/, src/frame.h)
+      and the pick of which of them draw (LANTERN_EFFECT, the choice
       LANTERN_EFFECT_DEFAULT). Each effect selects it; nothing to set.
 
 config LANTERN_EFFECT
@@ -342,7 +343,7 @@ endchoice
 config LANTERN_GEOMETRY
     bool
     help
-      The board's geometry for what measures it (src/keys.c): the
+      The board's geometry for what measures it (src/frame.h): the
       lantern,keys node's coords, an x and a y per key position in hundredths
       of a key unit (asserted present and twice the key count), and the
       distance between two keys through an integer square root. Each effect
@@ -365,9 +366,9 @@ config LANTERN_THIN_RING
       the palette's next colour, at full brightness (so the build refuses a
       LANTERN_BRIGHTNESS of 100), and a key under two rings shows the
       stronger one's colour. Needs the lantern,keys node's coords, each key
-      position's x and y in hundredths of a key unit (asserted): src/keys.c
-      measures the ring on the board. Default n: a consumer builds the
-      effects it wants to pick from.
+      position's x and y in hundredths of a key unit (asserted):
+      src/effects/thin_ring.c measures the ring on the board. Default n: a
+      consumer builds the effects it wants to pick from.
 
 config LANTERN_DISC
     bool "Build the disc: a disc from each pressed key, brightest at its rim, the palette's colours passing inside"

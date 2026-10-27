@@ -21,11 +21,6 @@
 
 #include <zephyr/sys/util.h>
 
-/* The intro's length (CONFIG_LANTERN_INTRO): the rail rule keeps the LEDs lit
- * this long from the light that starts it, the boot light's window. The
- * script that fills it is src/keys.c's, which asserts it fits. */
-#define LANTERN_INTRO_MS 10000
-
 /* Paint the palette's picture (white without a palette; the no picture's
  * black stays black) and start the countdown. Call with the rail on and
  * settled, on the system work queue. */

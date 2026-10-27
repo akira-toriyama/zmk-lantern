@@ -8,7 +8,7 @@ description: |
   a key: the central's code sends it to a half with one key press of another
   half (param1 = the key position, param2 = 0), and the half notes it as a
   hit for the effects that cross the split (the crossing ring and the beams,
-  src/keys.c).
+  src/effects/).
 
 compatible: "lantern,behavior-hit"
 
