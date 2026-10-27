@@ -64,27 +64,42 @@ config LANTERN_PICTURE_BRIGHTNESS
       pass the cap). canon t-skdt tries half of it under the disc.
 
 config LANTERN_ON_USB_POWER
-    bool "Light the key LEDs while USB powers this half, dark and unpowered on battery"
+    bool "Light the key LEDs while USB powers this half, dark on battery"
     default y
-    depends on DT_HAS_LANTERN_RAIL_ENABLED
     depends on LANTERN_KEYS
-    depends on GPIO
     help
-      On a device with a lantern,rail node (a split half of the Cyboard
-      Imprint in canon): while USB powers the device, the LED rail is on and
-      the key LEDs show the palette's picture (LANTERN_KEYS); on battery the
-      LEDs are black and the rail is off, so they draw nothing from the
-      battery (src/on_usb_power.c). The rail is the node's gpios, the pin
-      ZMK's zmk,ext-power-generic node would drive as control-gpios; that
-      node stays disabled in the consumer's overlay (the source says why),
-      and a gpio hog may hold the pin low from reset until the module takes
-      it.
+      The rule the key LEDs follow (src/on_usb_power.c): while USB powers
+      the device and it is in use (LANTERN_OFF_WHEN_IDLE), the LEDs show the
+      palette's picture (LANTERN_KEYS); on battery they are black, so they
+      draw nothing from it; the boot light (LANTERN_INTROS) lights them at
+      boot and when USB power arrives whatever the rule says. With a
+      lantern,rail node the rule switches the LEDs' supply too
+      (LANTERN_RAIL); without one the supply is the board's (ZMK's
+      ext_power driver's, or a rail always on) and dark is a black frame.
 
       Needs CONFIG_USB_DEVICE_STACK (ZMK's default on nRF52840, the split
       peripheral included) and CONFIG_SETTINGS; the source asserts each at
       build time, so a wrong conf fails the build with a message. Default y
-      where the node is present: the node is the switch, and a target without
-      one (a dongle) builds none of the module.
+      with the keys, which nothing else lights (src/keys.c asserts it); a
+      target without a lantern,keys node (a dongle) builds none of it.
+
+config LANTERN_RAIL
+    bool "Switch the key LEDs' supply with the rule: the lantern,rail node's pin"
+    default y
+    depends on LANTERN_ON_USB_POWER
+    depends on DT_HAS_LANTERN_RAIL_ENABLED
+    depends on GPIO
+    help
+      On a device whose LEDs' supply has an enable pin (a split half of the
+      Cyboard Imprint in canon): the rail is on while the rule lights the
+      LEDs and off while they are dark, so on battery they draw nothing at
+      all (the rail alone drew 10-18 mA a half at rest on the Imprint). The
+      rail is the node's gpios, the pin ZMK's zmk,ext-power-generic node
+      would drive as control-gpios; that node stays disabled in the
+      consumer's overlay (src/on_usb_power.c says why), and a gpio hog may
+      hold the pin low from reset until the module takes it; the node's
+      settle-ms passes between the rail and the first frame. Default y
+      where the node is present: the node is the switch.
 
 config LANTERN_INTROS
     bool
@@ -184,11 +199,11 @@ config LANTERN_OFF_WHEN_IDLE
     default y
     depends on LANTERN_ON_USB_POWER
     help
-      While USB powers the device, the LEDs go dark and the rail off, as on
-      battery, once ZMK turns IDLE: CONFIG_ZMK_IDLE_TIMEOUT ms (ZMK's default
-      30000) without a key, sensor or pointing input on this device, each
-      split half for itself. The next input lights them again, settle-ms
-      after the rail. The boot light is not cut short. The timeout is the
+      While USB powers the device, the LEDs go dark (and the rail off, with
+      LANTERN_RAIL), as on battery, once ZMK turns IDLE: CONFIG_ZMK_IDLE_TIMEOUT
+      ms (ZMK's default 30000) without a key, sensor or pointing input on
+      this device, each split half for itself. The next input lights them
+      again, settle-ms after the rail. The boot light is not cut short. The timeout is the
       consumer's line (canon's halves set 300000); a cable plugged into an
       idle device plays the boot light's intro (LANTERN_INTROS) and goes dark
       at its end, and lights nothing else until its next input (the source

@@ -4,11 +4,16 @@
  * SPDX-License-Identifier: MIT
  *
  * Light the key LEDs while USB powers this half and the half is in use, and
- * keep them dark and unpowered otherwise: on battery, and once ZMK's activity
- * state has left ACTIVE (CONFIG_LANTERN_OFF_WHEN_IDLE). Lit = the LED rail
- * (the lantern,rail node's gpios) on, then the palette's picture
- * (lantern_keys_light(), src/keys.c); dark = a black frame
- * (lantern_keys_blank()), then the rail off BLANK_MS later. The boot light:
+ * keep them dark otherwise: on battery, and once ZMK's activity state has
+ * left ACTIVE (CONFIG_LANTERN_OFF_WHEN_IDLE). Lit = the LED rail on, where
+ * the consumer has one (CONFIG_LANTERN_RAIL: the lantern,rail node's gpios),
+ * then the palette's picture (lantern_keys_light(), src/keys.c); dark = a
+ * black frame (lantern_keys_blank()), then the rail off BLANK_MS later.
+ * Without a rail node the machine runs the same with a rail that is nowhere
+ * (rail_set() does nothing, the settle is 0 ms): the LEDs' supply is the
+ * board's, ZMK's ext_power driver's or always on, and dark is the black
+ * frame alone (canon t-41g7: a board whose LEDs cannot be unpowered keeps
+ * the rule and loses only the saving). The boot light:
  * with an intro built (CONFIG_LANTERN_INTROS, src/intros/), the LEDs light at
  * boot whatever the power and play the picked intro for its length, which
  * lantern_keys_boot_light() returns when told the boot light is on, before
@@ -29,7 +34,8 @@
  * 2026-10-21). Raise the event or open the boot light from elsewhere and
  * that breaks.
  *
- * - The rail is driven here, never by ZMK's zmk,ext-power-generic driver:
+ * - With a rail node the rail is driven here, never by ZMK's
+ *   zmk,ext-power-generic driver:
  *   its init turns the rail on, its settings handler restores a stored
  *   "ext_power/state/<node>" (a stored off, from a stock keymap's &ext_power
  *   EP_OFF, kept the left half of canon's Cyboard Imprint dark, 2026-10-19),
@@ -99,7 +105,9 @@
 
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
+#if IS_ENABLED(CONFIG_LANTERN_RAIL)
 #include <zephyr/drivers/gpio.h>
+#endif
 #include <zephyr/init.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
@@ -116,8 +124,10 @@
 
 LOG_MODULE_REGISTER(lantern, LOG_LEVEL_INF);
 
+#if IS_ENABLED(CONFIG_LANTERN_RAIL)
 BUILD_ASSERT(DT_NUM_INST_STATUS_OKAY(DT_DRV_COMPAT) == 1,
-             "CONFIG_LANTERN_ON_USB_POWER needs exactly one lantern,rail node");
+             "CONFIG_LANTERN_RAIL needs exactly one lantern,rail node");
+#endif
 BUILD_ASSERT(IS_ENABLED(CONFIG_USB_DEVICE_STACK),
              "CONFIG_LANTERN_ON_USB_POWER needs CONFIG_USB_DEVICE_STACK: the USB state comes "
              "from ZMK's usb.c");
@@ -127,13 +137,19 @@ BUILD_ASSERT(IS_ENABLED(CONFIG_SETTINGS),
 /* The black frame lantern_keys_blank() queues on ZMK's low priority work
  * queue must reach the LEDs before the rail drops (the header). */
 #define BLANK_MS 100
-#define SETTLE_MS DT_INST_PROP(0, settle_ms)
 
+#if IS_ENABLED(CONFIG_LANTERN_RAIL)
+#define SETTLE_MS DT_INST_PROP(0, settle_ms)
 static const struct gpio_dt_spec rail = GPIO_DT_SPEC_INST_GET(0, gpios);
+#else
+/* No rail node (the header): the supply is the board's, the LEDs ready at
+ * once. */
+#define SETTLE_MS 0
+#endif
 
 enum phase {
     DARK,     /* rail off, the LEDs black */
-    RAIL_UP,  /* rail on, the LEDs powering up: no frame yet */
+    RAIL_UP,  /* rail on, the LEDs powering up: no frame yet (0 ms without a rail) */
     LIT,      /* rail on, the palette's picture */
     BLANKING, /* the black frame on its way, rail still on */
 };
@@ -146,12 +162,16 @@ static bool usb_powered;
 static bool idle; /* stays false without CONFIG_LANTERN_OFF_WHEN_IDLE */
 static bool want_lit;
 
+#if IS_ENABLED(CONFIG_LANTERN_RAIL)
 static void rail_set(bool on) {
     int rc = gpio_pin_set_dt(&rail, on);
     if (rc < 0) {
         LOG_ERR("rail %s failed: %d", on ? "on" : "off", rc);
     }
 }
+#else
+static void rail_set(bool on) { ARG_UNUSED(on); }
+#endif
 
 static void step(struct k_work *work);
 static K_WORK_DELAYABLE_DEFINE(step_work, step);
@@ -306,6 +326,7 @@ static int on_commit(void) {
 /* Commit priority 1: after ZMK's priority 0 handlers (the header). */
 SETTINGS_STATIC_HANDLER_DEFINE_WITH_CPRIO(lantern, "lantern", NULL, on_set, on_commit, NULL, 1);
 
+#if IS_ENABLED(CONFIG_LANTERN_RAIL)
 static int lantern_init(void) {
     if (!gpio_is_ready_dt(&rail)) {
         LOG_ERR("rail port not ready");
@@ -322,3 +343,4 @@ static int lantern_init(void) {
 }
 
 SYS_INIT(lantern_init, APPLICATION, CONFIG_APPLICATION_INIT_PRIORITY);
+#endif /* IS_ENABLED(CONFIG_LANTERN_RAIL) */

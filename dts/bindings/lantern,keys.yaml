@@ -3,11 +3,12 @@
 
 description: |
   The key LEDs zmk-lantern paints (CONFIG_LANTERN_KEYS, src/keys.c): the LED
-  strip under the keys, the key each LED sits under and the palette slot each
-  key shows in the bands, the default picture. Exactly one per target with
-  key LEDs (a split half); a target
-  without one (a dongle) builds none of the painting. ZMK's underglow stays
-  off on such a target: this module is the strip's one writer.
+  strip under the keys and the key each LED sits under, and where the
+  consumer says so the palette slot each key shows in the bands, the
+  default picture, and where each key is. Exactly one per target with key
+  LEDs (a split half); a target without one (a dongle) builds none of the
+  painting. ZMK's underglow stays off on such a target: this module is the
+  strip's one writer.
 
 compatible: "lantern,keys"
 
@@ -35,16 +36,15 @@ properties:
 
   slots:
     type: array
-    required: true
     description: |
       One entry per key position, in position order (the whole keymap, both
       halves of a split): the palette slot, 0 to 5, the key's LED shows in
       the bands (CONFIG_LANTERN_BANDS, the default picture, and the bands
-      intro, CONFIG_LANTERN_INTRO_BANDS, the boot light's default). The
-      length is
-      the keymap's length (asserted), so a table written in the keymap's
-      shape reads as the bands. Required whatever the picture: the module
-      takes the key count from it and checks every entry is a slot.
+      intro, CONFIG_LANTERN_INTRO_BANDS, the boot light's default), and the
+      colour of the crossing ring and the beams from that key. The length
+      is the keymap's (ZMK_KEYMAP_LEN, asserted), so a table written in the
+      keymap's shape reads as the bands. Without it every key is slot 0:
+      the bands one colour, the palette's first.
 
   coords:
     type: array
@@ -55,9 +55,13 @@ properties:
       canon: imprint.json, keymap-drawer's physical layout, times 100 (each
       key's top left corner; every key is one unit, so the offset to the
       centre cancels). For what measures the board (CONFIG_LANTERN_GEOMETRY:
-      an effect, the gradient and the star waves), which asserts it
-      present and twice the length of slots; a target without them needs
-      none.
+      an effect, the gradient and the star waves), which asserts it twice
+      the keymap's length. Without it the keyboard's chosen
+      zmk,physical-layout (else its first) places the keys, each at its
+      centre in the layout's hundredths of a key unit (a rotated key as if
+      unrotated), and positions must name that layout's keys; a keyboard
+      with neither fails the build where something measures the board. A
+      target that measures nothing needs none.
 
   scatter-weights:
     type: array

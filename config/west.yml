@@ -1,5 +1,6 @@
-# West manifest for building this module against the Cyboard Imprint (CI and
-# scripts/build.sh). The repository plays two roles in that build:
+# West manifest for building this module against the Cyboard Imprint and
+# ZMK's Corne (CI and scripts/build.sh). The repository plays two roles in
+# that build:
 #   1. zmk-config: this config/ directory (`west init -l config`), with the
 #      consumer-side lines a half needs (imprint.conf, imprint.overlay) on top
 #      of Cyboard's stock shield, keymap and roles.
