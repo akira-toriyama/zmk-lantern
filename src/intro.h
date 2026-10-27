@@ -68,21 +68,24 @@ BUILD_ASSERT(__builtin_popcount(LANTERN_INTRO_ALL) == LANTERN_INTRO_COUNT,
 #if IS_ENABLED(CONFIG_LANTERN_INTRO)
 
 /* The pick stored on this device, the host's bits as sent (built here or
- * not). False while none has been stored, and *mask is then left alone. */
-bool lantern_intro_get(uint32_t *mask);
+ * not); arg is the pick mechanism's argument, which the intro has none of (0;
+ * NULL to skip it). False while none has been stored, and *mask is then left
+ * alone. */
+bool lantern_intro_get(uint32_t *mask, uint32_t *arg);
 
 /* Split central only: store the pick here and send it to every half. mask is
  * one bit of LANTERN_INTRO_ALL, else -EINVAL (none, or a bit the table lacks)
- * or -E2BIG (several); -EAGAIN until the settings have loaded at boot. 0
- * means this device stored the pick and handed the halves' invocations to
- * ZMK's split transport, which confirms nothing: a half that is away gets the
- * pick when it is back (src/pick.c). */
-int lantern_intro_send(uint32_t mask);
+ * or -E2BIG (several); arg is 0 (the intro takes none), else -EINVAL; -EAGAIN
+ * until the settings have loaded at boot. 0 means this device stored the pick
+ * and handed the halves' invocations to ZMK's split transport, which confirms
+ * nothing: a half that is away gets the pick when it is back (src/pick.c). */
+int lantern_intro_send(uint32_t mask, uint32_t arg);
 
 #else
 
-static inline bool lantern_intro_get(uint32_t *mask) {
+static inline bool lantern_intro_get(uint32_t *mask, uint32_t *arg) {
     ARG_UNUSED(mask);
+    ARG_UNUSED(arg);
     return false;
 }
 

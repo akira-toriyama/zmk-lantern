@@ -4,11 +4,13 @@
  * SPDX-License-Identifier: MIT
  *
  * The effects' table and the pick (src/effect.c): which of the effects built
- * into a half's image draw, chosen at run time by the split central's host and
- * kept by every device. For the port (src/port.c), which names them, and the
- * key LEDs (src/keys.c), which draw them. Layer contract: the port parses and
- * replies and never stores a pick; every change goes through the effect
- * behavior, on the central and the halves alike; the key LEDs only read.
+ * into a half's image draw, and in which colour, chosen at run time by the
+ * split central's host, or by a key of the central's keymap bound to the
+ * behavior (the next effect in turn: src/effect_next.c), and kept by every
+ * device. For the port (src/port.c), which names them, and the key LEDs
+ * (src/keys.c), which draw them. Layer contract: the port parses and replies
+ * and never stores a pick; every change goes through the effect behavior, on
+ * the central and the halves alike; the key LEDs only read.
  *
  * A new effect is one line in LANTERN_EFFECT_LIST, its Kconfig symbol
  * LANTERN_<SYMBOL> (which selects LANTERN_EFFECTS, or an effect that does, as
@@ -65,23 +67,44 @@ enum lantern_effect {
 BUILD_ASSERT(__builtin_popcount(LANTERN_EFFECT_ALL) == LANTERN_EFFECT_COUNT,
              "LANTERN_EFFECT_LIST: two effects share a bit");
 
+/* The pick's colour (the behavior's param2, canon t-rgp5): 0xRRGGBB, the one
+ * colour every picked effect draws in, or 0 for the effects' own colours, the
+ * palette's (src/keys.c says how). */
+#define LANTERN_EFFECT_COLOUR_MAX 0xFFFFFF
+
+/* The pick after mask in a cycle over the bits of set (src/effect_next.c:
+ * the effects this device builds, or the whole table where it builds none):
+ * the lowest bit of set above mask's highest, else set's lowest; set's lowest
+ * for no pick (mask 0). One bit, always of set (set is not 0). */
+static inline uint32_t lantern_effect_next(uint32_t mask, uint32_t set) {
+    uint32_t above = mask == 0 ? set : set & ~((2u << (31 - __builtin_clz(mask))) - 1);
+
+    if (above == 0) {
+        above = set;
+    }
+    return above & -above;
+}
+
 #if IS_ENABLED(CONFIG_LANTERN_EFFECT)
 
 /* The pick stored on this device, the host's bits as sent (built here or
- * not). False while none has been stored, and *mask is then left alone. */
-bool lantern_effect_get(uint32_t *mask);
+ * not) and its colour, at most LANTERN_EFFECT_COLOUR_MAX (colour may be
+ * NULL). False while none has been stored, and both are then left alone. */
+bool lantern_effect_get(uint32_t *mask, uint32_t *colour);
 
 /* Split central only: store the pick here and send it to every half. mask is
- * one or more bits of LANTERN_EFFECT_ALL, else -EINVAL; -EAGAIN until the
- * settings have loaded at boot. 0 means this device stored the pick and
- * handed the halves' invocations to ZMK's split transport, which confirms
- * nothing: a half that is away gets the pick when it is back (src/effect.c). */
-int lantern_effect_send(uint32_t mask);
+ * one or more bits of LANTERN_EFFECT_ALL and colour at most
+ * LANTERN_EFFECT_COLOUR_MAX, else -EINVAL; -EAGAIN until the settings have
+ * loaded at boot. 0 means this device stored the pick and handed the halves'
+ * invocations to ZMK's split transport, which confirms nothing: a half that is
+ * away gets the pick when it is back (src/pick.c). */
+int lantern_effect_send(uint32_t mask, uint32_t colour);
 
 #else
 
-static inline bool lantern_effect_get(uint32_t *mask) {
+static inline bool lantern_effect_get(uint32_t *mask, uint32_t *colour) {
     ARG_UNUSED(mask);
+    ARG_UNUSED(colour);
     return false;
 }
 

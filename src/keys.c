@@ -130,7 +130,14 @@
  *   over the last (the grammar allows several; canon sends one); with no pick
  *   stored, or none of its bits built, the frame draws the one the Kconfig
  *   choice LANTERN_EFFECT_DEFAULT names, the only pick a consumer without a
- *   host has. A hit lives the picked effects' life, the longest among those
+ *   host has (or binds the effect behavior to a key: src/effect.c). The pick's
+ *   colour (canon t-rgp5): with one set, the effects draw from shades of that
+ *   one colour (effect_shades) while the picture keeps the palette's, so every
+ *   effect's own source, the palette's next shade, the pressed key's band, the
+ *   span from the first colour to the last, yields the one colour, and the
+ *   stain dyes in it; with none (0, or no pick and CONFIG_LANTERN_EFFECT_COLOUR
+ *   0) the effects draw from the frame's shades, their own sources, as before
+ *   the colour. A hit lives the picked effects' life, the longest among those
  *   that draw, and a frame keeps moving while one lives. When the pick
  *   changes, src/effect.c clears the hits
  *   (lantern_keys_effect_changed()) and the frame clears the effects' state
@@ -353,6 +360,8 @@ BUILD_ASSERT(LANTERN_EFFECT_LIFE_MAX_MS < HIT_TIME / 2,
 BUILD_ASSERT(EFFECTS_BUILT != 0, "CONFIG_LANTERN_EFFECTS without an effect in LANTERN_EFFECT_LIST");
 BUILD_ASSERT(__builtin_popcount(EFFECT_DEFAULT) == 1 && (EFFECT_DEFAULT & EFFECTS_BUILT) != 0,
              "the choice LANTERN_EFFECT_DEFAULT must name one effect this image builds");
+BUILD_ASSERT(CONFIG_LANTERN_EFFECT_COLOUR <= LANTERN_EFFECT_COLOUR_MAX,
+             "CONFIG_LANTERN_EFFECT_COLOUR is 0xRRGGBB");
 
 /* The table (the header): the effects this image builds, in
  * LANTERN_EFFECT_LIST's order, each its line's bit and its file's entry
@@ -554,10 +563,14 @@ static struct shades frame_shades;
 
 #if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
 /* The frame's thread: the stage (before the modulo: with one shade the modulo
- * would never move) and the pick the last frame drew, whose move clears the
- * effects' state (the header). */
+ * would never move), the pick and the colour the last frame drew, whose move
+ * clears the effects' state (the header). */
 static size_t drawn_at;
 static uint32_t drawn_effects;
+static uint32_t drawn_colour;
+/* The frame's thread: the shades the effects draw from when the pick names a
+ * colour (the header): that colour alone, at the picture's level for the dye. */
+static struct shades effect_shades;
 #endif
 
 #if IS_ENABLED(CONFIG_LANTERN_GRADIENT)
@@ -748,7 +761,7 @@ static bool intro_plays(void) { return atomic_get(&booting) != 0; }
 static size_t active_intro_row(void) {
     uint32_t pick, play = INTRO_DEFAULT;
 
-    if (lantern_intro_get(&pick) && (pick & INTROS_BUILT) != 0) {
+    if (lantern_intro_get(&pick, NULL) && (pick & INTROS_BUILT) != 0) {
         play = pick & INTROS_BUILT;
     }
     for (size_t r = 0; r < ARRAY_SIZE(intros); r++) {
@@ -784,14 +797,31 @@ static inline bool intro_plays(void) { return false; }
 #if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
 
 /* The effects this frame draws (the header): the pick's bits built here, or
- * the default. */
-static uint32_t active_effects(void) {
-    uint32_t pick;
+ * the default; and their colour, the pick's, or without a pick the Kconfig
+ * default's (0: the frame's shades). */
+static void active_pick(uint32_t *fx, uint32_t *colour) {
+    uint32_t pick, c;
 
-    if (lantern_effect_get(&pick) && (pick & EFFECTS_BUILT) != 0) {
-        return pick & EFFECTS_BUILT;
+    if (lantern_effect_get(&pick, &c)) {
+        *fx = (pick & EFFECTS_BUILT) != 0 ? pick & EFFECTS_BUILT : EFFECT_DEFAULT;
+        *colour = c;
+    } else {
+        *fx = EFFECT_DEFAULT;
+        *colour = CONFIG_LANTERN_EFFECT_COLOUR;
     }
-    return EFFECT_DEFAULT;
+}
+
+/* The shades the effects draw from (the header): the frame's, or the one
+ * colour. */
+static const struct shades *effects_shades(uint32_t colour) {
+    if (colour == 0) {
+        return &frame_shades;
+    }
+    effect_shades.n = 1;
+    effect_shades.at_level[0] = scale(colour, PICTURE_LEVEL);
+    effect_shades.rgb[0] = colour;
+    memset(effect_shades.rank, 0, sizeof(effect_shades.rank));
+    return &effect_shades;
 }
 
 /* How long after a press the effects in fx still draw: the longest life among
@@ -824,8 +854,9 @@ static void effects_clear(void) {
 /* The frame: the picture of stage at, the picked effects over it and the cap,
  * or the picked intro's frame while the boot light lasts; true while a picked
  * effect still moves or the intro does. The low priority work queue only: it
- * writes frame_shades, pixels, picture and the effects' state and clears spent
- * hits (the palette, the picks and the hits are atomics, read from there). */
+ * writes frame_shades, effect_shades, pixels, picture and the effects' state
+ * and clears spent hits (the palette, the picks and the hits are atomics, read
+ * from there). */
 static bool compose(size_t at) {
     uint32_t palette[LANTERN_PALETTE_SLOTS] = {0};
     bool have = IS_ENABLED(CONFIG_LANTERN_PALETTE) && lantern_palette_get(palette);
@@ -837,13 +868,16 @@ static bool compose(size_t at) {
     }
 #endif
 #if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
-    uint32_t fx = active_effects();
+    uint32_t fx, colour;
 
-    if (at != drawn_at || fx != drawn_effects) {
+    active_pick(&fx, &colour);
+    if (at != drawn_at || fx != drawn_effects || colour != drawn_colour) {
         effects_clear();
         drawn_at = at;
         drawn_effects = fx;
+        drawn_colour = colour;
     }
+    const struct shades *esh = effects_shades(colour);
 #endif
     at %= frame_shades.n;
     for (size_t i = 0; i < LED_COUNT; i++) {
@@ -860,7 +894,7 @@ static bool compose(size_t at) {
 #if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
     for (size_t e = 0; e < ARRAY_SIZE(effects); e++) {
         if ((row_bits(e) & fx) && effects[e].entry->picture != NULL) {
-            effects[e].entry->picture(pixels, &frame_shades);
+            effects[e].entry->picture(pixels, esh);
         }
     }
 
@@ -870,7 +904,7 @@ static bool compose(size_t at) {
     memcpy(picture, pixels, sizeof(pixels));
     for (size_t e = 0; e < ARRAY_SIZE(effects); e++) {
         if ((row_bits(e) & fx) && effects[e].entry->draw != NULL) {
-            effects[e].entry->draw(pixels, &frame_shades, live, n, fx);
+            effects[e].entry->draw(pixels, esh, live, n, fx);
         }
     }
     hold_to_cap();

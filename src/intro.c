@@ -12,8 +12,8 @@
  * one the Kconfig choice LANTERN_INTRO_DEFAULT names). An instance of the pick
  * (src/pick.h, which says how it is stored, sent and resent): the node
  * lantern,behavior-intro, named intro on every device, the key
- * "lantern/intro/mask", one bit a pick, and nothing to do on a half when it
- * changes, since the next boot light reads it.
+ * "lantern/intro/mask", one bit a pick and no argument, and nothing to do on a
+ * half when it changes, since the next boot light reads it.
  */
 
 #define DT_DRV_COMPAT lantern_behavior_intro
@@ -48,16 +48,17 @@ static struct lantern_pick pick = {
     .key = "lantern/intro/mask",
     .behavior = DEVICE_DT_NAME(DT_DRV_INST(0)),
     .all = LANTERN_INTRO_ALL,
+    .arg_max = 0,
     .one = true,
     .changed = NULL,
 };
 
-bool lantern_intro_get(uint32_t *mask) { return lantern_pick_get(&pick, mask); }
+bool lantern_intro_get(uint32_t *mask, uint32_t *arg) { return lantern_pick_get(&pick, mask, arg); }
 
 static int on_binding_pressed(struct zmk_behavior_binding *binding,
                               struct zmk_behavior_binding_event event) {
     ARG_UNUSED(event);
-    int rc = lantern_pick_pressed(&pick, binding->param1);
+    int rc = lantern_pick_pressed(&pick, binding->param1, binding->param2);
     return rc < 0 ? rc : ZMK_BEHAVIOR_OPAQUE;
 }
 
@@ -90,7 +91,7 @@ SETTINGS_STATIC_HANDLER_DEFINE(lantern_intro, "lantern/intro", NULL, on_set, on_
 
 #if IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
 
-int lantern_intro_send(uint32_t mask) { return lantern_pick_send(&pick, mask); }
+int lantern_intro_send(uint32_t mask, uint32_t arg) { return lantern_pick_send(&pick, mask, arg); }
 
 static int battery_listener(const zmk_event_t *eh) {
     lantern_pick_resend_after(&pick, eh);

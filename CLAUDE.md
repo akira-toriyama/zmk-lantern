@@ -37,10 +37,14 @@ how to build. Usage: [README.md](README.md). English only.
   one file an effect under src/effects/ on the engine of src/keys.c, the
   table and the node's `coords` through src/frame.h and
   `CONFIG_LANTERN_GEOMETRY`), and the
-  pick of which built effects draw, the host's over the central's port, kept
-  across boots, or the Kconfig choice `LANTERN_EFFECT_DEFAULT`
+  pick of which built effects draw and in which colour, the host's over the
+  central's port or a key's (`&effect <mask> <colour>`), kept across boots,
+  or the Kconfig choice `LANTERN_EFFECT_DEFAULT` and `CONFIG_LANTERN_EFFECT_COLOUR`
   (`CONFIG_LANTERN_EFFECT`; [src/effect.c](src/effect.c), the effects' table
-  [src/effect.h](src/effect.h), binding `lantern,behavior-effect`); the
+  [src/effect.h](src/effect.h), binding `lantern,behavior-effect`), and the
+  next effect from a key (`CONFIG_LANTERN_EFFECT_NEXT`;
+  [src/effect_next.c](src/effect_next.c), binding
+  `lantern,behavior-effect-next`, the central only); the
   hit, each half's key presses relayed to the other half by the split
   central for the effects that cross the split (`CONFIG_LANTERN_HIT`;
   [src/hit.c](src/hit.c), binding `lantern,behavior-hit`); the
@@ -118,7 +122,14 @@ how to build. Usage: [README.md](README.md). English only.
   `CONFIG_LANTERN_INTRO_DEFAULT_BANDS=y` and `bands.c.obj`; every target
   `CONFIG_LANTERN_EFFECT=y`, `CONFIG_LANTERN_INTRO=y`, `CONFIG_LANTERN_PICK=y`
   and `effect.c.obj`, `intro.c.obj`, `pick.c.obj` from the effect and intro
-  nodes (`config/effect.dtsi`, `config/intro.dtsi`, on every target).
+  nodes (`config/effect.dtsi`, `config/intro.dtsi`, on every target); a split
+  central's (the dongle, the stock left half) `CONFIG_LANTERN_EFFECT_NEXT=y`
+  and `effect_next.c.obj` from the effect-next node (`config/effect_next.dtsi`,
+  on every target, a driver on the central only), and with the effects or
+  the effect-next node `CONFIG_LANTERN_EFFECT_COLOUR=0` (`.config` writes a hex symbol's default
+  as `0`, autoconf.h as `0x0`); `config/pick_keys.dtsi` binds
+  `&effect 1 0xFF0000` and `&effect_next` in a macro never invoked, so the
+  bindings compile as a consumer's keymap would write them.
   `--kconfig CONFIG_LANTERN_THIN_RING=y`, `CONFIG_LANTERN_DISC=y`,
   `CONFIG_LANTERN_BEAMS=y`, `CONFIG_LANTERN_WATER=y` or
   `CONFIG_LANTERN_DART=y` adds
@@ -263,11 +274,25 @@ how to build. Usage: [README.md](README.md). English only.
   power (`src/latency.c`); a half on battery gets nothing. **The effect's and
   the intro's nodes are named `effect` and `intro` on every device, their
   invocations wire formats too** (`src/pick.c` for both: param1 = the pick, a
-  mask of `src/effect.h`'s or `src/intro.h`'s bits, param2 = 0, press only),
+  mask of `src/effect.h`'s or `src/intro.h`'s bits, param2 = the effect's
+  colour or the intro's 0; the release does nothing, a key's too),
   **and so are the bits and the names of `LANTERN_EFFECT_LIST` and
   `LANTERN_INTRO_LIST`** (the settings values, the port's words, canon's
   `dongle.py effect` and `intro`): never renumber or rename a line, append
-  one. The hits share
+  one. The effect's param2 is the colour (`0xRRGGBB`, 0 for the palette's
+  colours; stored after the mask under `lantern/effect/mask`, one value, so
+  a power loss never leaves a mask with another pick's colour; the mask
+  alone, from an image before the colour, reads as colour 0), the intro's is
+  0. A key of the central's
+  keymap may bind `&effect <mask> <colour>` (ZMK runs the keymap on the
+  central and carries a GLOBAL behavior to every half before running it
+  there, `app/src/behavior.c`) and `&effect_next` (`src/effect_next.c`,
+  `BEHAVIOR_LOCALITY_CENTRAL`: never carried over the split, so its node's
+  name is free of the 8 characters; it computes the next bit of the stored
+  pick over the effects this central builds, or the whole table where it
+  builds none, and sends it through `lantern_effect_send()`); canon's keymap
+  binds neither, and neither is verified on hardware (the check build's
+  `config/pick_keys.dtsi` compiles the bindings). The hits share
   the run queue with the palette: a lit half that vanishes keeps its link
   for the supervision timeout, and hits relayed to it meanwhile can fill
   the queue (the source header). The slot of a link comes from ZMK's
@@ -319,13 +344,27 @@ how to build. Usage: [README.md](README.md). English only.
   sent, bits its table does not know included (a newer image's), so the port
   answers the pick as made with the names it knows (`effect none` or `intro
   none` when it knows none: a bare word would be an ask, and an echoing host
-  would loop) and an image flashed with more shows it. Only an empty pick is
-  refused, and ignored at load; the central refuses the intro's pick with two
-  bits (`one intro at a time`). A change of the effects' pick clears the hits
+  would loop) and an image flashed with more shows it. Refused, on every
+  device and with nothing stored: an empty pick, and a colour above
+  `0xFFFFFF` (the argument's range is wire format too, unlike the mask's
+  bits: a wider one from a newer central would drop the whole pick here);
+  ignored at load: a stored value of another size, an empty mask, a colour
+  above the range. The central refuses the intro's pick with two bits (`one
+  intro at a time`). A failed save is logged, not retried: the next change
+  saves, and until then a boot returns to the previous pick, whole (as the
+  mask before the colour). A change of the effects' pick clears the hits
   (`lantern_keys_effect_changed()`) and the stain's dye (the frame compares
-  the pick it drew), never the palette; a change of the intro's pick does
-  nothing until the next boot light, which reads it. The stain's bit draws
-  the thin ring with the dye, the thin ring's the ring alone.
+  the pick and the colour it drew), never the palette; a change of the
+  intro's pick does nothing until the next boot light, which reads it. The
+  stain's bit draws the thin ring with the dye, the thin ring's the ring
+  alone. **The pick's colour reaches every effect as the shades it draws
+  from** (`src/keys.c`: with a colour, `effect_shades` is that one colour
+  alone, at the picture's level for the stain's dye, handed to the entries'
+  `picture` and `draw` in place of the frame's shades, which the picture
+  keeps; with 0, the frame's shades, so the colour-less frames are the old
+  ones): an effect never reads the colour itself, and a new effect needs
+  nothing for it. Without a pick the colour is `CONFIG_LANTERN_EFFECT_COLOUR`
+  (default 0).
 - The port (`src/port.c`) is central-only, reads every word (the palette's,
   the picks') in one file because a device keeps one UART callback, and never
   touches the port's rate: 1200 baud is zmk-beacon's bootloader entry, 2400

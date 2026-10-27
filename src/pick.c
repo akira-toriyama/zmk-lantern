@@ -6,21 +6,28 @@
  * The pick's mechanism (src/pick.h): what the pick of the effects
  * (src/effect.c, canon t-5hqx) and the pick of the intro (src/intro.c, canon
  * t-qvgv) share. A pick is a mask of bits the instance's table gives a meaning
- * (src/effect.h, src/intro.h), chosen by the host on the split central's port
- * (src/port.c), kept by the central and every half in their settings across
- * boots, and read where it is used (the key LEDs, src/keys.c). The image
- * carries every effect and intro the consumer's conf turns on; the pick says
- * which show, so canon changes the effect of the day and the intro without
- * flashing (its dongle.py effect and intro), and a consumer without a host has
- * the Kconfig defaults.
+ * (src/effect.h, src/intro.h) and, where the instance has one, an argument
+ * (the effects' colour, canon t-rgp5), chosen by the host on the split
+ * central's port (src/port.c) or by a key of the central's keymap bound to the
+ * behavior, kept by the central and every half in their settings across boots,
+ * and read where it is used (the key LEDs, src/keys.c). The image carries
+ * every effect and intro the consumer's conf turns on; the pick says which
+ * show, so canon changes the effect of the day, its colour and the intro
+ * without flashing (its dongle.py effect and intro), and a consumer without a
+ * host has the Kconfig defaults, or binds the behavior to a key.
  *
  * - One path for every change, the instance's behavior (lantern,behavior-effect
  *   named effect, lantern,behavior-intro named intro, the same node on every
  *   device of the split), invoked by the central's code with
  *   zmk_behavior_invoke_binding() as the palette's is (src/palette.c says how
  *   ZMK's split transport carries it by the node's name and why the name is at
- *   most 8 characters): param1 = the mask, absolute, param2 = 0, press only.
- *   One invocation a pick, so the central's run queue, which src/palette.c
+ *   most 8 characters): param1 = the mask, absolute, param2 = the argument (0
+ *   without one), press only (the release is nothing: src/effect.c,
+ *   src/intro.c). A key of the central's keymap bound to the behavior
+ *   invokes it the same way (ZMK app/src/behavior.c: a GLOBAL behavior goes
+ *   to every half and then runs here), its release too, which does nothing
+ *   anywhere. One
+ *   invocation a pick, so the central's run queue, which src/palette.c
  *   sizes for a whole palette a half, must hold one more a half for each pick
  *   built (asserted below): a resend after a half's battery report
  *   (src/palette.c: the one signal ZMK's central raises for a half that is
@@ -40,11 +47,18 @@
  *   The central refuses a bit its own table lacks and, where the instance
  *   takes one bit (the intro), a mask of several; a half stores what it is
  *   sent and leaves the choice among several to the reader.
- * - Settings: the instance's key ("lantern/<word>/mask"), the mask as one
- *   32-bit value, saved when it changed or the first pick arrived, never for a
- *   pick a device already holds (a half is resent the pick at every battery
- *   report, as the palette); a stored value of another size is ignored at
- *   load. The instance's changed hook runs after a changed or first store (the
+ * - Settings: the instance's key ("lantern/<word>/mask"), one value: the
+ *   mask as 32 bits and, where the instance has an argument, the argument as
+ *   32 more (one write, so a power loss leaves the old pick or the new,
+ *   never the new mask with the old argument), saved when either changed or
+ *   the first pick arrived, never for a pick a device already holds (a half
+ *   is resent the pick at every battery report, as the palette); a stored
+ *   value of another size, an empty mask or an argument above the
+ *   instance's largest is ignored at load, and the mask alone (an image
+ *   before the argument) is read with the argument 0, so a device flashed
+ *   from before the colour keeps its pick, and one flashed back to such an
+ *   image has none until the next. The instance's changed hook runs after a
+ *   changed or first store (the
  *   effects' clears the effects' state and repaints, src/keys.c; the intro's
  *   is none: the next boot light reads the pick). At boot the reader takes the
  *   mask itself after settings_load() restored it, so this subtree's commit
@@ -52,9 +66,15 @@
  *   -EAGAIN, as the palette's.
  * - Threads, as src/palette.c's: the handler runs where ZMK runs behaviors (a
  *   half: the Bluetooth receive work queue; the central: the system work
- *   queue, where the port's line and the resend run); the mask and the two
- *   flags are atomics; the save is a work item on the system work queue (a
- *   flash write stays off the Bluetooth queue).
+ *   queue, where the port's line and the resend run); the mask, the argument
+ *   and the two flags are atomics, set one after another, so a frame
+ *   composed between the mask's set and the argument's may draw the new
+ *   pick in the old colour once, and the changed hook's repaint, after both,
+ *   clears it; the save is a work item on the system work queue (a flash
+ *   write stays off the Bluetooth queue).
+ * - A failed save is logged and not retried (as before the argument): the
+ *   next change saves, and until then a boot returns to the previous pick,
+ *   whole.
  * - Delivery is not confirmed, as the palette's: the next battery report of a
  *   half resends the pick, RESEND_DELAY_MS after it (src/palette.c says why
  *   the wait).
@@ -105,35 +125,62 @@ BUILD_ASSERT(RESEND_INVOCATIONS * ZMK_SPLIT_CENTRAL_PERIPHERAL_COUNT <=
 
 #define RESEND_DELAY_MS 1000
 
-bool lantern_pick_get(struct lantern_pick *p, uint32_t *out) {
+bool lantern_pick_get(struct lantern_pick *p, uint32_t *out, uint32_t *arg) {
     if (!atomic_get(&p->have)) {
         return false;
     }
     *out = (uint32_t)atomic_get(&p->mask);
+    if (arg != NULL) {
+        *arg = (uint32_t)atomic_get(&p->arg);
+    }
     return true;
 }
 
-/* System work queue. */
+/* The stored value (the header): the mask, then the argument where the
+ * instance has one; the mask alone for an instance without. */
+struct stored {
+    uint32_t mask;
+    uint32_t arg;
+};
+BUILD_ASSERT(sizeof(struct stored) == 2 * sizeof(uint32_t), "the stored pick is packed");
+
+static size_t stored_size(const struct lantern_pick *p) {
+    return p->arg_max != 0 ? sizeof(struct stored) : sizeof(uint32_t);
+}
+
+/* System work queue: one write. */
 static void save(struct k_work *work) {
     struct lantern_pick *p = CONTAINER_OF(work, struct lantern_pick, save_work);
-    uint32_t copy = (uint32_t)atomic_get(&p->mask);
-    int rc = settings_save_one(p->key, &copy, sizeof(copy));
+    struct stored copy = {
+        .mask = (uint32_t)atomic_get(&p->mask),
+        .arg = (uint32_t)atomic_get(&p->arg),
+    };
+    int rc = settings_save_one(p->key, &copy, stored_size(p));
     if (rc < 0) {
         LOG_ERR("%s: save failed: %d", p->name, rc);
     }
 }
 
-int lantern_pick_pressed(struct lantern_pick *p, uint32_t m) {
+int lantern_pick_pressed(struct lantern_pick *p, uint32_t m, uint32_t a) {
     if (m == 0) {
         LOG_WRN("%s: an empty pick", p->name);
         return -EINVAL;
     }
+    if (a > p->arg_max) {
+        LOG_WRN("%s: argument %08x above %08x", p->name, a, p->arg_max);
+        return -EINVAL;
+    }
     bool changed = (uint32_t)atomic_set(&p->mask, (atomic_val_t)m) != m;
+    changed = ((uint32_t)atomic_set(&p->arg, (atomic_val_t)a) != a) || changed;
     bool new = atomic_set(&p->have, 1) == 0;
     if (changed || new) {
         k_work_submit(&p->save_work);
     }
-    LOG_INF("%s: %08x %s", p->name, m, changed || new ? "stored" : "unchanged");
+    if (p->arg_max != 0) {
+        LOG_INF("%s: %08x %06x %s", p->name, m, a, changed || new ? "stored" : "unchanged");
+    } else {
+        LOG_INF("%s: %08x %s", p->name, m, changed || new ? "stored" : "unchanged");
+    }
     if ((changed || new) && p->changed != NULL) {
         p->changed();
     }
@@ -146,20 +193,27 @@ int lantern_pick_set(struct lantern_pick *p, const char *name, size_t len, setti
     if (!settings_name_steq(name, "mask", &next) || next) {
         return -ENOENT;
     }
-    uint32_t copy;
-    if (len != sizeof(copy)) {
+    /* the mask alone (an image before the argument, or an instance without
+     * one), or the mask and the argument */
+    struct stored copy = {0};
+    if (len != sizeof(copy.mask) && len != stored_size(p)) {
         LOG_WRN("%s: stored pick of %u bytes ignored", p->name, (unsigned int)len);
         return -EINVAL;
     }
-    ssize_t rc = read_cb(cb_arg, &copy, sizeof(copy));
+    ssize_t rc = read_cb(cb_arg, &copy, len);
     if (rc < 0) {
         return (int)rc;
     }
-    if (copy == 0) {
+    if (copy.mask == 0) {
         LOG_WRN("%s: stored empty pick ignored", p->name);
         return -EINVAL;
     }
-    atomic_set(&p->mask, (atomic_val_t)copy);
+    if (copy.arg > p->arg_max) {
+        LOG_WRN("%s: stored argument %08x above %08x ignored", p->name, copy.arg, p->arg_max);
+        return -EINVAL;
+    }
+    atomic_set(&p->mask, (atomic_val_t)copy.mask);
+    atomic_set(&p->arg, (atomic_val_t)copy.arg);
     atomic_set(&p->have, 1);
     return 0;
 }
@@ -177,16 +231,17 @@ static struct zmk_behavior_binding_event local_event(void) {
     };
 }
 
-static struct zmk_behavior_binding binding_of(const struct lantern_pick *p, uint32_t m) {
+static struct zmk_behavior_binding binding_of(const struct lantern_pick *p, uint32_t m,
+                                              uint32_t a) {
     return (struct zmk_behavior_binding){
         .behavior_dev = p->behavior,
         .param1 = m,
-        .param2 = 0,
+        .param2 = a,
     };
 }
 
-int lantern_pick_send(struct lantern_pick *p, uint32_t m) {
-    if (m == 0 || (m & ~p->all) != 0) {
+int lantern_pick_send(struct lantern_pick *p, uint32_t m, uint32_t a) {
+    if (m == 0 || (m & ~p->all) != 0 || a > p->arg_max) {
         return -EINVAL;
     }
     if (p->one && __builtin_popcount(m) != 1) {
@@ -195,7 +250,7 @@ int lantern_pick_send(struct lantern_pick *p, uint32_t m) {
     if (!atomic_get(&p->loaded)) {
         return -EAGAIN;
     }
-    struct zmk_behavior_binding binding = binding_of(p, m);
+    struct zmk_behavior_binding binding = binding_of(p, m, a);
     return zmk_behavior_invoke_binding(&binding, local_event(), true);
 }
 
@@ -208,7 +263,8 @@ static void resend(struct k_work *work) {
     if (!atomic_get(&p->have)) {
         return;
     }
-    struct zmk_behavior_binding binding = binding_of(p, (uint32_t)atomic_get(&p->mask));
+    struct zmk_behavior_binding binding =
+        binding_of(p, (uint32_t)atomic_get(&p->mask), (uint32_t)atomic_get(&p->arg));
     int err = zmk_split_central_invoke_behavior(r->source, &binding, local_event(), true);
     if (err < 0) {
         LOG_WRN("%s: resend to half %u failed: %d", p->name, r->source, err);

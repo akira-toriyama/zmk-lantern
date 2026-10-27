@@ -29,6 +29,8 @@
 #include "hit.dtsi"
 #include "effect.dtsi"
 #include "intro.dtsi"
+#include "effect_next.dtsi"
+#include "pick_keys.dtsi"
 
 &{/EXT_POWER} {
     status = "disabled";
