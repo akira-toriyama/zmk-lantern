@@ -54,8 +54,9 @@ a time, 2026-10-21 to 2026-10-26, then its product images with the pick,
 the split, the beams (2026-10-26, canon's product conf plus
 `CONFIG_LANTERN_BEAMS=y`, the pick `beams` sent from the dongle's port) and
 the water (2026-10-27, the same way with `CONFIG_LANTERN_WATER=y` and the
-pick `water`, on both halves), each the user's OK on sight (canon t-6ttk,
-t-5hqx).
+pick `water`, on both halves) and the dart (2026-10-27, the same way with
+`CONFIG_LANTERN_DART=y` and the pick `dart`, on both halves, the bar running
+in across the split), each the user's OK on sight (canon t-6ttk, t-5hqx).
 
 ## What it does
 
