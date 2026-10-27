@@ -342,7 +342,8 @@ config LANTERN_EFFECTS
     select LANTERN_FRAMES
     help
       The effects' engine in src/keys.c: the ring of the half's last
-      presses and the pull from the picture toward an effect's colour, on
+      presses (and, with LANTERN_HOLDS, the keys it holds down) and the
+      pull from the picture toward an effect's colour, on
       the moving frames and their cap (LANTERN_FRAMES), the table of the
       built effects (one file an effect under src/effects/, src/frame.h;
       each lives its design's time after a press, or on a larger board the
@@ -351,6 +352,18 @@ config LANTERN_EFFECTS
       which of them draw (LANTERN_EFFECT,
       the choice LANTERN_EFFECT_DEFAULT). Each effect selects it; nothing
       to set.
+
+config LANTERN_HOLDS
+    bool
+    select LANTERN_EFFECTS
+    help
+      The holds in src/keys.c's engine: which of this half's own keys are
+      down and for how long, and which were let go within the picked
+      effects' life, for an effect that draws what is held rather than what
+      was pressed (the held keys, LANTERN_HELD), through the hold hook of
+      the effects' table (src/frame.h); a key down past a second is
+      settled, and moves no frame until it is let go. An effect that reads
+      them selects it; nothing to set.
 
 config LANTERN_PICK
     bool
@@ -434,6 +447,10 @@ config LANTERN_EFFECT_DEFAULT_WATER
 config LANTERN_EFFECT_DEFAULT_DART
     bool "The dart"
     depends on LANTERN_DART
+
+config LANTERN_EFFECT_DEFAULT_HELD
+    bool "The held keys"
+    depends on LANTERN_HELD
 
 endchoice
 
@@ -656,6 +673,25 @@ config LANTERN_DART
       zmk-advanced-underglow-effects-vfx's dart, from its idea (nothing
       copied). Needs the keys' places, as the thin ring does. Default n,
       as the thin ring.
+
+config LANTERN_HELD
+    bool "Build the held keys: a key held down past a moment lights in its band's colour until it is let go; a tap shows nothing"
+    depends on LANTERN_KEYS
+    select LANTERN_HOLDS
+    help
+      The effect held (src/effect.h), built into the image and drawn when
+      the pick names it (LANTERN_EFFECT, LANTERN_EFFECT_DEFAULT): while the
+      key LEDs are lit, a key of this half held down for 150 ms or longer
+      lights in the palette's colour of its band (the node's slots, the
+      crossing ring's colour source; slot 0 without slots) at full
+      brightness within the frame's cap, until it is let go, and then fades
+      back to the picture over 0.2 s; a key let go sooner, a tap, shows
+      nothing, so what shows is what is being held: a layer key, a
+      modifier, an arrow key held down. This half's own keys only: the hit
+      (LANTERN_HIT) relays presses and no releases, so the other half's
+      held keys show on the other half. The research's key held down (canon
+      t-6ttk), the module's own idea. Needs no key places. Default n, as
+      the thin ring.
 
 config LANTERN_HIT
     bool "Carry each half's key presses to the other half through the split central, for the effects that cross the split"

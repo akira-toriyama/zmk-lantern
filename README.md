@@ -6,7 +6,8 @@ battery and after the idle timeout, plays an intro at boot and whenever a
 cable is plugged in, paints the keys from a palette of six colours the host
 hands the keyboard over USB, and draws an effect from every key you press: a
 ring, a disc, a stain, a ring crossing both halves, beams, water or a dart,
-in the palette's colours or in one colour of the host's choosing. On a split
+or lights the keys you hold down, in the palette's colours or in one colour
+of the host's choosing. On a split
 keyboard each half lights for itself, the central relays the key presses and
 the host's choices to the halves, and a half that was away catches up when it
 is back; the host's channel is the split central's USB port, so a keyboard
@@ -316,7 +317,7 @@ lights what is at hand. The sibling module
   plugged into a half that typed a while ago lights the stage its keys say.
   The clock is the half's own keys: a sensor or pointing input counts for
   ZMK's idle, not for the stages. One colour: the bands until the dark.
-- The effects: a picture that moves after a key, the seven below. The conf
+- The effects: a picture that moves after a key, the eight below. The conf
   builds the ones it wants into the image, and the pick says which of them
   draw (The picks, below): the host's, kept across boots, or without one the
   effect the Kconfig choice `LANTERN_EFFECT_DEFAULT` names, in the pick's
@@ -406,6 +407,15 @@ lights what is at hand. The sibling module
   away, at full brightness within the frame's cap (with the hit the bar runs
   on through the other half, and a press of the other half brings it in
   across the split); a key under two darts shows the stronger one's colour.
+- The held keys (`CONFIG_LANTERN_HELD`; the pick's `held`): a key of this
+  half held down for 150 ms or longer lights in its band's colour (the
+  node's `slots`, as the crossing ring's; one colour without them) at full
+  brightness within the frame's cap, until it is let go, and then fades back
+  to the picture over 0.2 s; a key let go sooner, a tap, shows nothing, so
+  typing shows nothing and what is being held shows, a layer key, a
+  modifier, an arrow key held down. This half's own keys only: the hit
+  below carries presses and no releases, so each half shows what it holds.
+  A key held longer than a second moves no frame until it is let go.
 - The pick's colour: with one, every picked effect draws in that one colour
   in place of its own source above (the stain dyes in it too); the picture
   keeps the palette's colours.
@@ -470,7 +480,7 @@ ring draws it from the other half's key; the beams, the thin ring, the
 disc, the water and the dart do too, in their own colours (the beams' row
 comes in across the split, the water's waves low, the dart's bar on its
 way), the stain dyes with it, and it counts in the press count the thin
-ring's colours follow. Delivery is not confirmed, as the palette's, and the
+ring's colours follow; the held keys ignore it, a press without a release. Delivery is not confirmed, as the palette's, and the
 hits share the central's run queue with the palette (the source says what a
 half that vanishes while lit costs).
 
@@ -534,8 +544,8 @@ built, else the bands): the only picks a keyboard without a host has.
   any; a name not in the word's table gets `effect error: no such effect`
   (or the intro's) and changes nothing ([src/port.c](src/port.c) is the
   grammar). The names, and the bit each carries on the wire: the effects'
-  `thin-ring`, `disc`, `stain`, `cross-ring`, `beams`, `water`, `dart`
-  ([src/effect.h](src/effect.h)'s table), the intros' `bands`, `star-waves`
+  `thin-ring`, `disc`, `stain`, `cross-ring`, `beams`, `water`, `dart`,
+  `held` ([src/effect.h](src/effect.h)'s table), the intros' `bands`, `star-waves`
   ([src/intro.h](src/intro.h)'s). The central's code invokes the
   `lantern,behavior-effect` or `lantern,behavior-intro` node, which ZMK's
   split transport carries to every half by the node's name; a key of the
@@ -564,7 +574,7 @@ colour (default 0, the palette's colours), `CONFIG_LANTERN_INTRO_DEFAULT_<INTRO>
 the intro. The keymap, on the central: `&effect <mask> <colour>` on a key picks
 on press, the mask a sum of the effects' bits in [src/effect.h](src/effect.h)'s
 order (`thin-ring` 1, `disc` 2, `stain` 4, `cross-ring` 8, `beams` 16, `water`
-32, `dart` 64; several draw together) and the colour `0xRRGGBB` or 0 for the
+32, `dart` 64, `held` 128; several draw together) and the colour `0xRRGGBB` or 0 for the
 palette's (`&effect 4 0xFF0000`: the stain in red); `&effect_next` on a key
 picks the next effect in the table's order, round again after the last, and
 keeps the colour (the node `lantern,behavior-effect-next`, in the keymap's

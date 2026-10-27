@@ -13,6 +13,7 @@ target_sources_ifdef(CONFIG_LANTERN_CROSS_RING app PRIVATE src/effects/cross_rin
 target_sources_ifdef(CONFIG_LANTERN_BEAMS app PRIVATE src/effects/beams.c)
 target_sources_ifdef(CONFIG_LANTERN_WATER app PRIVATE src/effects/water.c)
 target_sources_ifdef(CONFIG_LANTERN_DART app PRIVATE src/effects/dart.c)
+target_sources_ifdef(CONFIG_LANTERN_HELD app PRIVATE src/effects/held.c)
 target_sources_ifdef(CONFIG_LANTERN_ON_USB_POWER app PRIVATE src/on_usb_power.c)
 target_sources_ifdef(CONFIG_LANTERN_PALETTE app PRIVATE src/palette.c)
 target_sources_ifdef(CONFIG_LANTERN_PORT app PRIVATE src/port.c)

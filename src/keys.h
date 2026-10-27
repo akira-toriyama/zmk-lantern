@@ -63,7 +63,7 @@ static inline void lantern_keys_hit(uint8_t position) { ARG_UNUSED(position); }
 #endif
 
 /* The pick of the effects changed (src/effect.c): the effects' state goes
- * (the hits, and the stain's dye at the next frame) and the LEDs are
+ * (the hits, the holds, and the stain's dye at the next frame) and the LEDs are
  * repainted while lit, so the old effect's rings do not turn into the new
  * one's shape. Any thread. Without an effect this compiles to nothing. */
 #if IS_ENABLED(CONFIG_LANTERN_EFFECTS)

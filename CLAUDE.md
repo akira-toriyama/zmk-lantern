@@ -35,14 +35,16 @@ how to build. Usage: [README.md](README.md). English only.
   picture, every key black under the effects and the bands for the boot
   light (`CONFIG_LANTERN_NO_PICTURE`); the
   effects that move the picture after a key, the thin ring, the disc, the
-  stain, the crossing ring, the beams, the water and the dart
+  stain, the crossing ring, the beams, the water, the dart and the held
+  keys
   (`CONFIG_LANTERN_THIN_RING`, `CONFIG_LANTERN_DISC`, `CONFIG_LANTERN_STAIN`,
   `CONFIG_LANTERN_CROSS_RING`, `CONFIG_LANTERN_BEAMS`, `CONFIG_LANTERN_WATER`,
-  `CONFIG_LANTERN_DART`, each built into the image by the consumer's conf,
-  off by default;
+  `CONFIG_LANTERN_DART`, `CONFIG_LANTERN_HELD`, each built into the image by
+  the consumer's conf, off by default;
   one file an effect under src/effects/ on the engine of src/keys.c, the
   table and the node's `coords` through src/frame.h and
-  `CONFIG_LANTERN_GEOMETRY`), and the
+  `CONFIG_LANTERN_GEOMETRY`, and the held keys' input, which of this
+  half's keys are down, through its holds, `CONFIG_LANTERN_HOLDS`), and the
   pick of which built effects draw and in which colour, the host's over the
   central's port or a key's (`&effect <mask> <colour>`), kept across boots,
   or the Kconfig choice `LANTERN_EFFECT_DEFAULT` and `CONFIG_LANTERN_EFFECT_COLOUR`
@@ -177,7 +179,8 @@ how to build. Usage: [README.md](README.md). English only.
   the bands') and puts `star_waves.c.obj` in zmk.map, as each built effect
   puts its file's
   (`thin_ring.c.obj`, the stain's too, `disc.c.obj`, `cross_ring.c.obj`,
-  `beams.c.obj`, `water.c.obj`, `dart.c.obj`);
+  `beams.c.obj`, `water.c.obj`, `dart.c.obj`, `held.c.obj`, the last with
+  `CONFIG_LANTERN_HOLDS=y`);
   a half shows `CONFIG_LANTERN_BANDS=y`, or `CONFIG_LANTERN_SOLID=y`,
   `CONFIG_LANTERN_GRADIENT=y`, `CONFIG_LANTERN_SCATTER=y` or
   `CONFIG_LANTERN_NO_PICTURE=y` in its place,
@@ -361,7 +364,8 @@ how to build. Usage: [README.md](README.md). English only.
   and never moves the countdown's clock with it. With the hit built, the
   beams, the thin ring, the disc, the water and the dart draw the other
   half's presses too, and the disc's life covers the whole board
-  (`disc_life()`), not a half.
+  (`disc_life()`), not a half; the held keys never: a relayed press
+  carries no release, so each half shows the keys it holds.
 - **Every palette change goes through the behavior**, on the central too: the
   port only parses and replies (`lantern_palette_send()`, which clears the
   slots it is not given), and the central stores its copy by the same handler
@@ -453,7 +457,19 @@ how to build. Usage: [README.md](README.md). English only.
   `lantern_life()` holds the board's; the board is measured once at boot on
   the main thread (`src/keys.c`'s `board_init()`), and the frame's thread
   reads it. The beams are the one life without a board term: their fade
-  answers to the gap between the halves.
+  answers to the gap between the halves. **An input the engine lacks is the
+  engine's change, not an effect's**: the hits were (canon t-6ttk), and so
+  are the holds (`CONFIG_LANTERN_HOLDS`, the held keys): one atomic a key
+  position of this half, down with the press's time, let go with its
+  length and the release's time, or settled, a key down past
+  `LANTERN_HOLD_SETTLE_MS` (a second), whose time is dropped (the 18-bit
+  clock would wrap under a long hold) and which moves no frame until it is
+  let go; the key listener writes them (press and release, under the hits'
+  rule: lit, no intro), the frame reads them into a static list for the
+  entries' `hold` hook after the hits' `draw`, settles and clears by
+  compare-and-set, and the blank and the pick's change clear them with the
+  hits. A relayed press is never a hold. An effect whose moment comes
+  after the settle asserts against it (`src/effects/held.c`).
 - **A new intro is a line in `LANTERN_INTRO_LIST` (`src/intro.h`), its
   Kconfig symbol `LANTERN_INTRO_<SYMBOL>` (depends on
   `LANTERN_ON_USB_POWER`, selects `LANTERN_INTROS` and, when it moves,

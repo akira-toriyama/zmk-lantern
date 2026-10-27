@@ -171,6 +171,30 @@
  *   line in the list, a file under src/effects/ with its entry, its Kconfig
  *   symbol and default-choice member (src/effect.h) and its CMake line:
  *   nothing here.
+ * - The holds (CONFIG_LANTERN_HOLDS, which an effect that draws what is held
+ *   selects; canon t-6ttk, the held keys): one atomic a key position, this
+ *   half's own keys only, written by the key listener on press (down, with
+ *   the press's time) and on release (let go, with how long it was down and
+ *   the release's time), read by the frame into a list for the picked
+ *   entries' hold hook (frame.h: struct hold), after the hits' draw. A press
+ *   is noted under the hits' rule (lit, no intro); a release of a key whose
+ *   press was not noted, or that was let go already, is nothing. A key down
+ *   LANTERN_HOLD_SETTLE_MS or longer is settled by the frame (compare-and-set,
+ *   its time dropped): the 18-bit clock would wrap under a key held 262 s
+ *   and read it as just pressed, and a frame every FRAME_MS for a key held
+ *   through a long hold would show nothing new, so a settled key reads
+ *   LANTERN_HOLD_SETTLE_MS for its age and moves no frame; the release does
+ *   (the listener sends one), and a let-go key moves frames until the
+ *   longest life of the picked entries that read the holds (holds_life(),
+ *   not the hits': a key let go need not outlive the dart's bar), past
+ *   which the frame clears it (compare-and-set, so a new press of the key
+ *   meanwhile is kept). A relayed press (src/hit.c)
+ *   is never a hold: nothing relays its release, so the other half's held
+ *   keys show on the other half. The blank and the pick's change clear the
+ *   holds with the hits; a release while dark is dropped with the press
+ *   (the listener's rule), so no stale hold meets the next light. The list
+ *   is static, a key position long (the frame thread's stack is small, the
+ *   header's threads), as pixels and picture are.
  * - The effects brighten to full scale because twice LEVEL, the first try
  *   (the press glow, dropped after canon t-6ttk's scores), was not seen on
  *   hardware: under the keycaps 16 % to 32 % for half a second read as no
@@ -753,6 +777,118 @@ static size_t hits_read(struct hit live[HITS], uint32_t life) {
     return n;
 }
 
+#if IS_ENABLED(CONFIG_LANTERN_HOLDS)
+
+/* The holds (the header): a key position's atomic is its state in the top
+ * two bits, 0 for none, HOLD_DOWN with the press's time (the low 18 bits of
+ * k_uptime_get_32() in ms, as a hit's), HOLD_GONE with how long the key was
+ * down (ms, at HOLD_DOWN_SHIFT, at most LANTERN_HOLD_SETTLE_MS) and the
+ * release's time, or HOLD_SETTLED alone. */
+#define HOLD_STATE_SHIFT 30
+#define HOLD_DOWN 1u
+#define HOLD_GONE 2u
+#define HOLD_SETTLED 3u
+#define HOLD_DOWN_SHIFT 18
+#define HOLD_DOWN_MASK 0xFFFu
+BUILD_ASSERT(LANTERN_HOLD_SETTLE_MS <= HOLD_DOWN_MASK, "a hold's length is kept in 12 bits");
+BUILD_ASSERT(LANTERN_HOLD_SETTLE_MS < HIT_TIME / 2, "a hold's age must be told from a wrapped time");
+BUILD_ASSERT(LANTERN_HOLD_SETTLE_MS <= UINT16_MAX, "a hold's age and length are kept in 16 bits");
+
+static atomic_t holds[KEY_COUNT];
+/* The frame's thread: the list the frame reads the holds into (the header). */
+static struct hold held_list[KEY_COUNT];
+
+static uint32_t hold_now(void) { return k_uptime_get_32() & HIT_TIME; }
+
+/* The key listener only: position is down from now (a hold let go within
+ * the life, or settled, is written over). */
+static void hold_note(uint32_t position) {
+    atomic_set(&holds[position],
+               (atomic_val_t)((HOLD_DOWN << HOLD_STATE_SHIFT) | hold_now()));
+}
+
+/* The key listener only: position is let go; true when it was down (a
+ * release of an unnoted press, or a second release, is nothing). The
+ * compare-and-set: the frame may settle the key meanwhile. */
+static bool hold_release(uint32_t position) {
+    atomic_val_t v;
+    uint32_t next;
+
+    do {
+        v = atomic_get(&holds[position]);
+        uint32_t u = (uint32_t)v, state = u >> HOLD_STATE_SHIFT, now = hold_now(), down;
+
+        if (state == HOLD_DOWN) {
+            down = MIN((now - (u & HIT_TIME)) & HIT_TIME, LANTERN_HOLD_SETTLE_MS);
+        } else if (state == HOLD_SETTLED) {
+            down = LANTERN_HOLD_SETTLE_MS;
+        } else {
+            return false;
+        }
+        next = (HOLD_GONE << HOLD_STATE_SHIFT) | (down << HOLD_DOWN_SHIFT) | now;
+    } while (!atomic_cas(&holds[position], v, (atomic_val_t)next));
+    return true;
+}
+
+/* Any thread. */
+static void holds_clear(void) {
+    for (size_t k = 0; k < KEY_COUNT; k++) {
+        atomic_set(&holds[k], 0);
+    }
+}
+
+/* The frame's thread. The holds into held (the header): every key down, and
+ * every key let go within life ms (holds_life(), the hold hooks' own); returns
+ * how many, and in moving whether one still moves a frame, a key down short
+ * of the settle or let go within life. A key down LANTERN_HOLD_SETTLE_MS or
+ * longer is settled here, one let go life ms ago or more cleared, each by
+ * compare-and-set, so a press or release the listener wrote meanwhile is
+ * kept. The clock is read after the hold, as hits_read() says. */
+static size_t holds_read(struct hold held[KEY_COUNT], uint32_t life, bool *moving) {
+    size_t m = 0;
+
+    *moving = false;
+    for (size_t k = 0; k < KEY_COUNT; k++) {
+        atomic_val_t v = atomic_get(&holds[k]);
+        if (v == 0) {
+            continue;
+        }
+        uint32_t u = (uint32_t)v, state = u >> HOLD_STATE_SHIFT;
+        uint32_t age = (hold_now() - (u & HIT_TIME)) & HIT_TIME;
+
+        if (state == HOLD_SETTLED) {
+            age = LANTERN_HOLD_SETTLE_MS;
+        } else if (state == HOLD_DOWN) {
+            if (age >= LANTERN_HOLD_SETTLE_MS) {
+                (void)atomic_cas(&holds[k], v, (atomic_val_t)(HOLD_SETTLED << HOLD_STATE_SHIFT));
+                age = LANTERN_HOLD_SETTLE_MS;
+            } else {
+                *moving = true;
+            }
+        } else {
+            if (age >= life) {
+                (void)atomic_cas(&holds[k], v, 0);
+                continue;
+            }
+            *moving = true;
+            held[m++] = (struct hold){.key = (uint8_t)k,
+                                      .released = true,
+                                      .age = (uint16_t)age,
+                                      .held = (uint16_t)((u >> HOLD_DOWN_SHIFT) & HOLD_DOWN_MASK)};
+            continue;
+        }
+        held[m++] = (struct hold){
+            .key = (uint8_t)k, .released = false, .age = (uint16_t)age, .held = (uint16_t)age};
+    }
+    return m;
+}
+
+#else
+
+static inline void holds_clear(void) {}
+
+#endif /* IS_ENABLED(CONFIG_LANTERN_HOLDS) */
+
 #endif /* IS_ENABLED(CONFIG_LANTERN_EFFECTS) */
 
 #if IS_ENABLED(CONFIG_LANTERN_FRAMES)
@@ -883,6 +1019,25 @@ static uint32_t effects_life(uint32_t fx) {
     return life;
 }
 
+#if IS_ENABLED(CONFIG_LANTERN_HOLDS)
+/* How long after a release the entries in fx that read the holds still draw
+ * a key let go: the longest life among those with a hold hook (0 when none
+ * has one: a let-go key is then cleared at the next frame). Narrower than
+ * effects_life(): a hold let go need not outlive the dart's bar. */
+static uint32_t holds_life(uint32_t fx) {
+    uint32_t life = 0;
+
+    for (size_t e = 0; e < ARRAY_SIZE(effects); e++) {
+        if ((row_bits(e) & fx) && effects[e].entry->hold != NULL) {
+            uint32_t own = effects[e].entry->life();
+
+            life = MAX(life, MIN(own, LANTERN_EFFECT_LIFE_MAX_MS));
+        }
+    }
+    return life;
+}
+#endif
+
 /* The frame's thread: every entry's state goes (the header). */
 static void effects_clear(void) {
     for (size_t e = 0; e < ARRAY_SIZE(effects); e++) {
@@ -943,16 +1098,30 @@ static bool compose(size_t at) {
 
     struct hit live[HITS];
     size_t n = hits_read(live, effects_life(fx));
+    bool moving = n > 0; /* every live hit is within the picked effects' life (hits_read) */
+#if IS_ENABLED(CONFIG_LANTERN_HOLDS)
+    bool holding;
+    size_t m = holds_read(held_list, holds_life(fx), &holding);
+
+    moving = moving || holding;
+#endif
 
     memcpy(picture, pixels, sizeof(pixels));
     for (size_t e = 0; e < ARRAY_SIZE(effects); e++) {
-        if ((row_bits(e) & fx) && effects[e].entry->draw != NULL) {
+        if ((row_bits(e) & fx) == 0) {
+            continue;
+        }
+        if (effects[e].entry->draw != NULL) {
             effects[e].entry->draw(pixels, esh, live, n, fx);
         }
+#if IS_ENABLED(CONFIG_LANTERN_HOLDS)
+        if (effects[e].entry->hold != NULL) {
+            effects[e].entry->hold(pixels, esh, held_list, m);
+        }
+#endif
     }
     hold_to_cap();
-    /* every live hit is within the picked effects' life (hits_read) */
-    return n > 0;
+    return moving;
 #else
     return false;
 #endif
@@ -1100,13 +1269,25 @@ static int key_listener(const zmk_event_t *eh) {
     frame = atomic_get(&lit) && countdown_step();
 #endif
 #if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
-    /* This half's own presses only: on a split central (Cyboard's stock left
-     * half) the other half's keys arrive here too, and no LED here shows them;
-     * none while an intro plays (the header). */
-    if (ev->state && ev->source == ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL &&
-        ev->position < KEY_COUNT && atomic_get(&lit) && !intro_plays()) {
-        hit_note(ev->position);
-        frame = true;
+    /* This half's own presses only, and with the holds its releases: on a
+     * split central (Cyboard's stock left half) the other half's keys arrive
+     * here too, and no LED here shows them; none while an intro plays (the
+     * header). */
+    if (ev->source == ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL && ev->position < KEY_COUNT &&
+        atomic_get(&lit) && !intro_plays()) {
+        if (ev->state) {
+            hit_note(ev->position);
+#if IS_ENABLED(CONFIG_LANTERN_HOLDS)
+            hold_note(ev->position);
+#endif
+            frame = true;
+        }
+#if IS_ENABLED(CONFIG_LANTERN_HOLDS)
+        else if (hold_release(ev->position)) {
+            /* a key noted down is let go: the holds (the header) */
+            frame = true;
+        }
+#endif
     }
 #endif
     if (frame) {
@@ -1137,6 +1318,7 @@ void lantern_keys_hit(uint8_t position) {
  * sends. */
 void lantern_keys_effect_changed(void) {
     hits_clear();
+    holds_clear();
     if (atomic_get(&lit)) {
         submit();
     }
@@ -1156,6 +1338,7 @@ void lantern_keys_blank(void) {
     countdown_stop();
 #if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
     hits_clear();
+    holds_clear();
 #endif
     submit();
 }

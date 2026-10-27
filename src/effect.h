@@ -41,7 +41,8 @@
     X(CROSS_RING, 3, "cross-ring", cross_ring)                                                     \
     X(BEAMS, 4, "beams", beams)                                                                    \
     X(WATER, 5, "water", water)                                                                    \
-    X(DART, 6, "dart", dart)
+    X(DART, 6, "dart", dart)                                                                       \
+    X(HELD, 7, "held", held)
 
 /* Each effect's bit in a pick: LANTERN_EFFECT_THIN_RING and so on. */
 enum lantern_effect {

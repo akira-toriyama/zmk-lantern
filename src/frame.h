@@ -41,6 +41,10 @@
  *   to the cap. A hit lives the picked entries' longest life, each the
  *   design's or the board's (lantern_life()); at a blank
  *   and when the stage or the pick moves, every entry's state goes (clear).
+ *   With the holds built (CONFIG_LANTERN_HOLDS), the engine also keeps which
+ *   of this half's keys are down and which were let go within that life,
+ *   and lets every picked entry draw them after the hits (hold): the held
+ *   keys' input, which a hit, a press alone, cannot carry.
  *   An entry draws for its own line's bit, which the table gives it, and
  *   for any other line it names (serves: the thin ring's entry names the
  *   stain's bit, the stain being the ring that dyes, so that the ring is
@@ -259,6 +263,29 @@ static inline uint32_t lantern_life(uint32_t design_ms, uint32_t board_ms) {
     return MIN(MAX(design_ms, board_ms), LANTERN_EFFECT_LIFE_MAX_MS);
 }
 
+#if IS_ENABLED(CONFIG_LANTERN_HOLDS)
+
+/* A key of this half down, or let go within the life of the picked entries
+ * that read the holds, read
+ * out of the engine's holds (src/keys.c; the entry's hold below): one a key
+ * position, this half's own keys only (a relayed press, src/hit.c, carries
+ * no release). While the key is down, age and held are both the ms since
+ * the press; once it is let go, age is the ms since the release and held
+ * how long it was down. A key down LANTERN_HOLD_SETTLE_MS or longer is
+ * settled: both read LANTERN_HOLD_SETTLE_MS from then on, however long it
+ * stays down, and no frame follows it until it is let go (src/keys.c says
+ * why), so an effect's moment must come before the settle (each asserts). */
+struct hold {
+    uint8_t key;   /* a key position */
+    bool released; /* let go: age counts from the release */
+    uint16_t age;  /* ms since the press, or since the release, at most LANTERN_HOLD_SETTLE_MS while down */
+    uint16_t held; /* ms the key has been, or was, down, at most LANTERN_HOLD_SETTLE_MS */
+};
+
+#define LANTERN_HOLD_SETTLE_MS 1000
+
+#endif /* IS_ENABLED(CONFIG_LANTERN_HOLDS) */
+
 /* An effect's entry in the table (the header): lantern_effect_<ops> for the
  * line X(SYMBOL, bit, "name", ops) of LANTERN_EFFECT_LIST, defined by its
  * file under src/effects/ and built when CONFIG_LANTERN_<SYMBOL> is. */
@@ -278,6 +305,13 @@ struct lantern_effect_entry {
      * draws for more than one bit; NULL for none. */
     void (*draw)(struct led_rgb px[], const struct shades *sh, const struct hit live[], size_t n,
                  uint32_t picked);
+#if IS_ENABLED(CONFIG_LANTERN_HOLDS)
+    /* The m holds over the picture in px, after draw (the holds above: this
+     * half's keys down, and let go within the longest life of the picked
+     * entries that have this hook); NULL for none. Only with the holds
+     * built (CONFIG_LANTERN_HOLDS, which an entry that reads them selects). */
+    void (*hold)(struct led_rgb px[], const struct shades *sh, const struct hold held[], size_t m);
+#endif
     /* Its state goes: at a blank, and when the stage or the pick moves; NULL
      * for none. */
     void (*clear)(void);
