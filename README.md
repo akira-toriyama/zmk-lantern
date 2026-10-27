@@ -67,7 +67,7 @@ in across the split), each the user's OK on sight (canon t-6ttk, t-5hqx).
 | USB powers the half and its last key is `CONFIG_LANTERN_COUNTDOWN_STAGE_MS` (10 s) or more ago (`CONFIG_LANTERN_COUNTDOWN`) | on | lit: the whole half in the palette's next colour, a new picture every stage, the bands again after the last colour |
 | USB powers the half, but ZMK's activity state is idle: `CONFIG_ZMK_IDLE_TIMEOUT` ms (the consumer's line) without a key, sensor or pointing input on this half | off | black, until the next input |
 | the first `CONFIG_LANTERN_BOOT_LIGHT_MS` after boot (default 1000) | on | lit, cable or not |
-| with `CONFIG_LANTERN_INTRO`, the boot light: six seconds from boot and from each arrival of USB power | on | the intro, cable or not |
+| with `CONFIG_LANTERN_INTRO`, the boot light: ten seconds from boot and from each arrival of USB power | on | the intro, cable or not |
 
 - Each half decides for itself, from its own USB port and its own activity;
   nothing crosses the split. Typing on one half alone leaves the other to go
@@ -79,7 +79,7 @@ in across the split), each the user's OK on sight (canon t-6ttk, t-5hqx).
   boot light is never cut short. With the intro, plugging in plays it first.
 - A cable plugged into an idle half lights nothing until its next key: USB is
   no activity to ZMK, and lighting on it would leave the LEDs on with no idle
-  event to follow. With the intro it plays the intro, six seconds, and goes
+  event to follow. With the intro it plays the intro, ten seconds, and goes
   dark again.
 - The picture ([src/keys.c](src/keys.c)): each LED shows its key's colour in
   the picture, by default (the bands) the palette slot the consumer's
@@ -241,20 +241,24 @@ in across the split), each the user's OK on sight (canon t-6ttk, t-5hqx).
   the stronger one's colour. It measures the board from `coords` as the
   thin ring does, along the rows only.
 - The intro (`CONFIG_LANTERN_INTRO`, off by default while canon tries it):
-  the boot light plays a six-second show instead of the picture, in red,
+  the boot light plays a ten-second show instead of the picture, in red,
   blue and green up to full brightness within the frame's cap, not the
   palette's colours, and opens at boot and again whenever USB power arrives;
   then the rule applies as after any boot light. Each half plays it alone,
-  mirrored, from its outermost key to its innermost thumb (it measures the
-  board from `coords`): a star crosses the half, red over the outer third of
-  the depths, blue over the middle and green over the inner (the thirds the
-  burst ends in), and leaves the keys glittering in random primaries; a red,
-  a blue and a green wave follow it in; the thumb cluster, its inner keys
-  brightest, takes each wave's colour as it arrives, red, then blue, then
-  green, and pulses in the three by turns; a red, a blue and a green ring
-  burst back out, and the last leaves every key in its third of the half by
-  depth, the outer red, the middle blue and the inner green (on the Imprint,
-  the thumb cluster), which hold a moment and fade. No key mixes two of the
+  mirrored, from its outermost key to its innermost thumb and back (it
+  measures the board from `coords`): a star crosses the half, red over the
+  outer third of the depths, blue over the middle and green over the inner
+  (the thirds the burst ends in), and leaves the keys glittering in random
+  primaries; a red, a blue and a green wave follow it in; the thumb cluster,
+  its inner keys brightest, takes each wave's colour as it arrives, red,
+  then blue, then green, and pulses in the three by turns; a red, a blue and
+  a green ring burst back out, and the last leaves every key in its third of
+  the half by depth, the outer red, the middle blue and the inner green (on
+  the Imprint, the thumb cluster), which hold a moment; the three bands then
+  deepen into crests and flow outward at the waves' pace for three seconds,
+  each key dark between one colour and the next, and stand again, until a
+  star runs back out from the thumbs over them, the keys glittering after it
+  as at the start, the last of it out at the end. No key mixes two of the
   colours, and no other colour shows, white included. Nothing cuts it short,
   power arriving while it plays does not restart it, and keys pressed
   meanwhile show no effect.
@@ -571,7 +575,7 @@ attached; publishing the draft by hand creates the tag.
 Log lines (a `--logging` image, through canon's `dongle.py log` or any serial
 reader at 115200): `start: usb powered, boot light 1000 ms`, `lit: boot light`,
 `lit: usb powered`, `dark: on battery`, `dark: idle` (with the intro
-`start: usb powered, intro 6000 ms`, `lit: intro`, and `intro: usb powered`
+`start: usb powered, intro 10000 ms`, `lit: intro`, and `intro: usb powered`
 when power arrives), and the countdown's
 `stage N` at every move; the palette's:
 `slots 0-1 RRGGBB RRGGBB stored` (or `unchanged`) on every device, and on the

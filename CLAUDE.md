@@ -41,9 +41,9 @@ how to build. Usage: [README.md](README.md). English only.
   hit, each half's key presses relayed to the other half by the split
   central for the effects that cross the split (`CONFIG_LANTERN_HIT`;
   [src/hit.c](src/hit.c), binding `lantern,behavior-hit`); the
-  intro, a six-second show in red, blue and green from the outer keys to the
-  thumbs that the boot light plays instead of the picture, opening at boot
-  and again whenever USB power arrives
+  intro, a ten-second show in red, blue and green from the outer keys to the
+  thumbs and back that the boot light plays instead of the picture, opening
+  at boot and again whenever USB power arrives
   (`CONFIG_LANTERN_INTRO`, off by default while canon t-5v1f tries it; its
   script in src/keys.c, its opening on USB power in src/on_usb_power.c); the
   split link's peripheral

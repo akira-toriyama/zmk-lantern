@@ -109,18 +109,18 @@ config LANTERN_INTRO
     select LANTERN_FRAMES
     select LANTERN_GEOMETRY
     help
-      The boot light plays the intro, a six-second show (src/keys.c tells
-      it), instead of the picture, and opens at boot, cable or not, and
-      again whenever USB power arrives, so a cable plugged in shows it too,
-      into an idle half as well; then LANTERN_ON_USB_POWER's rule applies,
-      as after any boot light. Nothing cuts it short, and power that arrives
-      while it plays does not restart it. Each half plays it for itself,
-      mirrored, from its outermost key to its innermost thumb, measured on
-      the lantern,keys node's coords (asserted). Its colours are its own, not
-      the palette's: red, blue and green up to full scale under the frame's
-      cap, and no other, white included, a key in one of the three at a time
-      (canon t-5v1f and t-ky8x: the user's pick, after Pokemon's first
-      games). A key pressed while it plays shows no effect.
+      The boot light plays the intro, a ten-second show (src/keys.c tells it),
+      instead of the picture, and opens at boot, cable or not, and again
+      whenever USB power arrives, so a cable plugged in shows it too, into an
+      idle half as well; then LANTERN_ON_USB_POWER's rule applies, as after
+      any boot light. Nothing cuts it short, and power that arrives while it
+      plays does not restart it. Each half plays it for itself, mirrored, from
+      its outermost key to its innermost thumb and back, measured on the
+      lantern,keys node's coords (asserted). Its colours are its own, not the
+      palette's: red, blue and green up to full scale under the frame's cap,
+      and no other, white included, a key in one of the three at a time (canon
+      t-5v1f and t-ky8x: the user's pick, after Pokemon's first games). A key
+      pressed while it plays shows no effect.
 
 config LANTERN_OFF_WHEN_IDLE
     bool "Dark once ZMK's activity state leaves ACTIVE, lit again on activity"
