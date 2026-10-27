@@ -28,10 +28,11 @@ how to build. Usage: [README.md](README.md). English only.
   picture, every key black under the effects and the bands for the boot
   light (`CONFIG_LANTERN_NO_PICTURE`); the
   effects that move the picture after a key, the thin ring, the disc, the
-  stain, the crossing ring, the beams and the water
+  stain, the crossing ring, the beams, the water and the dart
   (`CONFIG_LANTERN_THIN_RING`, `CONFIG_LANTERN_DISC`, `CONFIG_LANTERN_STAIN`,
   `CONFIG_LANTERN_CROSS_RING`, `CONFIG_LANTERN_BEAMS`, `CONFIG_LANTERN_WATER`,
-  each built into the image by the consumer's conf, off by default;
+  `CONFIG_LANTERN_DART`, each built into the image by the consumer's conf,
+  off by default;
   src/keys.c, the node's `coords` through `CONFIG_LANTERN_GEOMETRY`), and the
   pick of which built effects draw, the host's over the central's port, kept
   across boots, or the Kconfig choice `LANTERN_EFFECT_DEFAULT`
@@ -107,7 +108,8 @@ how to build. Usage: [README.md](README.md). English only.
   or the keys; every target `CONFIG_LANTERN_EFFECT=y` and `effect.c.obj` from
   the effect node (`config/effect.dtsi`, on every target).
   `--kconfig CONFIG_LANTERN_THIN_RING=y`, `CONFIG_LANTERN_DISC=y`,
-  `CONFIG_LANTERN_BEAMS=y` or `CONFIG_LANTERN_WATER=y` adds
+  `CONFIG_LANTERN_BEAMS=y`, `CONFIG_LANTERN_WATER=y` or
+  `CONFIG_LANTERN_DART=y` adds
   `CONFIG_LANTERN_EFFECTS=y` and `CONFIG_LANTERN_FRAMES=y`,
   `CONFIG_LANTERN_GEOMETRY=y` and, the choice `LANTERN_EFFECT_DEFAULT` with
   no line of its own, `CONFIG_LANTERN_EFFECT_DEFAULT_<the first built
@@ -256,8 +258,9 @@ how to build. Usage: [README.md](README.md). English only.
   `src/keys.c`'s hit ring advances by compare-and-set, so any of ZMK's
   cooperative threads may note; `keys.h` lists the hit among the callers)
   and never moves the countdown's clock with it. With the hit built, the
-  beams, the thin ring, the disc and the water draw the other half's presses
-  too, and the disc's life covers the whole board (`DISC_MS`), not a half.
+  beams, the thin ring, the disc, the water and the dart draw the other
+  half's presses too, and the disc's life covers the whole board
+  (`DISC_MS`), not a half.
 - **Every palette change goes through the behavior**, on the central too: the
   port only parses and replies (`lantern_palette_send()`, which clears the
   slots it is not given), and the central stores its copy by the same handler
