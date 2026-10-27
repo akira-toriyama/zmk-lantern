@@ -11,8 +11,9 @@
  * the picture and clears it.
  *
  * - The thin ring: from a pressed key a ring one key wide spreads at
- *   RING_SPEED key units a second and fades out over RING_MS, so it has
- *   crossed the half when it is gone; each press takes the palette's next
+ *   RING_SPEED key units a second and fades out over its life (RING_MS, or
+ *   the half's crossing when longer, ring_life()), so it has crossed the
+ *   half when it is gone; each press takes the palette's next
  *   shade (the press's number mod the shade count), at HI_LEVEL, and an LED
  *   under two rings shows the stronger one's colour at their summed strength.
  *   The idea is zmk-rgb-matrix's ripple, written from its description (its
@@ -20,7 +21,7 @@
  *   geometry's (src/frame.h: the coords, an integer square root), so the ring
  *   is round on the board, not in the matrix.
  * - The stain: the thin ring dyes the keys it passes. An LED within
- *   STAIN_REACH of the press keeps the ring's shade as its picture colour, at
+ *   the stain's reach of the press keeps the ring's shade as its picture colour, at
  *   the picture's level like a band, from the frame in which the ring's crest
  *   reaches it, so the half is painted over in the day's colours as the user
  *   types; zmk-pk-underglow's rainbow ripple, from its idea. The reach is
@@ -51,10 +52,11 @@
 #include "../effect.h"
 #include "../frame.h"
 
-/* The ring's life, how long after the press it still draws. */
+/* The ring's life, how long after the press it still draws: the design's
+ * second, or the ring's crossing of this half, its farthest two keys and the
+ * ring's width at its speed, when longer (ring_life()). */
 #define RING_MS 1000
-/* Key units a second the ring's radius grows: at 12 it has crossed a half of
- * the Imprint (8.75 units at most) in under a second. */
+/* Key units a second the ring's radius grows, the design's twelve. */
 #define RING_SPEED 12
 /* Hundredths of a key unit from the radius at which the ring is gone: full
  * on the radius, one key wide at half strength. */
@@ -65,20 +67,37 @@ BUILD_ASSERT(RING_MS <= LANTERN_EFFECT_LIFE_MAX_MS, "the thin ring outlives a hi
 /* The least strength, of 256, a ring's crest must still have to dye: the
  * design's 0.6. */
 #define STAIN_LEAST 154
-/* How far the crest keeps that strength, in hundredths of a key unit: it
- * reaches distance d at age d x 10 / RING_SPEED, with 256 x (RING_MS - age)
- * / RING_MS of its strength (the header). */
-#define STAIN_REACH ((RING_MS - (RING_MS * STAIN_LEAST + 255) / 256) * RING_SPEED / 10)
-BUILD_ASSERT(STAIN_REACH > 0, "STAIN_LEAST leaves the ring no reach");
+/* How far the crest of a ring living life ms keeps that strength, in
+ * hundredths of a key unit: it reaches distance d at age d x 10 /
+ * RING_SPEED, with 256 x (life - age) / life of its strength (the header). */
+#define STAIN_REACH_OF(life) (((life) - ((life) * STAIN_LEAST + 255) / 256) * RING_SPEED / 10)
+BUILD_ASSERT(STAIN_REACH_OF(RING_MS) > 0, "STAIN_LEAST leaves the ring no reach");
 
 /* The frame's thread: each LED's dye, a shade's rank + 1, 0 for none (the
- * header). */
+ * header), and the reach of the ring's life. */
 static uint8_t stains[LED_COUNT];
+static uint32_t stain_reach;
 #endif
 
+/* The frame's thread: the ring's life (the design's or the board's,
+ * frame.h), and with it the stain's reach, taken at the first frame. Each
+ * half measures its own keys, so on halves of unequal size a ring relayed
+ * across the split (src/hit.c) fades and dyes by the half it is drawn on. */
+static uint32_t ring_ms;
+
+static uint32_t ring_life(void) {
+    if (ring_ms == 0) {
+        ring_ms = lantern_life(RING_MS, (lantern_board()->half_span + RING_WIDTH) * 10 / RING_SPEED);
+#if IS_ENABLED(CONFIG_LANTERN_STAIN)
+        stain_reach = STAIN_REACH_OF(ring_ms);
+#endif
+    }
+    return ring_ms;
+}
+
 /* Each hit's ring (the header): its radius RING_SPEED x the hit's age, full
- * on the radius and gone RING_WIDTH from it, fading out over RING_MS, in the
- * shade the hit's number picks. An LED under several rings takes the
+ * on the radius and gone RING_WIDTH from it, fading out over its life, in
+ * the shade the hit's number picks. An LED under several rings takes the
  * strongest one's colour at their summed strength. With stain, the ring dyes
  * the LEDs its crest reaches (the stain's bit in the pick). */
 static void thin_ring(struct led_rgb px[], const struct shades *sh, const struct hit live[],
@@ -86,22 +105,24 @@ static void thin_ring(struct led_rgb px[], const struct shades *sh, const struct
 #if !IS_ENABLED(CONFIG_LANTERN_STAIN)
     ARG_UNUSED(stain);
 #endif
+    uint32_t life = ring_life();
+
     for (size_t i = 0; i < LED_COUNT; i++) {
         unsigned int w = 0, strongest = 0;
         size_t pick = 0;
 #if IS_ENABLED(CONFIG_LANTERN_STAIN)
-        size_t dye = 0; /* the newest hit whose crest has reached this LED within STAIN_REACH, + 1 */
+        size_t dye = 0; /* the newest hit whose crest has reached this LED within the reach, + 1 */
 #endif
 
         for (size_t h = 0; h < n; h++) {
-            if (live[h].age >= RING_MS) {
+            if (live[h].age >= life) {
                 continue;
             }
             /* ms x units/s / 1000 x 100 hundredths */
             uint32_t r = (uint32_t)live[h].age * RING_SPEED / 10;
             uint32_t d = distance(led_key(i), live[h].key);
 #if IS_ENABLED(CONFIG_LANTERN_STAIN)
-            if (stain && r >= d && d <= STAIN_REACH &&
+            if (stain && r >= d && d <= stain_reach &&
                 (dye == 0 || live[h].age < live[dye - 1].age)) {
                 dye = h + 1;
             }
@@ -111,7 +132,7 @@ static void thin_ring(struct led_rgb px[], const struct shades *sh, const struct
                 continue;
             }
             unsigned int s = (RING_WIDTH - off) * 256 / RING_WIDTH;
-            s = s * (RING_MS - live[h].age) / RING_MS;
+            s = s * (life - live[h].age) / life;
             if (s > strongest) {
                 strongest = s;
                 pick = h;
@@ -136,7 +157,7 @@ static void thin_ring_draw(struct led_rgb px[], const struct shades *sh, const s
 
 const struct lantern_effect_entry lantern_effect_thin_ring = {
     .serves = LANTERN_EFFECT_STAIN,
-    .life_ms = RING_MS,
+    .life = ring_life,
     .draw = thin_ring_draw,
 };
 
@@ -155,7 +176,7 @@ static void stain_picture(struct led_rgb px[], const struct shades *sh) {
 static void stain_clear(void) { memset(stains, 0, sizeof(stains)); }
 
 const struct lantern_effect_entry lantern_effect_stain = {
-    .life_ms = RING_MS,
+    .life = ring_life,
     .picture = stain_picture,
     .clear = stain_clear,
 };

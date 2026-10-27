@@ -175,7 +175,8 @@
  *   and the beams do, for their colours).
  * - The gradient (CONFIG_LANTERN_GRADIENT, canon t-skdt): ramp() puts each
  *   key on one line through the shades in slot order by its x on the whole
- *   board (the coords): the leftmost key at shade 0, the rightmost at the
+ *   board (lantern_board(), from the coords): the leftmost key at shade 0,
+ *   the rightmost at the
  *   last, and an LED between two shades shows them mixed in proportion; one
  *   on a shade's place shows that shade exactly. Both shades are taken at
  *   full scale and the mix brought to the level after, so a blend's brightest
@@ -184,8 +185,7 @@
  *   stretch of the one line. A shade shows pure only on a key at its place
  *   (canon: the ends always, the others by the shade count); no key sits
  *   between the halves, so a shade whose place lies there never does. The
- *   board's ends are measured once, at the first frame that shows the
- *   gradient. The countdown's other pictures and the stain's dye are shades
+ *   countdown's other pictures and the stain's dye are shades
  *   as with the bands. The node
  *   still carries slots, which this picture does not read (the crossing ring
  *   and the beams do, for their colours).
@@ -245,6 +245,7 @@
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
 #include <zephyr/drivers/led_strip.h>
+#include <zephyr/init.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/atomic.h>
@@ -313,7 +314,13 @@ BUILD_ASSERT(HI_LEVEL > LEVEL, "CONFIG_LANTERN_BRIGHTNESS 100 leaves the frame's
 /* The presses an effect still draws: with the hit (src/hit.c) both halves'
  * presses share the ring, and with the crossing ring's 1.6 s life eight held
  * only five presses a second before the oldest, still on the board, went in
- * one frame (Opus review, 2026-10-26). */
+ * one frame (Opus review, 2026-10-26). The limit is HITS over the longest
+ * picked life, both halves together: ten presses a second on canon's halves
+ * with the crossing ring, eight with the disc, and fewer on a larger board,
+ * whose lives are longer (frame.h: lantern_life()); past it the oldest
+ * press's effect goes in one frame. A larger ring costs RAM and, through
+ * live[HITS] in compose(), the frame thread's stack (canon t-gwsw carries
+ * the review of its size). */
 #define HITS 16
 /* A hit in one atomic: (position + 1) << 24 | seq << HIT_SEQ_SHIFT | the
  * press's time, the low 18 bits of k_uptime_get_32() in ms (262 s). seq is
@@ -380,6 +387,59 @@ BUILD_ASSERT(COND_CODE_1(DT_INST_NODE_HAS_PROP(0, coords), (DT_INST_PROP_LEN(0, 
 COND_CODE_1(DT_INST_NODE_HAS_PROP(0, coords), (DT_FOREACH_PROP_ELEM(NODE, coords, COORD_IN_RANGE)),
             ())
 #endif
+
+#if IS_ENABLED(CONFIG_LANTERN_GEOMETRY)
+
+/* The board (frame.h), measured at the first call (board_init() below, at
+ * boot), the spans on squared distances and rooted once; the frame's thread
+ * reads it. */
+const struct lantern_board *lantern_board(void) {
+    static struct lantern_board board;
+    static bool measured;
+
+    if (measured) {
+        return &board;
+    }
+    uint16_t left = UINT16_MAX, right = 0, bottom = 0;
+    uint32_t span2 = 0, half2 = 0;
+
+    for (size_t k = 0; k < KEY_COUNT; k++) {
+        left = MIN(left, key_x(k));
+        right = MAX(right, key_x(k));
+        bottom = MAX(bottom, key_y(k));
+        for (size_t j = k + 1; j < KEY_COUNT; j++) {
+            span2 = MAX(span2, distance2((uint8_t)k, (uint8_t)j));
+        }
+    }
+    for (size_t i = 0; i < LED_COUNT; i++) {
+        for (size_t j = i + 1; j < LED_COUNT; j++) {
+            half2 = MAX(half2, distance2(led_key(i), led_key(j)));
+        }
+    }
+    board = (struct lantern_board){
+        .left = left,
+        .right = right,
+        .bottom = bottom,
+        .width = (uint32_t)(right - left),
+        .span = isqrt(span2),
+        .half_span = isqrt(half2),
+    };
+    measured = true;
+    return &board;
+}
+
+/* The measure at boot, on the main thread's stack: the frame's thread (768
+ * bytes, shared with ZMK's battery sampling) then only reads it, and the
+ * pair loops never sit under an effect's frame. lantern_board() still
+ * measures at its first call where no init ran (the host harness). */
+static int board_init(void) {
+    (void)lantern_board();
+    return 0;
+}
+
+SYS_INIT(board_init, APPLICATION, CONFIG_APPLICATION_INIT_PRIORITY);
+
+#endif /* IS_ENABLED(CONFIG_LANTERN_GEOMETRY) */
 
 /* The data line low for this long after a frame, so that the LEDs latch it:
  * a WS2812B needs at least 280 us (its V5 datasheet's RES; the older part
@@ -467,32 +527,17 @@ static uint32_t drawn_effects;
 
 #if IS_ENABLED(CONFIG_LANTERN_GRADIENT)
 
-/* The frame's thread: the leftmost key's x and the board's width to the
- * rightmost key's, measured from the coords at the first frame that shows
- * the gradient. */
-static bool ramp_measured;
-static uint16_t ramp_left, ramp_width;
-
 /* LED i's blend at level (the header says why the mix is at full scale);
- * q is in 1/256 shades along the shades in slot order. */
+ * q is in 1/256 shades along the shades in slot order, by the key's x over
+ * the board's width (lantern_board()). */
 static struct led_rgb ramp(const struct shades *sh, size_t i, unsigned int level) {
-    if (!ramp_measured) {
-        uint16_t lo = UINT16_MAX, hi = 0;
+    const struct lantern_board *b = lantern_board();
 
-        for (size_t k = 0; k < KEY_COUNT; k++) {
-            lo = MIN(lo, key_x(k));
-            hi = MAX(hi, key_x(k));
-        }
-        ramp_left = lo;
-        ramp_width = hi - lo;
-        ramp_measured = true;
-    }
-    if (sh->n == 1 || ramp_width == 0) {
+    if (sh->n == 1 || b->width == 0) {
         return scale(sh->rgb[0], level);
     }
     /* at most 30000 x 5 x 256, inside 32 bits */
-    uint32_t q = (uint32_t)(key_x(led_key(i)) - ramp_left) * (uint32_t)(sh->n - 1) * 256 /
-                 ramp_width;
+    uint32_t q = (uint32_t)(key_x(led_key(i)) - b->left) * (uint32_t)(sh->n - 1) * 256 / b->width;
     size_t k = q >> 8;
 
     if (k >= sh->n - 1) {
@@ -683,13 +728,16 @@ static uint32_t active_effects(void) {
 }
 
 /* How long after a press the effects in fx still draw: the longest life among
- * the entries that draw for them. */
+ * the entries that draw for them, each at most LANTERN_EFFECT_LIFE_MAX_MS
+ * (frame.h: lantern_life() holds it; the ring's fields are sized for it). */
 static uint32_t effects_life(uint32_t fx) {
     uint32_t life = 0;
 
     for (size_t e = 0; e < ARRAY_SIZE(effects); e++) {
         if (row_bits(e) & fx) {
-            life = MAX(life, effects[e].entry->life_ms);
+            uint32_t own = effects[e].entry->life();
+
+            life = MAX(life, MIN(own, LANTERN_EFFECT_LIFE_MAX_MS));
         }
     }
     return life;

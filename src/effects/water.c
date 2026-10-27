@@ -6,7 +6,8 @@
  * The water (CONFIG_LANTERN_WATER, canon t-6ttk; the pick's water), an entry
  * of the effects' table (src/frame.h): from a pressed key waves spread, a
  * front at WATER_SPEED key units a second and behind it the sine of the
- * front's distance past each key over WATER_WAVE, fading out over WATER_MS
+ * front's distance past each key over WATER_WAVE, fading out over its life
+ * (WATER_MS, or the front's crossing of the board when longer, water_life())
  * and falling off with the distance from the key (by WATER_FALL), and the
  * waves of every live press add up at each LED, so that two crests meeting
  * rise higher and a crest meeting a trough stays still:
@@ -42,18 +43,34 @@
 #include "../frame.h"
 
 /* Key units a second the water's front spreads, the thin ring's speed, and
- * the wavelength behind it in hundredths of a unit: three keys a wave on
- * canon's grid (the header says why not the design's 2.0). */
+ * the wavelength behind it in hundredths of a unit: three key units, a wave
+ * three keys long on a grid of keys a unit apart (the header says why not
+ * the design's 2.0). */
 #define WATER_SPEED 12
 #define WATER_WAVE 300
 /* How long a hit draws the water, its waves fading out over it: the
- * design's 1.5 s. */
+ * design's 1.5 s, or the front's crossing of the board, its farthest two
+ * keys at its speed, when longer (water_life()). */
 #define WATER_MS 1500
 /* The waves' fall-off with the distance from the pressed key: a wave at d
  * hundredths of a unit is 1 / (1 + WATER_FALL x d / 1000) of one at the key,
  * the design's 1 / (1 + 0.3 d) in key units. */
 #define WATER_FALL 3
 BUILD_ASSERT(WATER_MS <= LANTERN_EFFECT_LIFE_MAX_MS, "the water outlives a hit");
+
+/* The frame's thread: the water's life (the design's or the board's,
+ * frame.h), taken at the first frame. The board's term is the front's
+ * crossing alone: the fade is out as the front reaches the farthest key,
+ * which the fall-off has left faint by then (the design's margin on canon's
+ * halves is a tenth of a second). */
+static uint32_t water_ms;
+
+static uint32_t water_life(void) {
+    if (water_ms == 0) {
+        water_ms = lantern_life(WATER_MS, lantern_board()->span * 10 / WATER_SPEED);
+    }
+    return water_ms;
+}
 
 /* 127 x sin(2 pi i / 256) for i 0..64, the first quarter of the turn;
  * sine() folds the other three onto it. */
@@ -74,18 +91,20 @@ static int32_t sine(uint32_t i) {
 
 /* Each hit's waves (the header): behind the front, WATER_SPEED x the hit's
  * age out, the surface at an LED d from the press is the sine of the front's
- * distance past it over WATER_WAVE, fading out over WATER_MS and falling off
+ * distance past it over WATER_WAVE, fading out over its life and falling off
  * with d, and the LED's height is the sum over the hits, a crest and a
  * trough cancelling. The LED is pulled toward span() of the height, a crest
  * to shade 0 and a trough to the last shade, as far as the height's size. */
 static void water_draw(struct led_rgb px[], const struct shades *sh, const struct hit live[],
                        size_t n, uint32_t picked) {
     ARG_UNUSED(picked);
+    uint32_t life = water_life();
+
     for (size_t i = 0; i < LED_COUNT; i++) {
         int32_t height = 0; /* 1/256 of a full crest, up or down */
 
         for (size_t h = 0; h < n; h++) {
-            if (live[h].age >= WATER_MS) {
+            if (live[h].age >= life) {
                 continue;
             }
             /* ms x units/s / 1000 x 100 hundredths */
@@ -96,7 +115,7 @@ static void water_draw(struct led_rgb px[], const struct shades *sh, const struc
             }
             /* the fade and the fall-off, each of 256; their product of 256
              * at most, so the term is within a crest, 256 */
-            uint32_t fade = (WATER_MS - live[h].age) * 256 / WATER_MS;
+            uint32_t fade = (life - live[h].age) * 256 / life;
             uint32_t fall = 256000 / (1000 + WATER_FALL * d);
             int32_t s = sine(((r - d) % WATER_WAVE) * 256 / WATER_WAVE);
 
@@ -113,6 +132,6 @@ static void water_draw(struct led_rgb px[], const struct shades *sh, const struc
 }
 
 const struct lantern_effect_entry lantern_effect_water = {
-    .life_ms = WATER_MS,
+    .life = water_life,
     .draw = water_draw,
 };

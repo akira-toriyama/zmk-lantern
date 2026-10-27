@@ -18,7 +18,7 @@
  *
  * - The geometry (CONFIG_LANTERN_GEOMETRY, which each effect that measures
  *   the board selects, the intro for the coords and the square root, and the
- *   gradient for the coords alone): distances come from the consumer's
+ *   gradient for the board's ends): distances come from the consumer's
  *   coords, each key position's x and y in hundredths of a key unit (canon:
  *   imprint.json, keymap-drawer's physical layout, each key's top left
  *   corner; every key is one unit, so the offset to the centre cancels), so a
@@ -36,7 +36,8 @@
  *   counts as picture), keeps that as the picture under the effects, lets
  *   every picked entry draw the live hits over it (draw, in the table's
  *   order, so a later entry draws over an earlier one), and holds the frame
- *   to the cap. A hit lives the picked entries' longest life; at a blank
+ *   to the cap. A hit lives the picked entries' longest life, each the
+ *   design's or the board's (lantern_life()); at a blank
  *   and when the stage or the pick moves, every entry's state goes (clear).
  *   An entry draws for its own line's bit, which the table gives it, and
  *   for any other line it names (serves: the thin ring's entry names the
@@ -185,13 +186,36 @@ static inline uint32_t isqrt(uint32_t v) {
     return root;
 }
 
-/* Hundredths of a key unit between key positions a and b. */
-static inline uint32_t distance(uint8_t a, uint8_t b) {
+/* The square of the distance between key positions a and b, in hundredths
+ * of a key unit (inside 32 bits: src/keys.c asserts a coordinate at most
+ * 30000), and the distance. */
+static inline uint32_t distance2(uint8_t a, uint8_t b) {
     int32_t dx = (int32_t)key_x(a) - (int32_t)key_x(b);
     int32_t dy = (int32_t)key_y(a) - (int32_t)key_y(b);
 
-    return isqrt((uint32_t)(dx * dx + dy * dy));
+    return (uint32_t)(dx * dx + dy * dy);
 }
+
+static inline uint32_t distance(uint8_t a, uint8_t b) { return isqrt(distance2(a, b)); }
+
+/* The board, measured from the coords once, at the first frame that asks
+ * (src/keys.c), in hundredths of a key unit: its leftmost and rightmost
+ * keys' x and its lowest key's y (y grows downwards), its width from the one
+ * x to the other, the farthest two of its keys apart (span) and the farthest
+ * two of this half's keys, those under its LEDs (half_span; a key of this
+ * half without an LED counts as the other half's). What an effect's life
+ * follows from, under the design's own value (lantern_life()): no life
+ * carries a board's size but the beams' fade, which answers to the gap
+ * between the halves, not the board (src/effects/beams.c says). Measured
+ * at boot on the main thread (src/keys.c), read on the frame's. */
+struct lantern_board {
+    uint16_t left, right, bottom;
+    uint32_t width;
+    uint32_t span;
+    uint32_t half_span;
+};
+
+const struct lantern_board *lantern_board(void);
 
 /* How far apart two coordinates are: along a row or a column the distance
  * (the beams, the dart). */
@@ -210,8 +234,16 @@ struct hit {
 
 /* The most an effect lives after a press: the engine keeps a hit's age in
  * 16 bits and its time in 18 (src/keys.c asserts both hold this), and ten
- * seconds leaves either far; each effect asserts its life against it. */
+ * seconds leaves either far; each effect asserts its design's life against
+ * it, and lantern_life() holds the board's under it. */
 #define LANTERN_EFFECT_LIFE_MAX_MS 10000
+
+/* An effect's life: the design's, or the board's when that is longer (a ring
+ * until it has left the board, a bar until it has run the board's width),
+ * and never past LANTERN_EFFECT_LIFE_MAX_MS. */
+static inline uint32_t lantern_life(uint32_t design_ms, uint32_t board_ms) {
+    return MIN(MAX(design_ms, board_ms), LANTERN_EFFECT_LIFE_MAX_MS);
+}
 
 /* An effect's entry in the table (the header): lantern_effect_<ops> for the
  * line X(SYMBOL, bit, "name", ops) of LANTERN_EFFECT_LIST, defined by its
@@ -221,8 +253,9 @@ struct lantern_effect_entry {
      * line's, which the table gives it (src/effect.h): the thin ring's entry
      * names the stain's; 0 for none. */
     uint32_t serves;
-    /* How long after a press it still draws, at most LANTERN_EFFECT_LIFE_MAX_MS. */
-    uint32_t life_ms;
+    /* How long after a press it still draws (lantern_life()): read every
+     * frame, so an entry keeps what the board gave it. */
+    uint32_t (*life)(void);
     /* Its lasting state into the picture px, before any effect draws, which
      * the cap then counts as picture (the stain's dye); NULL for none. */
     void (*picture)(struct led_rgb px[], const struct shades *sh);

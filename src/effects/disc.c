@@ -12,9 +12,10 @@
  * while it fades, shade 0 at the rim. QMK's SPLASH written from its idea
  * (QMK is GPL: nothing copied). An LED under two discs shows the stronger
  * one's colour at their summed strength, as under two rings. A hit lives
- * DISC_MS, long enough for the rim to cross a half of the Imprint and the
- * last LED to fade, or the whole board where the hit (src/hit.c) brings the
- * other half's presses, whose discs come in across the split; the cap
+ * disc_life()'s time, long enough for the rim to cross a half and the last LED to
+ * fade, or the whole board where the hit (src/hit.c) brings the other
+ * half's presses, whose discs come in across the split (disc_life(): the
+ * design's, or the board's own crossing when longer); the cap
  * (src/keys.c) holds a disc, which covers many LEDs at once, harder than it
  * holds a ring. The distances are the geometry's (src/frame.h).
  */
@@ -31,17 +32,32 @@
 #define DISC_SPEED 12
 /* How long an LED the rim has passed takes to fade back to the picture. */
 #define DISC_FADE_MS 500
-/* A disc's life: the rim across a half of the Imprint (8.75 units, 729 ms at
- * 12) and the last LED's fade; with the hit (src/hit.c) the other half's
- * presses come in too, and the rim must cross the whole board (16.8 units,
- * 1397 ms) before the last LED fades, or the far keys went black mid-fade
- * (Opus review, 2026-10-26). */
+/* A disc's life, the design's: the rim across a half and the last LED's
+ * fade; with the hit (src/hit.c) the other half's presses come in too, and
+ * the rim must cross the whole board before the last LED fades, or the far
+ * keys went black mid-fade (Opus review, 2026-10-26). The board's own
+ * crossing and fade when longer (disc_life()). */
 #if IS_ENABLED(CONFIG_LANTERN_HIT)
 #define DISC_MS 1900
 #else
 #define DISC_MS 1500
 #endif
 BUILD_ASSERT(DISC_MS <= LANTERN_EFFECT_LIFE_MAX_MS, "the disc outlives a hit");
+
+/* The frame's thread: the disc's life (the design's or the board's, frame.h),
+ * taken at the first frame: the rim across the board with the hit, else
+ * across this half, and the fade. */
+static uint32_t disc_ms;
+
+static uint32_t disc_life(void) {
+    if (disc_ms == 0) {
+        const struct lantern_board *b = lantern_board();
+        uint32_t across = IS_ENABLED(CONFIG_LANTERN_HIT) ? b->span : b->half_span;
+
+        disc_ms = lantern_life(DISC_MS, across * 10 / DISC_SPEED + DISC_FADE_MS);
+    }
+    return disc_ms;
+}
 
 /* The cycle through the shades at HI_LEVEL: p, 0..255, is how far around,
  * shade 0 at 0 and again past 255, each shade an equal arc, linear between
@@ -86,6 +102,6 @@ static void disc_draw(struct led_rgb px[], const struct shades *sh, const struct
 }
 
 const struct lantern_effect_entry lantern_effect_disc = {
-    .life_ms = DISC_MS,
+    .life = disc_life,
     .draw = disc_draw,
 };

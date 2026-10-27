@@ -9,9 +9,9 @@
  * across the whole board: a press of this half spreads out through the other
  * half, and a press of the other half, relayed by the central (src/hit.c),
  * comes in at the thumbs (the two clusters sit 1.5 units apart) and then the
- * inner columns. It keeps its strength until it has left the board (CROSS_MS
- * covers canon's Imprint, whose farthest two keys are 16.8 units apart; a
- * wider board cuts it short), where the thin ring fades within a half, and
+ * inner columns. It keeps its strength until it has left the board (CROSS_MS,
+ * the design's, or the board's own crossing when longer, cross_life()),
+ * where the thin ring fades within a half, and
  * its colour is the pressed key's band, the node's slots, so that both halves
  * draw one press in one colour, where the thin ring's count of presses
  * differs between them. A relayed press reaches the other half a few
@@ -34,11 +34,23 @@
  * it, one key wide. */
 #define CROSS_SPEED 12
 #define CROSS_WIDTH 100
-/* How long a hit draws the crossing ring: until the ring has passed the
- * farthest key of canon's Imprint from any key (16.8 units) by its width,
- * 1.48 s at 12 (the header). */
+/* How long a hit draws the crossing ring, the design's: until the ring has
+ * passed the board's farthest key from any key by its width, with a margin;
+ * the board's own, its farthest two keys and the ring's width at its speed,
+ * when longer (cross_life()). */
 #define CROSS_MS 1600
 BUILD_ASSERT(CROSS_MS <= LANTERN_EFFECT_LIFE_MAX_MS, "the crossing ring outlives a hit");
+
+/* The frame's thread: the ring's life (the design's or the board's,
+ * frame.h), taken at the first frame. */
+static uint32_t cross_ms;
+
+static uint32_t cross_life(void) {
+    if (cross_ms == 0) {
+        cross_ms = lantern_life(CROSS_MS, (lantern_board()->span + CROSS_WIDTH) * 10 / CROSS_SPEED);
+    }
+    return cross_ms;
+}
 
 /* Each hit's crossing ring (the header): its radius CROSS_SPEED x the hit's
  * age, full on the radius and gone CROSS_WIDTH from it, in the shade of the
@@ -47,12 +59,14 @@ BUILD_ASSERT(CROSS_MS <= LANTERN_EFFECT_LIFE_MAX_MS, "the crossing ring outlives
 static void cross_ring_draw(struct led_rgb px[], const struct shades *sh, const struct hit live[],
                             size_t n, uint32_t picked) {
     ARG_UNUSED(picked);
+    uint32_t life = cross_life();
+
     for (size_t i = 0; i < LED_COUNT; i++) {
         unsigned int w = 0, strongest = 0;
         size_t pick = 0;
 
         for (size_t h = 0; h < n; h++) {
-            if (live[h].age >= CROSS_MS) {
+            if (live[h].age >= life) {
                 continue;
             }
             /* ms x units/s / 1000 x 100 hundredths */
@@ -76,6 +90,6 @@ static void cross_ring_draw(struct led_rgb px[], const struct shades *sh, const 
 }
 
 const struct lantern_effect_entry lantern_effect_cross_ring = {
-    .life_ms = CROSS_MS,
+    .life = cross_life,
     .draw = cross_ring_draw,
 };
