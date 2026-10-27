@@ -257,8 +257,8 @@
  *   brings a blend of two shades back to full scale where G is a plain mix;
  *   and the wavelength is three key units, not two, which on canon's grid
  *   of keys a unit apart was two keys a wave, every key on a row or column
- *   at the same height with the sign swapping key to key, a blinking
- *   checkerboard that never showed the travel (Opus review, 2026-10-26).
+ *   in step with the sign swapping key to key, a blinking checkerboard
+ *   that never showed the travel (Opus review, 2026-10-26).
  *   With the hit the other half's presses start waves too, which come in
  *   across the split low: from an inner column at about a fifth of a crest
  *   (6.5 units off), from a thumb to the other half's thumb at three fifths

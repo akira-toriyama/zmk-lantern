@@ -51,9 +51,11 @@ stage the keys' clock said (canon t-gsm2, t-x82q). The effects, on both
 halves with the Imprint Dongle relaying (canon's trial images, one effect at
 a time, 2026-10-21 to 2026-10-26, then its product images with the pick,
 2026-10-26): the thin ring, the disc, the stain, the crossing ring in across
-the split, and the beams (2026-10-26, canon's product conf plus
-`CONFIG_LANTERN_BEAMS=y`, the pick `beams` sent from the dongle's port), each
-the user's OK on sight (canon t-6ttk, t-5hqx).
+the split, the beams (2026-10-26, canon's product conf plus
+`CONFIG_LANTERN_BEAMS=y`, the pick `beams` sent from the dongle's port) and
+the water (2026-10-27, the same way with `CONFIG_LANTERN_WATER=y` and the
+pick `water`, on both halves), each the user's OK on sight (canon t-6ttk,
+t-5hqx).
 
 ## What it does
 
