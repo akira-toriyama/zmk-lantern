@@ -35,20 +35,24 @@ void lantern_keys_blank(void);
 void lantern_keys_refresh(void);
 
 /* The boot light's state, before every light (on only for the boot light's)
- * and again at the boot light's end with the LEDs lit (off): the intro plays
- * from the light it is on for, and the no picture, which paints every key
- * black, shows the bands for it without the intro; either sends a frame when
- * it ends (src/keys.c). For every other build this compiles to nothing.
- * System work queue. */
-#if IS_ENABLED(CONFIG_LANTERN_NO_PICTURE) || IS_ENABLED(CONFIG_LANTERN_INTRO)
-void lantern_keys_boot_light(bool on);
+ * and again at the boot light's end with the LEDs lit (off). On: the picked
+ * intro (src/intro.h) starts, and its length is returned, how long the rail
+ * rule keeps the LEDs lit for it, whose frames are then the intro's. Off: the
+ * intro ends, which sends a frame while lit (src/keys.c); 0. Without an intro
+ * built (CONFIG_LANTERN_INTROS) this compiles to nothing and returns 0: no
+ * boot light. System work queue. */
+#if IS_ENABLED(CONFIG_LANTERN_INTROS)
+uint32_t lantern_keys_boot_light(bool on);
 #else
-static inline void lantern_keys_boot_light(bool on) { ARG_UNUSED(on); }
+static inline uint32_t lantern_keys_boot_light(bool on) {
+    ARG_UNUSED(on);
+    return 0;
+}
 #endif
 
 /* A key press of another half, relayed by the split central (src/hit.c):
  * noted as a hit for the effects, as this half's own press, while the LEDs
- * are lit and the intro is not playing; the countdown's clock is not moved.
+ * are lit and no intro is playing; the countdown's clock is not moved.
  * Any of ZMK's threads, which are cooperative (src/keys.c says what a
  * preemptible caller could leave behind). Without an effect
  * (CONFIG_LANTERN_EFFECTS) this compiles to nothing. */

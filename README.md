@@ -7,8 +7,9 @@ shows its colour in the palette's picture; on battery the LEDs are black and
 the rail is off, so they cost the battery nothing; on the cable, five minutes
 without a key (ZMK's idle state) turn them off until the next one, and on the
 way there the half cycles through the palette's colours, the whole half in one
-colour for ten seconds, then the next. At boot the LEDs light for a second,
-cable or not, and then the rule applies. The palette: six colours handed to
+colour for ten seconds, then the next. At boot, and whenever a cable is
+plugged in, the LEDs play an intro, by default the palette's bands for a
+second, and then the rule applies. The palette: six colours handed to
 the keyboard's split central over USB, kept by every half across boots, and
 shown on the keys in the picture the module paints, by default the bands the
 consumer's overlay draws (the palette, below).
@@ -66,21 +67,19 @@ in across the split), each the user's OK on sight (canon t-6ttk, t-5hqx).
 | the half runs on battery | off | black |
 | USB powers the half and its last key is `CONFIG_LANTERN_COUNTDOWN_STAGE_MS` (10 s) or more ago (`CONFIG_LANTERN_COUNTDOWN`) | on | lit: the whole half in the palette's next colour, a new picture every stage, the bands again after the last colour |
 | USB powers the half, but ZMK's activity state is idle: `CONFIG_ZMK_IDLE_TIMEOUT` ms (the consumer's line) without a key, sensor or pointing input on this half | off | black, until the next input |
-| the first `CONFIG_LANTERN_BOOT_LIGHT_MS` after boot (default 1000) | on | lit, cable or not |
-| with `CONFIG_LANTERN_INTRO`, the boot light: ten seconds from boot and from each arrival of USB power | on | the intro, cable or not |
+| the boot light: from boot and from each arrival of USB power, for the picked intro's length (the bands a second, the star waves ten) | on | the intro, cable or not |
 
 - Each half decides for itself, from its own USB port and its own activity;
   nothing crosses the split. Typing on one half alone leaves the other to go
   dark.
 - Plugging in turns the rail on and, `settle-ms` later (100 ms on the Imprint),
-  writes the picture; unplugging writes a black frame and drops the rail
-  100 ms after. A reset, a suspend (the host asleep) or a resume on the cable
-  changes nothing. Idle and the next input switch the LEDs the same way; the
-  boot light is never cut short. With the intro, plugging in plays it first.
-- A cable plugged into an idle half lights nothing until its next key: USB is
-  no activity to ZMK, and lighting on it would leave the LEDs on with no idle
-  event to follow. With the intro it plays the intro, ten seconds, and goes
-  dark again.
+  plays the intro and then writes the picture; unplugging writes a black frame
+  and drops the rail 100 ms after. A reset, a suspend (the host asleep) or a
+  resume on the cable changes nothing. Idle and the next input switch the LEDs
+  the same way; the boot light is never cut short.
+- A cable plugged into an idle half plays the intro and goes dark again until
+  its next key: USB is no activity to ZMK, and lighting on it for longer would
+  leave the LEDs on with no idle event to follow.
 - The picture ([src/keys.c](src/keys.c)): each LED shows its key's colour in
   the picture, by default (the bands) the palette slot the consumer's
   `lantern,keys` node assigns to the key under it, so the palette's colours
@@ -98,9 +97,8 @@ in across the split), each the user's OK on sight (canon t-6ttk, t-5hqx).
   underglow stays off on such a half (`CONFIG_ZMK_RGB_UNDERGLOW=n`, asserted),
   and a frame goes out only when the LEDs light or go dark, when the palette
   changes while they are lit, when the countdown moves a stage, at each throw
-  of the scatter, when the boot light ends (the no picture's or the intro's),
-  and every 30 ms while an effect moves or the intro plays; a still picture
-  ticks at no rate.
+  of the scatter, when the boot light ends, and every 30 ms while an effect
+  moves or an intro plays; a still picture ticks at no rate.
 - The solid (`CONFIG_LANTERN_SOLID`, off by default while canon tries the
   pictures one at a time): instead of the bands, every key in slot 0, the
   whole half in one colour; the countdown's pictures are then the whole half
@@ -127,9 +125,9 @@ in across the split), each the user's OK on sight (canon t-6ttk, t-5hqx).
 - The no picture (`CONFIG_LANTERN_NO_PICTURE`, off by default while canon
   tries the pictures one at a time): every key black while the LEDs are lit,
   so that only the effects light, over black keys (the stain's dye stays, as
-  over any picture). The boot light shows the bands instead, so that a half
-  still shows it has power, unless the intro plays in its place; on the
-  cable the keys turn black when it ends.
+  over any picture). The boot light shows the picked intro, by default the
+  bands, so that a half still shows it has power; on the cable the keys turn
+  black when it ends.
   With the countdown on, its first picture is the black one and the others
   the whole half in a colour.
 - The countdown (`CONFIG_LANTERN_COUNTDOWN`, on by default with the idle rule
@@ -250,13 +248,24 @@ in across the split), each the user's OK on sight (canon t-6ttk, t-5hqx).
   a key under two darts shows
   the stronger one's colour. It measures the board from `coords` as the
   thin ring does, along the rows only.
-- The intro (`CONFIG_LANTERN_INTRO`, off by default while canon tries it):
-  the boot light plays a ten-second show instead of the picture, in red,
-  blue and green up to full brightness within the frame's cap, not the
-  palette's colours, and opens at boot and again whenever USB power arrives;
-  then the rule applies as after any boot light. Each half plays it alone,
-  mirrored, from its outermost key to its innermost thumb and back (it
-  measures the board from `coords`): a star crosses the half, red over the
+- The intros: what the boot light plays, the two below. The consumer's conf
+  builds the ones it wants into the image (`CONFIG_LANTERN_INTRO_BANDS`, on
+  by default; `CONFIG_LANTERN_INTRO_STAR_WAVES`), and the pick says which
+  plays (the picks, below): the host's, kept across boots, or without one the
+  intro the Kconfig choice `LANTERN_INTRO_DEFAULT` names (the star waves when
+  built, else the bands). The boot light opens at boot, cable or not, and
+  again whenever USB power arrives, lasts the picked intro's length, and then
+  the rule applies; nothing cuts it short, power arriving while it plays does
+  not restart it, and keys pressed meanwhile show no effect. A pick that
+  arrives while one plays shows at the next boot light.
+- The bands (`CONFIG_LANTERN_INTRO_BANDS`; the pick's `bands`): the palette's
+  bands for a second, each key its slot's colour at the picture's brightness,
+  whatever the picture, so that a half shows it has power.
+- The star waves (`CONFIG_LANTERN_INTRO_STAR_WAVES`; the pick's
+  `star-waves`): a ten-second show in red, blue and green up to full
+  brightness within the frame's cap, not the palette's colours. Each half
+  plays it alone, mirrored, from its outermost key to its innermost thumb and
+  back (it measures the board from `coords`): a star crosses the half, red over the
   outer third of the depths, blue over the middle and green over the inner
   (the thirds the burst ends in), and leaves the keys glittering in random
   primaries; a red, a blue and a green wave follow it in; the thumb cluster,
@@ -269,9 +278,7 @@ in across the split), each the user's OK on sight (canon t-6ttk, t-5hqx).
   each key dark between one colour and the next, and stand again, until a
   star runs back out from the thumbs over them, the keys glittering after it
   as at the start, the last of it out at the end. No key mixes two of the
-  colours, and no other colour shows, white included. Nothing cuts it short,
-  power arriving while it plays does not restart it, and keys pressed
-  meanwhile show no effect.
+  colours, and no other colour shows, white included.
 
 ## The split link
 
@@ -341,50 +348,62 @@ than six colours clears the rest to `0x000000`, which the LEDs show as slot
   (asserted at build time). A device without a `lantern,keys` node, such as a
   dongle, keeps and forwards the palette without painting anything.
 
-## The pick
+## The picks
 
-Which of the effects built into a half's image draw, chosen by the host and
-kept by the central and every half in their settings (`lantern/effect/mask`),
-so that the effect changes without a flash (canon's effect of the day,
-t-5hqx). The image carries every effect the consumer's conf builds; a half
-draws the picked ones it has, every one of them over the last when the pick
-names several, and with no pick stored, or none of its effects built, the one
-the Kconfig choice `LANTERN_EFFECT_DEFAULT` names (`CONFIG_LANTERN_EFFECT_DEFAULT_CROSS_RING`
-and so on, one member per built effect; without a line the stain when it is
-built, else the first built effect): the only pick a keyboard without a host
-has.
+Two values the host chooses, which the central and every half keep in their
+settings and the central resends to a half that is back, one mechanism
+([src/pick.c](src/pick.c)) with an instance each: the pick of the effects,
+which of the effects built into a half's image draw (`lantern/effect/mask`,
+[src/effect.c](src/effect.c)), so that the effect changes without a flash
+(canon's effect of the day, t-5hqx), and the pick of the intro, which of the
+intros built in the boot light plays (`lantern/intro/mask`,
+[src/intro.c](src/intro.c); canon t-qvgv). The image carries every effect and
+intro the consumer's conf builds; a half draws the picked effects it has, every
+one of them over the last when the pick names several, and with no pick stored,
+or none of its effects built, the one the Kconfig choice
+`LANTERN_EFFECT_DEFAULT` names (`CONFIG_LANTERN_EFFECT_DEFAULT_CROSS_RING` and
+so on, one member per built effect; without a line the stain when it is built,
+else the first built effect); it plays the picked intro when it has it, else
+the one `LANTERN_INTRO_DEFAULT` names (`CONFIG_LANTERN_INTRO_DEFAULT_BANDS`,
+`CONFIG_LANTERN_INTRO_DEFAULT_STAR_WAVES`; without a line the star waves when
+built, else the bands): the only picks a keyboard without a host has.
 
 - The host writes a text line on the central's USB CDC ACM port (canon:
-  `scripts/dongle.py effect`): `effect <name> [<name> ...]` picks these
-  effects on every half and the central, answered with `effect ok` and the
-  pick's names in the table's order; `effect` or `effect?` is answered with
-  the names, or `effect none` before any; a name not in the table gets
-  `effect error: no such effect` and changes nothing
-  ([src/port.c](src/port.c) is the grammar). The names, and the bit each
-  carries on the wire: `thin-ring`, `disc`, `stain`, `cross-ring`, `beams`,
-  `water`, `dart`
-  ([src/effect.h](src/effect.h)'s table; a new effect is a line there, its
-  Kconfig symbol and `LANTERN_EFFECT_DEFAULT` member, its own file under
-  [src/effects/](src/effects/), one entry of the engine's table, and that
-  file's line in CMakeLists.txt: the engine
-  in src/keys.c and the frame it hands an effect, src/frame.h, change for
-  none). The central's code invokes the
-  `lantern,behavior-effect` node, which ZMK's split transport carries to every
-  half by the node's name ([src/effect.c](src/effect.c)); nothing is bound to
-  a key.
-- A half that was away when the host wrote gets the pick with the palette, a
-  second after each of its battery reports; a half writes its flash only when
-  the pick changed. A change of the pick clears the effects' state (a ring
-  half-way out, the stain's dye), so the new effect starts clean. A device
-  stores the host's bits as sent, the ones its image lacks included, so the
-  reply names the pick as made (with the names this image knows; `effect
-  none` when it knows none of the stored bits) and an image with more
-  effects shows it.
-- `CONFIG_LANTERN_EFFECT` is on wherever the node exists (named `effect` on
-  every device of the split, as the palette's). The central's run queue must
-  hold the palette's three invocations and the pick's one for every half at
-  once: `CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE=8` for two halves
-  (asserted at build time).
+  `scripts/dongle.py effect` and `intro`): `effect <name> [<name> ...]` picks
+  these effects on every half and the central, answered with `effect ok` and
+  the pick's names in the table's order; `intro <name>` picks the intro the
+  same way, one name (two get `intro error: one intro at a time`), answered
+  with `intro ok` and the name; `effect` or `effect?`, `intro` or `intro?`
+  are answered with the names, or `effect none` / `intro none` before any; a
+  name not in the word's table gets `effect error: no such effect` (or the
+  intro's) and changes nothing ([src/port.c](src/port.c) is the grammar). The
+  names, and the bit each carries on the wire: the effects' `thin-ring`,
+  `disc`, `stain`, `cross-ring`, `beams`, `water`, `dart`
+  ([src/effect.h](src/effect.h)'s table), the intros' `bands`, `star-waves`
+  ([src/intro.h](src/intro.h)'s). A new effect is a line in the effects'
+  table, its Kconfig symbol and `LANTERN_EFFECT_DEFAULT` member, its own file
+  under [src/effects/](src/effects/), one entry of the engine's table, and
+  that file's line in CMakeLists.txt; a new intro the same with the intros'
+  table, `LANTERN_INTRO_DEFAULT` and [src/intros/](src/intros/): the engine
+  in src/keys.c and the frame it hands them, src/frame.h, change for none.
+  The central's code invokes the `lantern,behavior-effect` or
+  `lantern,behavior-intro` node, which ZMK's split transport carries to every
+  half by the node's name; nothing is bound to a key.
+- A half that was away when the host wrote gets both picks with the palette,
+  a second after each of its battery reports; a half writes its flash only
+  when a pick changed. A change of the effects' pick clears the effects' state
+  (a ring half-way out, the stain's dye), so the new effect starts clean; a
+  change of the intro's shows at the next boot light. A device stores the
+  host's bits as sent, the ones its image lacks included, so the reply names
+  the pick as made (with the names this image knows; `effect none` or `intro
+  none` when it knows none of the stored bits) and an image with more effects
+  or intros shows it.
+- `CONFIG_LANTERN_EFFECT` and `CONFIG_LANTERN_INTRO` are on wherever their
+  nodes exist (named `effect` and `intro` on every device of the split, as the
+  palette's). The central's run queue must hold the palette's three
+  invocations and one per pick for every half at once:
+  `CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE=10` for two halves with
+  both picks (asserted at build time).
 
 ## Using it in a ZMK config
 
@@ -475,14 +494,14 @@ has.
    wherever their nodes exist; `CONFIG_LANTERN_BRIGHTNESS` (default 16) sets
    the frame's cap and, by default, the picture's brightness, which
    `CONFIG_LANTERN_PICTURE_BRIGHTNESS` (at most it) lowers alone;
-   `CONFIG_LANTERN_BOOT_LIGHT_MS=0` drops the boot light, and
-   `CONFIG_LANTERN_INTRO=y` makes it play the intro, at boot and when USB
-   power arrives (it needs `coords`). ZMK's underglow must
+   `CONFIG_LANTERN_INTRO_BANDS` (on by default) builds the bands, the boot
+   light's second of the palette's bands at boot and when USB power arrives,
+   `CONFIG_LANTERN_INTRO_STAR_WAVES=y` builds the star waves (it needs
+   `coords`) and makes them the default intro, and `CONFIG_LANTERN_INTRO_BANDS=n`
+   with no other intro built drops the boot light. ZMK's underglow must
    be off on such a half (its tick would repaint the strip; Cyboard's module
    defaults it to y for every target). A missing or conflicting option fails
-   the build with a message naming it, except
-   `CONFIG_LANTERN_BOOT_LIGHT_MS` with the intro, which Kconfig only warns
-   about and drops. A target without the nodes (a dongle)
+   the build with a message naming it. A target without the nodes (a dongle)
    builds none of the painting or the rail. `CONFIG_LANTERN_OFF_WHEN_IDLE` is
    on by default with the rail, and the idle timeout is ZMK's
    `CONFIG_ZMK_IDLE_TIMEOUT` (default 30000 ms; 300000 is the five minutes of
@@ -501,8 +520,7 @@ has.
    board by the keys' x (it needs `coords`), `CONFIG_LANTERN_SCATTER=y` throws
    the slots over the keys at random (it needs `scatter-weights`),
    `CONFIG_LANTERN_NO_PICTURE=y` leaves every key black for the effects (the
-   boot light shows the bands unless the intro plays; not with the press
-   glow).
+   boot light shows the picked intro).
    `CONFIG_LANTERN_THIN_RING=y` builds the thin ring into the image,
    `CONFIG_LANTERN_DISC=y` the disc, `CONFIG_LANTERN_STAIN=y` the stain, the
    ring that dyes, `CONFIG_LANTERN_CROSS_RING=y` the crossing ring,
@@ -533,20 +551,26 @@ has.
 
    The split central's conf needs
    `CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING=y` and a run queue
-   that holds a whole palette and the pick for every half at once, four
-   invocations each: `CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE=8` for
-   two halves (ZMK's default is 5; both asserted at build time); the port
+   that holds a whole palette and both picks for every half at once, five
+   invocations each: `CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE=10`
+   for two halves (ZMK's default is 5; both asserted at build time); the port
    comes with the central's CDC ACM port (`CONFIG_USB_CDC_ACM`).
 
-   The effect's node, likewise on every device under the one name
-   ([config/effect.dtsi](config/effect.dtsi) here), for the pick of the
-   effects; `CONFIG_LANTERN_EFFECT` is on wherever it exists:
+   The effect's and the intro's nodes, likewise on every device under the one
+   name each ([config/effect.dtsi](config/effect.dtsi) and
+   [config/intro.dtsi](config/intro.dtsi) here), for the picks;
+   `CONFIG_LANTERN_EFFECT` and `CONFIG_LANTERN_INTRO` are on wherever they
+   exist:
 
    ```dts
    / {
        behaviors {
            effect: effect {
                compatible = "lantern,behavior-effect";
+               #binding-cells = <2>;
+           };
+           intro: intro {
+               compatible = "lantern,behavior-intro";
                #binding-cells = <2>;
            };
        };
@@ -587,13 +611,12 @@ push to `main` refreshes one rolling draft release of the notes, with nothing
 attached; publishing the draft by hand creates the tag.
 
 Log lines (a `--logging` image, through canon's `dongle.py log` or any serial
-reader at 115200): `start: usb powered, boot light 1000 ms`, `lit: boot light`,
-`lit: usb powered`, `dark: on battery`, `dark: idle` (with the intro
-`start: usb powered, intro 10000 ms`, `lit: intro`, and `intro: usb powered`
-when power arrives), and the countdown's
-`stage N` at every move; the palette's:
-`slots 0-1 RRGGBB RRGGBB stored` (or `unchanged`) on every device, and on the
-central `N colour(s) from <port>` and `resent to half N`; the pick's: `effect
-0000000X stored` (or `unchanged`) on every device, and on the central `pick
-0000000X from <port>` and `resent to half N`; the picture logs only a frame
-the strip refused (`frame not written`).
+reader at 115200): `start: usb powered, boot light on` (or `none`), `lit: boot
+light 10000 ms` (the picked intro's length), `lit: usb powered`, `boot light:
+usb powered` when power arrives, `dark: on battery`, `dark: idle`, and the
+countdown's `stage N` at every move; the palette's: `slots 0-1 RRGGBB RRGGBB
+stored` (or `unchanged`) on every device, and on the central `N colour(s) from
+<port>` and `resent to half N`; the picks': `effect: 0000000X stored` (or
+`unchanged`; `intro: …` the same) on every device, and on the central `effect:
+pick 0000000X from <port>` and `effect: resent to half N` (the intro's the
+same); the picture logs only a frame the strip refused (`frame not written`).

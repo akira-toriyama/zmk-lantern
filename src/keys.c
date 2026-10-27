@@ -13,15 +13,15 @@
  * a stage: the bands, then the whole half in each colour of the palette in
  * turn, then the bands again; and the effects (canon t-6ttk), a picture that
  * moves after a key, each in its own file under src/effects/, of which the
- * pick (src/effect.c, canon t-5hqx) says which draw; and the intro
- * (src/intro.c) in the boot light's place. This file is the frame's engine
- * and the strip's one writer: what it hands the effects and the intro, and
- * takes from them, is src/frame.h. A frame goes out when something changed:
+ * pick (src/effect.c, canon t-5hqx) says which draw; and the intros (canon
+ * t-qvgv), each in its own file under src/intros/, of which the pick
+ * (src/intro.c) says which the boot light plays. This file is the frame's
+ * engine and the strip's one writer: what it hands the effects and the intros,
+ * and takes from them, is src/frame.h. A frame goes out when something changed:
  * when the rail rule lights or blanks the LEDs (src/on_usb_power.c), when
  * the palette changes while they are lit, when the countdown moves a stage,
- * at each throw of the scatter, when the boot light ends (the no picture's or
- * the intro's), and every FRAME_MS while an effect moves or the intro plays;
- * a still picture costs no tick.
+ * at each throw of the scatter, when the boot light ends, and every FRAME_MS
+ * while an effect moves or an intro plays; a still picture costs no tick.
  *
  * - Why the module writes the strip itself and ZMK's underglow is asserted
  *   off: rgb_underglow.c repaints every LED with its one colour and effect at
@@ -123,7 +123,7 @@
  *   a delayable item on the same queue that runs the same handler, FRAME_MS
  *   ahead; a black frame cancels it, so no frame follows the blank's. That
  *   timer and the cap below are the moving frames' (CONFIG_LANTERN_FRAMES),
- *   which the intro selects too. Which effects draw is the pick's
+ *   which a moving intro selects too. Which effects draw is the pick's
  *   (src/effect.h): the image carries every effect the consumer's conf turns
  *   on, and each frame reads the pick the host stored (lantern_effect_get(),
  *   an atomic), keeps the bits built here and draws those, every one of them
@@ -147,7 +147,7 @@
  *   CAP at the white picture alone, a white or grey band left an effect no
  *   room (Opus review, 2026-10-20). More keys at full scale than CAP_KEYS, on
  *   a white picture at the device's brightness, share the room and all dim
- *   alike. Integers only, for the effects and the intro alike: the low
+ *   alike. Integers only, for the effects and the intros alike: the low
  *   priority queue's 768-byte stack is shared with ZMK's battery sampling,
  *   and a thread that once uses the FPU keeps a larger context from then on.
  * - The effects' table (src/frame.h says what an entry is): one entry a file
@@ -206,33 +206,36 @@
  *   old throw for one frame. sys_rand32_get() is Zephyr's xoshiro128++ on a
  *   half (CONFIG_XOSHIRO_RANDOM_GENERATOR; thread context, the first call
  *   seeds from the nRF RNG). The node still carries slots, which the bands,
- *   the no picture's boot light, the crossing ring and the beams read, not
- *   this picture. Each half throws for itself:
- *   the two are independent, with the same shares.
+ *   the bands intro, the crossing ring and the beams read, not this picture.
+ *   Each half throws for itself: the two are independent, with the same
+ *   shares.
  * - The no picture (CONFIG_LANTERN_NO_PICTURE, canon t-skdt): every LED
  *   black while lit, so that only the effects show, over black keys: an
  *   effect pulls an LED from black and fades back to it, and the cap leaves
  *   the effects all its room but what a stain's dye takes (the dye stays at
  *   the picture's level, as over any picture, and the cap counts it as the
- *   picture). The boot light would then show nothing, and its point is to
- *   show that a half has power (canon t-6ttk, the user's choice of
- *   2026-10-19), so the rail rule tells this file the boot light's state at
- *   every light and again at its end with the LEDs lit
- *   (lantern_keys_boot_light(), on the system work queue; booting, an atomic
- *   the frame reads), and while it lasts the countdown's first picture (stage
- *   mod the shade count 0) is the bands, the node's slots; its end sends a
- *   frame, so on USB the keys turn black (on battery the blank follows
- *   anyway). With the countdown on, its first picture is otherwise the black
- *   one and the others the whole half in a shade, as with the bands. The
- *   node still carries slots, which the boot light reads here, and the
- *   crossing ring and the beams for their colours. The intro, when built,
- *   takes the boot light's frames instead.
- * - The intro (CONFIG_LANTERN_INTRO, src/intro.c): while the boot light
- *   lasts, the frame is the intro's, over a black picture for the cap, and
- *   keeps moving until its script ends; no effect is drawn and no press
+ *   picture). The boot light shows the picked intro, by default the bands
+ *   (src/intros/bands.c), so that a half still shows it has power (canon
+ *   t-6ttk, the user's choice of 2026-10-19); its end sends a frame, so on
+ *   USB the keys turn black (on battery the blank follows anyway). With the
+ *   countdown on, its first picture is otherwise the black one and the others
+ *   the whole half in a shade, as with the bands. The node still carries
+ *   slots, which the bands intro reads, and the crossing ring and the beams
+ *   for their colours.
+ * - The intros (CONFIG_LANTERN_INTROS, which each intro selects; src/intros/,
+ *   one file an intro, the table from LANTERN_INTRO_LIST as the effects'):
+ *   while the boot light lasts, the frame is the picked intro's, over a black
+ *   picture for the cap, from the time since the light opened, and keeps
+ *   moving while the intro says so (the bands are one still frame, the star
+ *   waves move until their script ends); no effect is drawn and no press
  *   noted meanwhile (a press noted then would show at its end as a disc
- *   already in flight). The engine starts its clock when the rail rule says
- *   the boot light is on, before the flag the frame reads.
+ *   already in flight). The rail rule opens the boot light
+ *   (lantern_keys_boot_light(), on the system work queue): this file resolves
+ *   the pick then (the first built bit of the host's pick in the table's
+ *   order, src/intro.c, or the Kconfig choice LANTERN_INTRO_DEFAULT's), starts
+ *   the intro's clock and hands the rail rule its length, before the flag the
+ *   frame reads (booting, an atomic); a pick that arrives while one plays
+ *   shows at the next boot light.
  */
 
 #define DT_DRV_COMPAT lantern_keys
@@ -307,8 +310,8 @@ BUILD_ASSERT(PICTURE_LEVEL <= LEVEL,
 #endif
 
 #if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
-/* The effects only: the intro, over a black picture, has all of CAP as room
- * at any brightness. */
+/* The effects only: an intro, over a black picture, has all of CAP as room at
+ * any brightness. */
 BUILD_ASSERT(HI_LEVEL > LEVEL, "CONFIG_LANTERN_BRIGHTNESS 100 leaves the frame's cap no room for "
                                "an effect, which brightens to full scale");
 /* The presses an effect still draws: with the hit (src/hit.c) both halves'
@@ -371,6 +374,34 @@ BUILD_ASSERT(ARRAY_SIZE(effects) == __builtin_popcount(EFFECTS_BUILT),
 
 /* The pick's bits row e draws for: its line's and those its entry names. */
 static uint32_t row_bits(size_t e) { return effects[e].bit | effects[e].entry->serves; }
+#endif
+
+#if IS_ENABLED(CONFIG_LANTERN_INTROS)
+/* The pick (the header): what this image plays, and what it plays without
+ * one. The Kconfig choice names one built intro. */
+#define INTROS_BUILT ((uint32_t)LANTERN_INTRO_BUILT)
+#define INTRO_DEFAULT ((uint32_t)LANTERN_INTRO_DEFAULT)
+BUILD_ASSERT(INTROS_BUILT != 0, "CONFIG_LANTERN_INTROS without an intro in LANTERN_INTRO_LIST");
+BUILD_ASSERT(__builtin_popcount(INTRO_DEFAULT) == 1 && (INTRO_DEFAULT & INTROS_BUILT) != 0,
+             "the choice LANTERN_INTRO_DEFAULT must name one intro this image builds");
+
+/* The table (the header): the intros this image builds, in
+ * LANTERN_INTRO_LIST's order, each its line's bit and its file's entry
+ * (src/intros/). */
+struct intro_row {
+    uint32_t bit;
+    const struct lantern_intro_entry *entry;
+};
+#define LANTERN_INTRO_EXTERN_(sym, bit, name, ops)                                                 \
+    extern const struct lantern_intro_entry lantern_intro_##ops;
+LANTERN_INTRO_LIST(LANTERN_INTRO_EXTERN_)
+#undef LANTERN_INTRO_EXTERN_
+#define LANTERN_INTRO_ROW_(sym, bit, name, ops)                                                    \
+    COND_CODE_1(CONFIG_LANTERN_INTRO_##sym, ({BIT(bit), &lantern_intro_##ops}, ), ())
+static const struct intro_row intros[] = {LANTERN_INTRO_LIST(LANTERN_INTRO_ROW_)};
+#undef LANTERN_INTRO_ROW_
+BUILD_ASSERT(ARRAY_SIZE(intros) == __builtin_popcount(INTROS_BUILT),
+             "the intros' table: a row per built intro");
 #endif
 
 #if IS_ENABLED(CONFIG_LANTERN_GEOMETRY)
@@ -476,9 +507,13 @@ static uint8_t scatter[LED_COUNT];
 static struct led_rgb pixels[LED_COUNT];
 static atomic_t lit;
 static atomic_t stage; /* stages since the last key; the picture is stage mod the shade count */
-#if IS_ENABLED(CONFIG_LANTERN_NO_PICTURE) || IS_ENABLED(CONFIG_LANTERN_INTRO)
-/* the boot light lasts: the intro plays, or the no picture shows the bands (the header) */
+#if IS_ENABLED(CONFIG_LANTERN_INTROS)
+/* the boot light lasts: the picked intro plays (the header) */
 static atomic_t booting;
+/* the row of intros[] the boot light plays, and k_uptime_get_32() at its
+ * start: written when it opens (the system work queue), read by the frame */
+static atomic_t intro_row;
+static atomic_t intro_t0;
 #endif
 
 static bool same(const struct led_rgb *a, const struct led_rgb *b) {
@@ -702,17 +737,49 @@ static void hold_to_cap(void) {
 
 #endif /* IS_ENABLED(CONFIG_LANTERN_FRAMES) */
 
-#if IS_ENABLED(CONFIG_LANTERN_INTRO)
+#if IS_ENABLED(CONFIG_LANTERN_INTROS)
 
-/* The whole boot light, the black after the script included: compose draws
- * the intro's frame, and a press notes no hit (the header). */
+/* The whole boot light: compose draws the picked intro's frame, and a press
+ * notes no hit (the header). */
 static bool intro_plays(void) { return atomic_get(&booting) != 0; }
+
+/* The row the boot light plays (the header): the first built bit of the
+ * host's pick in the table's order, or the default's. */
+static size_t active_intro_row(void) {
+    uint32_t pick, play = INTRO_DEFAULT;
+
+    if (lantern_intro_get(&pick) && (pick & INTROS_BUILT) != 0) {
+        play = pick & INTROS_BUILT;
+    }
+    for (size_t r = 0; r < ARRAY_SIZE(intros); r++) {
+        if (intros[r].bit & play) {
+            return r;
+        }
+    }
+    return 0; /* not reached: play has a built bit, and every built bit has a row */
+}
+
+/* The frame's thread: the picked intro's frame over a black picture (the
+ * header); true while it moves. */
+static bool intro_compose(void) {
+    const struct lantern_intro_entry *e = intros[(size_t)atomic_get(&intro_row)].entry;
+    uint32_t t = k_uptime_get_32() - (uint32_t)atomic_get(&intro_t0);
+
+#if IS_ENABLED(CONFIG_LANTERN_FRAMES)
+    memset(picture, 0, sizeof(picture));
+#endif
+    bool more = e->draw(pixels, &frame_shades, t);
+#if IS_ENABLED(CONFIG_LANTERN_FRAMES)
+    hold_to_cap();
+#endif
+    return more;
+}
 
 #else
 
 static inline bool intro_plays(void) { return false; }
 
-#endif /* IS_ENABLED(CONFIG_LANTERN_INTRO) */
+#endif /* IS_ENABLED(CONFIG_LANTERN_INTROS) */
 
 #if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
 
@@ -755,23 +822,20 @@ static void effects_clear(void) {
 #endif /* IS_ENABLED(CONFIG_LANTERN_EFFECTS) */
 
 /* The frame: the picture of stage at, the picked effects over it and the cap,
- * or the intro's frame while it plays; true while a picked effect still moves
- * or the intro plays. The low priority work queue only: it writes
- * frame_shades, pixels, picture and the effects' state and clears spent hits
- * (the palette, the pick and the hits are atomics, read from there). */
+ * or the picked intro's frame while the boot light lasts; true while a picked
+ * effect still moves or the intro does. The low priority work queue only: it
+ * writes frame_shades, pixels, picture and the effects' state and clears spent
+ * hits (the palette, the picks and the hits are atomics, read from there). */
 static bool compose(size_t at) {
-#if IS_ENABLED(CONFIG_LANTERN_INTRO)
-    if (intro_plays()) {
-        memset(picture, 0, sizeof(picture));
-        bool more = lantern_intro_draw(pixels);
-        hold_to_cap();
-        return more;
-    }
-#endif
     uint32_t palette[LANTERN_PALETTE_SLOTS] = {0};
     bool have = IS_ENABLED(CONFIG_LANTERN_PALETTE) && lantern_palette_get(palette);
 
     shades(palette, have, &frame_shades);
+#if IS_ENABLED(CONFIG_LANTERN_INTROS)
+    if (intro_plays()) {
+        return intro_compose();
+    }
+#endif
 #if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
     uint32_t fx = active_effects();
 
@@ -782,18 +846,12 @@ static bool compose(size_t at) {
     }
 #endif
     at %= frame_shades.n;
-#if IS_ENABLED(CONFIG_LANTERN_NO_PICTURE)
-    /* the intro, when built, has the boot light's frames (above) */
-    bool boot = !IS_ENABLED(CONFIG_LANTERN_INTRO) && atomic_get(&booting) != 0;
-#endif
     for (size_t i = 0; i < LED_COUNT; i++) {
 #if IS_ENABLED(CONFIG_LANTERN_GRADIENT)
         pixels[i] = at > 0 ? frame_shades.at_level[at] : ramp(&frame_shades, i, PICTURE_LEVEL);
 #elif IS_ENABLED(CONFIG_LANTERN_NO_PICTURE)
-        /* black, but the bands while the boot light lasts (the header) */
-        pixels[i] = at > 0  ? frame_shades.at_level[at]
-                    : boot ? frame_shades.at_level[frame_shades.rank[key_slot(led_key(i))]]
-                           : (struct led_rgb){0};
+        /* black (the header); the boot light's frames are an intro's (above) */
+        pixels[i] = at > 0 ? frame_shades.at_level[at] : (struct led_rgb){0};
 #else
         pixels[i] = frame_shades.at_level[at > 0 ? at : frame_shades.rank[base_slot(i)]];
 #endif
@@ -967,7 +1025,7 @@ static int key_listener(const zmk_event_t *eh) {
 #if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
     /* This half's own presses only: on a split central (Cyboard's stock left
      * half) the other half's keys arrive here too, and no LED here shows them;
-     * none while the intro plays (the header). */
+     * none while an intro plays (the header). */
     if (ev->state && ev->source == ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL &&
         ev->position < KEY_COUNT && atomic_get(&lit) && !intro_plays()) {
         hit_note(ev->position);
@@ -1032,23 +1090,33 @@ void lantern_keys_refresh(void) {
     }
 }
 
-#if IS_ENABLED(CONFIG_LANTERN_NO_PICTURE) || IS_ENABLED(CONFIG_LANTERN_INTRO)
+#if IS_ENABLED(CONFIG_LANTERN_INTROS)
 
 /* System work queue (the rail rule): before every light, the boot light's
- * state (on only for the boot light's, whose frames then play the intro or
- * show the no picture's bands; dark then, so no frame here), and off again
- * at the boot light's end with the LEDs lit, which sends a frame. */
-void lantern_keys_boot_light(bool on) {
-#if IS_ENABLED(CONFIG_LANTERN_INTRO)
+ * state (on only for the boot light's: the picked intro resolved, its clock
+ * started and its length returned, so that the rail rule and the frames agree
+ * on which plays and for how long; dark then, so no frame here), and off
+ * again at the boot light's end with the LEDs lit, which sends a frame. */
+uint32_t lantern_keys_boot_light(bool on) {
+    uint32_t ms = 0;
+
     if (on) {
+        size_t row = active_intro_row();
+        const struct lantern_intro_entry *e = intros[row].entry;
+
         /* before the flag, so that a frame that sees the flag sees this start */
-        lantern_intro_start();
+        atomic_set(&intro_row, (atomic_val_t)row);
+        atomic_set(&intro_t0, (atomic_val_t)k_uptime_get_32());
+        if (e->start != NULL) {
+            e->start();
+        }
+        ms = e->length_ms;
     }
-#endif
     atomic_set(&booting, on ? 1 : 0);
     if (atomic_get(&lit)) {
         submit();
     }
+    return ms;
 }
 
-#endif
+#endif /* IS_ENABLED(CONFIG_LANTERN_INTROS) */

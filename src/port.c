@@ -5,10 +5,10 @@
  *
  * The host's entry: a text line on any USB CDC ACM port of the split central
  * (canon's Imprint Dongle has one, its board's; canon's scripts/dongle.py
- * palette and effect write it). Lines, ASCII, ended by LF or CR, each a word
- * and its arguments; the word picks the file that answers (the palette,
- * src/palette.c; the pick of the effects, src/effect.c), and this file only
- * reads lines, parses them and replies:
+ * palette, effect and intro write it). Lines, ASCII, ended by LF or CR, each a
+ * word and its arguments; the word picks the file that answers (the palette,
+ * src/palette.c; the pick of the effects, src/effect.c; the pick of the intro,
+ * src/intro.c), and this file only reads lines, parses them and replies:
  *
  *   palette RRGGBB [RRGGBB ...]   set slots 0.. (one to LANTERN_PALETTE_SLOTS,
  *                                 six, colours; the rest are cleared to 000000)
@@ -27,9 +27,19 @@
  *                                   not know: a reply must never be a bare
  *                                   "effect", which is itself an ask)
  *
- * A colour is exactly six hex digits, either case; the reply writes upper
- * case. A name is one of the table's, exactly. A line that begins with
- * neither word is not for this file and gets no reply (the port may carry
+ *   intro <name>                  pick the intro the boot light plays
+ *                                 (src/intro.h's names; one at a time)
+ *     -> intro ok <name>
+ *     -> intro error: <reason>
+ *   intro  or  intro?             ask
+ *     -> intro <name>   or   intro none   (as the effect's)
+ *
+ * The two picks share one grammar (a word, then names from the word's table)
+ * over one mechanism (src/pick.c): a pick word is a table, its instance's get
+ * and send, and its error reasons, static strings (the parse runs on the
+ * system work queue, whose stack the behavior path below it shares). A colour is exactly six hex digits, either case; the reply
+ * writes upper case. A name is one of the table's, exactly. A line that begins
+ * with none of the words is not for this file and gets no reply (the port may carry
  * anything else the host sends), and so is a line shaped like one of the
  * replies ("palette ok …", "effect none", "… error: …"): a host whose terminal
  * echoes what it receives sends every reply back, and a reply answered would
@@ -52,8 +62,8 @@
  *   (CONFIG_USB_WORKQUEUE_STACK_SIZE): the callback only collects bytes into
  *   a line and hands a complete line, through a message queue of two, to a
  *   work item on the system work queue, where the parse, the invocation
- *   (lantern_palette_send(), lantern_effect_send(): the behavior, the halves'
- *   commands, the store) and the reply run. The USB work queue is cooperative
+ *   (lantern_palette_send(), lantern_effect_send(), lantern_intro_send(): the
+ *   behavior, the halves' commands, the store) and the reply run. The USB work queue is cooperative
  *   at -1, so a reply from there would also be written whole, but the
  *   behavior path's frames (ZMK's split central down to the queue's wait) do
  *   not fit beside the driver's with margin. A line arriving while two wait
@@ -88,30 +98,35 @@
 #include <zephyr/sys/util.h>
 
 #include "effect.h"
+#include "intro.h"
 #include "palette.h"
 
 LOG_MODULE_REGISTER(lantern_port, LOG_LEVEL_INF);
 
-BUILD_ASSERT(IS_ENABLED(CONFIG_LANTERN_PALETTE) || IS_ENABLED(CONFIG_LANTERN_EFFECT),
-             "CONFIG_LANTERN_PORT has no word to answer without the palette or the effect");
+BUILD_ASSERT(IS_ENABLED(CONFIG_LANTERN_PALETTE) || IS_ENABLED(CONFIG_LANTERN_EFFECT) ||
+                 IS_ENABLED(CONFIG_LANTERN_INTRO),
+             "CONFIG_LANTERN_PORT has no word to answer without the palette or a pick");
 
 #define PALETTE_WORD "palette"
-#define EFFECT_WORD "effect"
 #define COLOUR_DIGITS 6
-/* The longest line worth reading and the longest reply: "palette " and six
- * slots of six digits and a space each (49 and, with "ok ", 52), or "effect "
- * and every name with a space each; the longest error reply ("not ready: ...")
- * is 58. */
+/* The longest name a pick's table may carry (asserted below), and the longest
+ * line worth reading and the longest reply: "palette " and six slots of six
+ * digits and a space each (49 and, with "ok ", 52), or a pick's word and every
+ * name of its table with a space each; the longest error reply ("not ready:
+ * ...") is 58. */
+#define PICK_NAME_MAX 15
 #define PALETTE_LINE (16 + 7 * LANTERN_PALETTE_SLOTS)
-#define EFFECT_LINE (16 + (LANTERN_EFFECT_NAME_MAX + 1) * LANTERN_EFFECT_COUNT)
-#define LINE_LIMIT MAX(PALETTE_LINE, EFFECT_LINE)
+#define PICK_LINE(count) (16 + (PICK_NAME_MAX + 1) * (count))
+#define LINE_LIMIT                                                                                 \
+    MAX(PALETTE_LINE, MAX(PICK_LINE(LANTERN_EFFECT_COUNT), PICK_LINE(LANTERN_INTRO_COUNT)))
 #define REPLY_MAX MAX(64, LINE_LIMIT)
 #define LINES_WAITING 2
 
-#define EFFECT_NAME_FITS_(sym, bit, name, ops)                                                     \
-    BUILD_ASSERT(sizeof(name) - 1 <= LANTERN_EFFECT_NAME_MAX,                                      \
-                 "LANTERN_EFFECT_LIST: a name is longer than LANTERN_EFFECT_NAME_MAX");
-LANTERN_EFFECT_LIST(EFFECT_NAME_FITS_)
+#define NAME_FITS_(sym, bit, name, ops)                                                            \
+    BUILD_ASSERT(sizeof(name) - 1 <= PICK_NAME_MAX, "a pick's name is longer than PICK_NAME_MAX");
+LANTERN_EFFECT_LIST(NAME_FITS_)
+LANTERN_INTRO_LIST(NAME_FITS_)
+#undef NAME_FITS_
 
 /* The USB work queue's side: bytes into a line. */
 struct port {
@@ -255,28 +270,39 @@ static void handle_palette(const struct device *dev, const char *s) {
 
 #endif /* IS_ENABLED(CONFIG_LANTERN_PALETTE) */
 
-#if IS_ENABLED(CONFIG_LANTERN_EFFECT)
+#if IS_ENABLED(CONFIG_LANTERN_EFFECT) || IS_ENABLED(CONFIG_LANTERN_INTRO)
 
-/* The table, in its order (src/effect.h). */
-static const struct {
+/* A pick's word (the header): its table, in the table's order, and its
+ * instance's get and send (src/effect.h, src/intro.h). */
+struct named_bit {
     uint32_t bit;
     const char *name;
-} effects[] = {
-#define EFFECT_ROW_(sym, bit, name, ops) {BIT(bit), name},
-    LANTERN_EFFECT_LIST(EFFECT_ROW_)
-#undef EFFECT_ROW_
 };
 
-static void reply_effect(const struct device *dev, const char *head) {
-    uint32_t mask;
+struct pick_word {
+    const char *word;
+    const struct named_bit *names;
+    size_t count;
+    bool (*get)(uint32_t *mask);
+    int (*send)(uint32_t mask);
+    const char *unknown; /* the error's reason for a name not in the table */
+    const char *several; /* and for several names where the pick takes one; NULL where it takes any */
+};
+
+static void reply_pick(const struct device *dev, const struct pick_word *w, const char *head) {
+    uint32_t mask = 0, known = 0;
     char text[REPLY_MAX];
-    if (!lantern_effect_get(&mask) || (mask & LANTERN_EFFECT_ALL) == 0) {
-        snprintk(text, sizeof(text), "%s none", EFFECT_WORD);
+
+    for (size_t i = 0; i < w->count; i++) {
+        known |= w->names[i].bit;
+    }
+    if (!w->get(&mask) || (mask & known) == 0) {
+        snprintk(text, sizeof(text), "%s none", w->word);
     } else {
-        int n = snprintk(text, sizeof(text), "%s%s", EFFECT_WORD, head);
-        for (size_t i = 0; i < ARRAY_SIZE(effects) && n < (int)sizeof(text); i++) {
-            if (mask & effects[i].bit) {
-                n += snprintk(text + n, sizeof(text) - n, " %s", effects[i].name);
+        int n = snprintk(text, sizeof(text), "%s%s", w->word, head);
+        for (size_t i = 0; i < w->count && n < (int)sizeof(text); i++) {
+            if (mask & w->names[i].bit) {
+                n += snprintk(text + n, sizeof(text) - n, " %s", w->names[i].name);
             }
         }
     }
@@ -284,19 +310,19 @@ static void reply_effect(const struct device *dev, const char *head) {
 }
 
 /* The bit of the name that s starts with, ended by a space or the end, or 0. */
-static uint32_t parse_effect(const char *s, size_t *len) {
-    for (size_t i = 0; i < ARRAY_SIZE(effects); i++) {
-        if (starts_with_word(s, effects[i].name)) {
-            *len = strlen(effects[i].name);
-            return effects[i].bit;
+static uint32_t parse_name(const struct pick_word *w, const char *s, size_t *len) {
+    for (size_t i = 0; i < w->count; i++) {
+        if (starts_with_word(s, w->names[i].name)) {
+            *len = strlen(w->names[i].name);
+            return w->names[i].bit;
         }
     }
     return 0;
 }
 
-static void handle_effect(const struct device *dev, const char *s) {
+static void handle_pick(const struct device *dev, const struct pick_word *w, const char *s) {
     if (*s == '\0') {
-        reply_effect(dev, "");
+        reply_pick(dev, w, "");
         return;
     }
     uint32_t mask = 0;
@@ -306,24 +332,60 @@ static void handle_effect(const struct device *dev, const char *s) {
             continue;
         }
         size_t len;
-        uint32_t bit = parse_effect(s, &len);
+        uint32_t bit = parse_name(w, s, &len);
         if (bit == 0) {
-            reply_error(dev, EFFECT_WORD, "no such effect (the names: effect?)");
+            reply_error(dev, w->word, w->unknown);
             return;
         }
         mask |= bit;
         s += len;
     }
-    int rc = lantern_effect_send(mask);
-    if (rc < 0) {
-        reply_not_sent(dev, EFFECT_WORD, rc);
+    int rc = w->send(mask);
+    if (rc == -E2BIG && w->several != NULL) {
+        reply_error(dev, w->word, w->several);
         return;
     }
-    LOG_INF("pick %08x from %s", mask, dev->name);
-    reply_effect(dev, " ok");
+    if (rc < 0) {
+        reply_not_sent(dev, w->word, rc);
+        return;
+    }
+    LOG_INF("%s: pick %08x from %s", w->word, mask, dev->name);
+    reply_pick(dev, w, " ok");
 }
 
+#define NAMED_BIT_(sym, bit, name, ops) {BIT(bit), name},
+
+#endif /* IS_ENABLED(CONFIG_LANTERN_EFFECT) || IS_ENABLED(CONFIG_LANTERN_INTRO) */
+
+#if IS_ENABLED(CONFIG_LANTERN_EFFECT)
+
+static const struct named_bit effect_names[] = {LANTERN_EFFECT_LIST(NAMED_BIT_)};
+static const struct pick_word effect_word = {
+    .word = "effect",
+    .names = effect_names,
+    .count = ARRAY_SIZE(effect_names),
+    .get = lantern_effect_get,
+    .send = lantern_effect_send,
+    .unknown = "no such effect (the names: effect?)",
+    .several = NULL,
+};
+
 #endif /* IS_ENABLED(CONFIG_LANTERN_EFFECT) */
+
+#if IS_ENABLED(CONFIG_LANTERN_INTRO)
+
+static const struct named_bit intro_names[] = {LANTERN_INTRO_LIST(NAMED_BIT_)};
+static const struct pick_word intro_word = {
+    .word = "intro",
+    .names = intro_names,
+    .count = ARRAY_SIZE(intro_names),
+    .get = lantern_intro_get,
+    .send = lantern_intro_send,
+    .unknown = "no such intro (the names: intro?)",
+    .several = "one intro at a time",
+};
+
+#endif /* IS_ENABLED(CONFIG_LANTERN_INTRO) */
 
 static void handle(const struct line *l) {
     const char *s;
@@ -335,9 +397,16 @@ static void handle(const struct line *l) {
     }
 #endif
 #if IS_ENABLED(CONFIG_LANTERN_EFFECT)
-    s = arguments(l->text, EFFECT_WORD);
+    s = arguments(l->text, effect_word.word);
     if (s != NULL) {
-        handle_effect(l->dev, s);
+        handle_pick(l->dev, &effect_word, s);
+        return;
+    }
+#endif
+#if IS_ENABLED(CONFIG_LANTERN_INTRO)
+    s = arguments(l->text, intro_word.word);
+    if (s != NULL) {
+        handle_pick(l->dev, &intro_word, s);
         return;
     }
 #endif
