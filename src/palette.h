@@ -20,7 +20,7 @@
 #define LANTERN_PALETTE_RGB_MAX 0xFFFFFF
 /* The invocations a palette takes on the split transport, a pair of slots
  * each (src/palette.c): what the central's run queue must hold a half, with
- * the pick's one (src/effect.c). */
+ * each pick's one (src/pick.c). */
 #define LANTERN_PALETTE_PAIRS (LANTERN_PALETTE_SLOTS / 2)
 
 /* The six colours (0xRRGGBB, slot 0 first). False while no palette has been

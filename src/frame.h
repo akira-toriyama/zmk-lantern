@@ -3,22 +3,22 @@
  *
  * SPDX-License-Identifier: MIT
  *
- * The frame, for the effects (src/effects/) and the intro (src/intro.c): what
+ * The frame, for the effects (src/effects/) and the intros (src/intros/): what
  * the engine in src/keys.c, which composes and writes every frame, hands them
  * and takes from them. The lantern,keys node's tables, the levels and the
  * cap, the shades a frame is made of, a hit, the colour helpers, the board's
- * geometry, and the table entry an effect fills in. Layer contract: an
- * effect or the intro paints only the pixels of the frame it is handed (px[])
- * and keeps only its own state; the strip, the hits' ring, the stage, the
- * pick, the boot light and the cap are the engine's, which calls everything
- * here on ZMK's low priority work queue, so nothing here locks. Integers
- * only: that queue's 768-byte stack is shared with ZMK's battery sampling,
- * and a thread that once uses the FPU keeps a larger context from then on
- * (src/keys.c).
+ * geometry, and the table entries an effect and an intro fill in. Layer
+ * contract: an effect or an intro paints only the pixels of the frame it is
+ * handed (px[]) and keeps only its own state; the strip, the hits' ring, the
+ * stage, the picks, the boot light and the cap are the engine's, which calls
+ * everything here on ZMK's low priority work queue, so nothing here locks.
+ * Integers only: that queue's 768-byte stack is shared with ZMK's battery
+ * sampling, and a thread that once uses the FPU keeps a larger context from
+ * then on (src/keys.c).
  *
  * - The geometry (CONFIG_LANTERN_GEOMETRY, which each effect that measures
- *   the board selects, the intro for the coords and the square root, and the
- *   gradient for the board's ends): distances come from the consumer's
+ *   the board selects, the star waves for the coords and the square root, and
+ *   the gradient for the board's ends): distances come from the consumer's
  *   coords, each key position's x and y in hundredths of a key unit (canon:
  *   imprint.json, keymap-drawer's physical layout, each key's top left
  *   corner; every key is one unit, so the offset to the centre cancels), so a
@@ -44,6 +44,13 @@
  *   stain's bit, the stain being the ring that dyes, so that the ring is
  *   drawn once and first whichever of the two is picked; the stain's entry
  *   keeps the dye).
+ * - The intros' table: one entry a file under src/intros/, named by its line
+ *   in LANTERN_INTRO_LIST (src/intro.h), from which src/keys.c builds the
+ *   table of the intros this image builds, in the list's order. While the
+ *   boot light lasts the engine draws the picked entry's frame over a black
+ *   picture (draw, with the time since the light opened), composes another
+ *   while the entry says it moves, and holds each to the cap; the rail rule
+ *   keeps the LEDs lit for the entry's length.
  * - The helpers below are inline in this header, a copy in every file that
  *   uses them (about a kilobyte of flash on canon's halves, measured at the
  *   split), so that the per-LED loops keep them inlined as they were in the
@@ -270,3 +277,28 @@ struct lantern_effect_entry {
 };
 
 #endif /* IS_ENABLED(CONFIG_LANTERN_EFFECTS) */
+
+#if IS_ENABLED(CONFIG_LANTERN_INTROS)
+
+/* An intro's entry in the table (the header): lantern_intro_<ops> for the
+ * line X(SYMBOL, bit, "name", ops) of LANTERN_INTRO_LIST, defined by its file
+ * under src/intros/ and built when CONFIG_LANTERN_INTRO_<SYMBOL> is. */
+struct lantern_intro_entry {
+    /* How long the rail rule keeps the LEDs lit for it, from the light that
+     * opens the boot light; above 0 (the file asserts), or the rail rule ends
+     * the light at once. */
+    uint32_t length_ms;
+    /* The boot light opens (the system work queue): a seed, a clock of its
+     * own; NULL for none. */
+    void (*start)(void);
+    /* The frame's thread: the frame t ms into the intro, into px (every LED),
+     * over a black picture for the cap, from the frame's shades (the
+     * palette's colours at the picture's level); true while the frame moves,
+     * so that the engine composes another FRAME_MS on (a moving intro selects
+     * CONFIG_LANTERN_FRAMES), false for a still frame and from a moving one's
+     * end, where px must be black: the rail rule ends the light at length_ms,
+     * and the engine may compose a frame past it. */
+    bool (*draw)(struct led_rgb px[], const struct shades *sh, uint32_t t);
+};
+
+#endif /* IS_ENABLED(CONFIG_LANTERN_INTROS) */

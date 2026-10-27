@@ -10,7 +10,7 @@
 #   ./scripts/build.sh imprint_right      # one shield; its board comes from build.yaml
 #   ./scripts/build.sh <board>:<shield>   # a pair that build.yaml does not list
 #   ./scripts/build.sh --logging
-#   ./scripts/build.sh --kconfig CONFIG_LANTERN_BOOT_LIGHT_MS=3000 --tag boot3s
+#   ./scripts/build.sh --kconfig CONFIG_LANTERN_INTRO_STAR_WAVES=y --tag star
 #   ./scripts/build.sh --update           # west update first
 #   ./scripts/build.sh --clean            # delete the workspace and exit
 #

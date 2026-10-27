@@ -61,9 +61,6 @@ enum lantern_effect {
 #define LANTERN_EFFECT_BUILT (0 LANTERN_EFFECT_LIST(LANTERN_EFFECT_BUILT_))
 #define LANTERN_EFFECT_DEFAULT (0 LANTERN_EFFECT_LIST(LANTERN_EFFECT_DEFAULT_))
 #define LANTERN_EFFECT_COUNT (0 LANTERN_EFFECT_LIST(LANTERN_EFFECT_ONE_))
-/* The longest name a line of the table may carry (src/port.c sizes its line
- * and its reply from it; asserted there). */
-#define LANTERN_EFFECT_NAME_MAX 15
 
 BUILD_ASSERT(__builtin_popcount(LANTERN_EFFECT_ALL) == LANTERN_EFFECT_COUNT,
              "LANTERN_EFFECT_LIST: two effects share a bit");

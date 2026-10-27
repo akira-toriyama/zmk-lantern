@@ -34,15 +34,15 @@
  *   split_bt_invoke_behavior_payload). A set from the port queues every
  *   half's three in one go, 6 for two halves. The queue is asserted to hold
  *   a whole palette for every half, PAIRS x the peripheral count, and the
- *   pick's one more a half (src/effect.c asserts the sum; a consumer with
- *   two halves sets 8, canon's config/imprint_dongle.conf): a set that
+ *   picks' one more a half each (src/pick.c asserts the sum; a consumer with
+ *   two halves sets 10, canon's config/imprint_dongle.conf): a set that
  *   starts on an empty queue then goes in without waiting, and a drain
  *   stalled for 100 ms (a half that stopped acknowledging) drops commands
  *   queued before the set, never the set's own, where ZMK's 5 would drop
  *   the first half's slots 0-1, the ones seen (read 2026-10-19, ZMK
  *   4dd95d78; on an idle link 5 drops nothing either, the drain takes the
  *   first command while the sixth put waits). A resend is one half's three,
- *   with the pick's one (src/effect.c), both halves' at once when both
+ *   with each pick's one (src/pick.c), both halves' at once when both
  *   report together.
  * - Settings: "lantern/palette/colours", the six colours as one value, saved
  *   when a colour changed or the first palette arrived and not otherwise; a

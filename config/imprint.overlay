@@ -28,6 +28,7 @@
 #include "palette.dtsi"
 #include "hit.dtsi"
 #include "effect.dtsi"
+#include "intro.dtsi"
 
 &{/EXT_POWER} {
     status = "disabled";

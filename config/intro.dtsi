@@ -1,0 +1,15 @@
+// The intro behavior's node (src/intro.c), the same on every device of the
+// split, as the palette's (config/palette.dtsi says why one name): the host's
+// pick of the intro the boot light plays, carried by the central to both
+// halves through it. A consumer with a keymap of its own puts it among the
+// keymap's behaviors (canon: config/imprint_behaviors.dtsi); this check build
+// includes this file from every overlay.
+
+/ {
+    behaviors {
+        intro: intro {
+            compatible = "lantern,behavior-intro";
+            #binding-cells = <2>;
+        };
+    };
+};
