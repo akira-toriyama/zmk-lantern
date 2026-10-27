@@ -360,37 +360,39 @@
  *   thumb clusters, so the show moves from the outer columns' top to the
  *   inner thumb. The script, in order: the star, a head crossing the half in
  *   STAR_MS, each key in the colour of its third of the depths (the thirds
- *   the burst ends in, below), each key glittering for GLITTER_MS once the
- *   head has left it, every beat a primary or none at random (the dice: an
- *   integer hash of the LED, the beat and a seed taken at the start, so the
- *   frame keeps no state for it); the waves, red, blue and green WAVE_GAP_MS
- *   apart, each front crossing in WAVE_MS with a fading tail; the core, the
- *   deepest keys, each in the colour of the newest wave to reach it, so that
- *   a wave coming into the core never meets another colour there, with a
- *   flash at each wave's arrival, then pulsing for CHARGE_MS a colour a beat,
- *   the last wave's green, red, blue, green, and swelling outwards; and the
- *   burst, a red, a blue and a green ring from the core out BURST_GAP_MS
- *   apart, each crossing in BURST_MS, the last leaving each key it passes in
- *   its third of the depths, the outer red, the middle blue and the inner
- *   green (the waves' order from the outside), held THIRDS_HOLD_MS; the flow,
- *   the thirds as three crests sliding inward at the waves' pace for FLOW_MS
- *   (canon t-x46t, 2026-10-27: the user asked for a longer show, more scenes
- *   at the same tempo), a key dark at a band's edges and at the thirds' level
- *   at its middle, so that it changes colour while dark, the crests deepening
- *   from the hold's flat light over FLOW_RAMP_MS, three depths in all, so
- *   that the bands end where they began; and the star out, a head running
- *   back from the innermost key to the outermost in STAR_MS, the flow ending
- *   at each key as it passes and the key glittering for GLITTER_MS once the
- *   head has left it, as at the start, the last glitter out GLITTER_MS after
- *   the head leaves the outermost key, at the end. The hold and the flow are
- *   the script's stretches with every key lit. A key shows one primary, the
- *   strongest of the light on it (the beat's alone on the charging core's
- *   keys), light of one colour adding up to full scale, so that no retiming
- *   of the acts can mix two, the star's head included. The frame's cap over a
- *   black picture holds the whole. Each frame is composed from the time since
- *   the start, so a late frame loses nothing; the depths are measured once,
- *   at the first frame. No effect is drawn and no press noted while it plays:
- *   a press noted then would show at its end as a disc already in flight.
+ *   the burst ends in, below), each key glittering for GLITTER_MS from the
+ *   head's passing, in sight once the head's light has left it, every beat a
+ *   primary or none at random (the dice: an integer hash of the LED, the beat
+ *   and a seed taken at the start, so the frame keeps no state for it); the
+ *   waves, red, blue and green WAVE_GAP_MS apart, each front crossing in
+ *   WAVE_MS with a fading tail; the core, the deepest keys, each in the
+ *   colour of the newest wave to reach it, so that a wave coming into the
+ *   core never meets another colour there, with a flash at each wave's
+ *   arrival, then pulsing for CHARGE_MS a colour a beat, the last wave's
+ *   green, red, blue, green, and swelling outwards; and the burst, a red, a
+ *   blue and a green ring from the core out BURST_GAP_MS apart, each crossing
+ *   in BURST_MS, the last leaving each key it passes in its third of the
+ *   depths, the outer red, the middle blue and the inner green (the waves'
+ *   order from the outside), held THIRDS_HOLD_MS; the flow (canon t-x46t,
+ *   2026-10-27: the user asked for a longer show, more scenes at the same
+ *   tempo), the thirds as three crests, a key dark at a band's edges and at
+ *   the thirds' level at its middle, deepening in place from the hold's flat
+ *   light over FLOW_RAMP_MS, then sliding outward at the waves' pace, so that
+ *   a key changes colour while dark and in the user's order, for three
+ *   depths, and standing again where they began; and the star out, a head
+ *   running back from the innermost key to the outermost in STAR_MS,
+ *   brightening each key in its own colour, the flow ending at each key as it
+ *   passes and the key glittering after it as at the start, the last glitter
+ *   out GLITTER_MS after the head passes the outermost key, at the end. The
+ *   hold is the script's one stretch with every key lit, the flow all but the
+ *   keys at a band's edge. A key shows one primary, the strongest of the
+ *   light on it (the beat's alone on the charging core's keys), light of one
+ *   colour adding up to full scale, so that no retiming of the acts can mix
+ *   two, the star's head included. The frame's cap over a black picture holds
+ *   the whole. Each frame is composed from the time since the start, so a
+ *   late frame loses nothing; the depths are measured once, at the first
+ *   frame. No effect is drawn and no press noted while it plays: a press
+ *   noted then would show at its end as a disc already in flight.
  */
 
 #define DT_DRV_COMPAT lantern_keys
@@ -1353,6 +1355,11 @@ static void dart(const struct shades *sh, const struct hit live[], size_t n) {
 #define GLITTER_MS 1000     /* how long a key glitters once the head has passed it */
 #define GLITTER_BEAT_MS 60  /* every beat a new primary, or none */
 #define GLITTER_ON 160      /* of 256: the chance that a key shows in a beat */
+/* The glitter's level as it begins, fading to 0 over GLITTER_MS: at 255 the
+ * star out's head with every key glittering behind it could pass the frame's
+ * cap by a tenth (Opus review, 2026-10-27); at this level neither star's
+ * worst roll does. */
+#define GLITTER_PEAK 225
 #define WAVE_FROM_MS 1300   /* the first wave's start; the others follow */
 #define WAVE_GAP_MS 500
 #define WAVE_MS 1000        /* a wave's front from the outermost key to the innermost */
@@ -1381,24 +1388,25 @@ static void dart(const struct shades *sh, const struct hit live[], size_t n) {
  * frame's cap at the device's brightness (4851 at 16 %), so the hold and the
  * flow show at its level. */
 #define THIRDS_LEVEL 160
-/* The flow: the thirds as three crests sliding inward at the waves' pace (a
- * depth, three bands, in WAVE_MS), a key dark at a band's edges and at
- * THIRDS_LEVEL at its middle, so that it changes colour while dark; the
- * crests deepen from the hold's flat light over FLOW_RAMP_MS. FLOW_MS is
- * three depths: the bands end where they began. */
+/* The flow: the thirds as three crests, a key dark at a band's edges and at
+ * THIRDS_LEVEL at its middle, deepening in place from the hold's flat light
+ * over FLOW_RAMP_MS (the pattern stands meanwhile: moved, it flipped a key's
+ * colour while lit; Opus review, 2026-10-27), then sliding outward at the
+ * waves' pace (a depth, three bands, in WAVE_MS), so that a key changes
+ * colour while dark and in the user's order, red, blue, green, for three
+ * depths, and standing again where they began, so that the star out's head,
+ * in the key's third's colour, brightens each key in its own colour. */
 #define FLOW_FROM_MS (BURST_FROM_MS + 2 * BURST_GAP_MS + BURST_MS + THIRDS_HOLD_MS)
-#define FLOW_MS 3000
 #define FLOW_RAMP_MS 333
+#define FLOW_MS (FLOW_RAMP_MS + 3 * WAVE_MS)
 #define FLOW_BAND 256       /* a band's width in the flow's positions, three to a depth */
 /* The star out: a head from the innermost key to the outermost in STAR_MS,
  * the flow ending at each key as the head passes it and the key glittering
- * for GLITTER_MS, as at the start; the last glitter is out GLITTER_MS after
- * the head leaves the outermost key. */
+ * after it, as at the start; the last glitter is out GLITTER_MS after the
+ * head passes the outermost key. */
 #define STAR_OUT_FROM_MS (FLOW_FROM_MS + FLOW_MS)
 BUILD_ASSERT(STAR_OUT_FROM_MS + STAR_MS + GLITTER_MS <= LANTERN_INTRO_MS,
              "the intro's script runs past LANTERN_INTRO_MS, where the rail rule ends it");
-BUILD_ASSERT((FLOW_MS * 3 * FLOW_BAND / WAVE_MS) % (3 * FLOW_BAND) == 0,
-             "the flow's bands do not end where they began");
 BUILD_ASSERT(CORE_SWELL < CORE_FROM && CORE_FROM < CORE_FULL && CORE_FULL <= DEPTH_ONE,
              "the core's depths are out of order");
 
@@ -1484,7 +1492,7 @@ static struct led_rgb intro_led(size_t i, uint32_t t, uint32_t seed) {
         uint32_t roll = dice(seed ^ ((uint32_t)i << 8) ^ (age / GLITTER_BEAT_MS));
 
         if ((roll & 0xFF) < GLITTER_ON) {
-            c[(roll >> 8) % 3] += 255 * (GLITTER_MS - age) / GLITTER_MS;
+            c[(roll >> 8) % 3] += GLITTER_PEAK * (GLITTER_MS - age) / GLITTER_MS;
         }
     }
 
@@ -1581,10 +1589,10 @@ static struct led_rgb intro_led(size_t i, uint32_t t, uint32_t seed) {
     uint32_t out = STAR_OUT_FROM_MS + (uint32_t)(DEPTH_ONE - d) * STAR_MS / DEPTH_ONE;
     if (t >= FLOW_FROM_MS && t < out) {
         uint32_t since = t - FLOW_FROM_MS;
-        int32_t pos = MIN(d * 3 * FLOW_BAND / DEPTH_ONE, 3 * FLOW_BAND - 1);
-        int32_t slide = (int32_t)(since * 3 * FLOW_BAND / WAVE_MS);
-        /* the key's place in the pattern, which slides inward: non-negative modulo */
-        uint32_t at = (uint32_t)((pos - slide) % (3 * FLOW_BAND) + 3 * FLOW_BAND) % (3 * FLOW_BAND);
+        uint32_t pos = MIN((uint32_t)d * 3 * FLOW_BAND / DEPTH_ONE, 3u * FLOW_BAND - 1);
+        /* the pattern's run: none during the ramp, three depths, then it stands */
+        uint32_t run = CLAMP(since, FLOW_RAMP_MS, FLOW_MS) - FLOW_RAMP_MS;
+        uint32_t at = (pos + run * 3 * FLOW_BAND / WAVE_MS) % (3 * FLOW_BAND);
         uint32_t frac = at % FLOW_BAND;
         uint32_t crest = frac < FLOW_BAND / 2 ? frac * 2 : (FLOW_BAND - 1 - frac) * 2;
         uint32_t ramp = MIN(since * 256 / FLOW_RAMP_MS, 256u);
@@ -1605,7 +1613,7 @@ static struct led_rgb intro_led(size_t i, uint32_t t, uint32_t seed) {
             uint32_t roll = dice(seed ^ ((uint32_t)i << 8) ^ (age / GLITTER_BEAT_MS) ^ 0x80000000u);
 
             if ((roll & 0xFF) < GLITTER_ON) {
-                c[(roll >> 8) % 3] += 255 * (GLITTER_MS - age) / GLITTER_MS;
+                c[(roll >> 8) % 3] += GLITTER_PEAK * (GLITTER_MS - age) / GLITTER_MS;
             }
         }
     }
