@@ -17,8 +17,9 @@ config LANTERN_KEYS
       (src/keys.c). Each LED shows the picture the choice LANTERN_PICTURE
       picks, by default the bands: the palette slot the node assigns to the
       key under it (positions: the key under each LED, in chain order;
-      slots: the slot of each key position), so the palette's colours fall
-      on the keyboard in bands. A slot that is 0x000000 shows slot 0, and a
+      slots: the slot of each key position, every key slot 0 without it),
+      so the palette's colours fall on the keyboard in bands. A slot that
+      is 0x000000 shows slot 0, and a
       device without a palette shows white (LANTERN_NO_PICTURE's black
       aside). A frame is written when the LEDs
       light or go dark (LANTERN_ON_USB_POWER) and when the palette changes,
@@ -26,8 +27,8 @@ config LANTERN_KEYS
 
       CONFIG_ZMK_RGB_UNDERGLOW must be n on such a device (asserted): its
       tick would repaint the strip. The strip's chain-length must be the LED
-      count, one positions entry each, and slots has one entry per key
-      position of the keymap (both asserted). Default y where the node is
+      count, one positions entry each, and slots, where given, one entry per
+      key position of the keymap (both asserted). Default y where the node is
       present: the node is the switch, and a target without one (a dongle)
       builds none of the painting.
 
@@ -64,27 +65,45 @@ config LANTERN_PICTURE_BRIGHTNESS
       pass the cap). canon t-skdt tries half of it under the disc.
 
 config LANTERN_ON_USB_POWER
-    bool "Light the key LEDs while USB powers this half, dark and unpowered on battery"
+    bool "Light the key LEDs while USB powers this half, dark on battery"
     default y
-    depends on DT_HAS_LANTERN_RAIL_ENABLED
     depends on LANTERN_KEYS
-    depends on GPIO
     help
-      On a device with a lantern,rail node (a split half of the Cyboard
-      Imprint in canon): while USB powers the device, the LED rail is on and
-      the key LEDs show the palette's picture (LANTERN_KEYS); on battery the
-      LEDs are black and the rail is off, so they draw nothing from the
-      battery (src/on_usb_power.c). The rail is the node's gpios, the pin
-      ZMK's zmk,ext-power-generic node would drive as control-gpios; that
-      node stays disabled in the consumer's overlay (the source says why),
-      and a gpio hog may hold the pin low from reset until the module takes
-      it.
+      The rule the key LEDs follow (src/on_usb_power.c): while USB powers
+      the device and it is in use (LANTERN_OFF_WHEN_IDLE), the LEDs show the
+      palette's picture (LANTERN_KEYS); on battery they are black (and
+      unpowered with LANTERN_RAIL, which is what saves the battery); the
+      boot light (LANTERN_INTROS) lights them at
+      boot and when USB power arrives whatever the rule says. With a
+      lantern,rail node the rule switches the LEDs' supply too
+      (LANTERN_RAIL); without one the supply is the board's (ZMK's
+      ext_power driver's, or a rail always on) and dark is a black frame.
 
       Needs CONFIG_USB_DEVICE_STACK (ZMK's default on nRF52840, the split
       peripheral included) and CONFIG_SETTINGS; the source asserts each at
       build time, so a wrong conf fails the build with a message. Default y
-      where the node is present: the node is the switch, and a target without
-      one (a dongle) builds none of the module.
+      with the keys, which nothing else lights (src/keys.c asserts it); a
+      target without a lantern,keys node (a dongle) builds none of it.
+
+config LANTERN_RAIL
+    bool "Switch the key LEDs' supply with the rule: the lantern,rail node's pin"
+    default y
+    depends on LANTERN_ON_USB_POWER
+    depends on DT_HAS_LANTERN_RAIL_ENABLED
+    depends on GPIO
+    help
+      On a device whose LEDs' supply has an enable pin (a split half of the
+      Cyboard Imprint in canon): the rail is on while the rule lights the
+      LEDs and off while they are dark, so on battery they draw nothing at
+      all (the rail alone drew 10-18 mA a half at rest on the Imprint). The
+      rail is the node's gpios, the pin ZMK's zmk,ext-power-generic node
+      would drive as control-gpios; that node stays disabled in the
+      consumer's overlay (src/on_usb_power.c says why), and a gpio hog may
+      hold the pin low from reset until the module takes it; the node's
+      settle-ms passes between the rail and the first frame. Default y
+      where the node is present: the node is the switch. =n with the node
+      present compiles every pin write out, so a hog that holds the pin low
+      keeps the strip unpowered: drop the node and the hog instead.
 
 config LANTERN_INTROS
     bool
@@ -127,7 +146,8 @@ config LANTERN_INTRO_STAR_WAVES
       after any boot light. Nothing cuts it short, and power that arrives
       while it plays does not restart it. Each half plays it for itself,
       mirrored, from its outermost key to its innermost thumb and back,
-      measured on the lantern,keys node's coords (asserted). Its colours are
+      measured on the keys' places (LANTERN_GEOMETRY: the lantern,keys
+      node's coords, or the physical layout's). Its colours are
       its own, not the palette's: red, blue and green up to full scale under
       the frame's cap, and no other, white included, a key in one of the
       three at a time (canon t-5v1f and t-ky8x: the user's pick, after
@@ -184,11 +204,11 @@ config LANTERN_OFF_WHEN_IDLE
     default y
     depends on LANTERN_ON_USB_POWER
     help
-      While USB powers the device, the LEDs go dark and the rail off, as on
-      battery, once ZMK turns IDLE: CONFIG_ZMK_IDLE_TIMEOUT ms (ZMK's default
-      30000) without a key, sensor or pointing input on this device, each
-      split half for itself. The next input lights them again, settle-ms
-      after the rail. The boot light is not cut short. The timeout is the
+      While USB powers the device, the LEDs go dark (and the rail off, with
+      LANTERN_RAIL), as on battery, once ZMK turns IDLE: CONFIG_ZMK_IDLE_TIMEOUT
+      ms (ZMK's default 30000) without a key, sensor or pointing input on
+      this device, each split half for itself. The next input lights them
+      again (settle-ms after the rail, with one). The boot light is not cut short. The timeout is the
       consumer's line (canon's halves set 300000); a cable plugged into an
       idle device plays the boot light's intro (LANTERN_INTROS) and goes dark
       at its end, and lights nothing else until its next input (the source
@@ -253,7 +273,8 @@ config LANTERN_GRADIENT
     select LANTERN_GEOMETRY
     help
       Each LED shows a blend of the palette's colours by its key's place on
-      the whole board (the lantern,keys node's coords): the leftmost key in
+      the whole board (LANTERN_GEOMETRY: the lantern,keys node's coords, or
+      the physical layout's): the leftmost key in
       the first distinct colour, the rightmost in the last, and each key
       between them the two colours around its place mixed in proportion, in
       slot order, so no two neighbours meet at an edge. A blend's brightest
@@ -263,9 +284,9 @@ config LANTERN_GRADIENT
       board: the left half shows the first stretch, the right half the last.
       A colour shows pure only on a key at its place; no key sits between
       the halves, so a colour whose place lies there never does. The
-      countdown's other pictures are as with the bands. Needs the node's
-      coords (asserted). The
-      node keeps slots, which this picture does not read (the crossing ring
+      countdown's other pictures are as with the bands. Needs the keys'
+      places (asserted). The
+      node's slots, if any, this picture does not read (the crossing ring
       and the beams do).
 
 config LANTERN_SCATTER
@@ -460,9 +481,11 @@ config LANTERN_EFFECT_NEXT
 config LANTERN_GEOMETRY
     bool
     help
-      The board's geometry for what measures it (src/frame.h): the
-      lantern,keys node's coords, an x and a y per key position in hundredths
-      of a key unit (asserted present and twice the key count), and the
+      The board's geometry for what measures it (src/frame.h): each key's
+      place in hundredths of a key unit, the lantern,keys node's coords (an
+      x and a y per key position, asserted twice the key count) or without
+      them the keyboard's chosen zmk,physical-layout's key centres (one or
+      the other asserted; src/keys.c), and the
       distance between two keys through an integer square root. Each effect
       that measures the board selects it, the star waves, and the gradient
       picture for the board's ends; nothing to set.
@@ -482,8 +505,8 @@ config LANTERN_THIN_RING
       second, so it has crossed the half when it is gone; each press takes
       the palette's next colour, at full brightness (so the build refuses a
       LANTERN_BRIGHTNESS of 100), and a key under two rings shows the
-      stronger one's colour. Needs the lantern,keys node's coords, each key
-      position's x and y in hundredths of a key unit (asserted):
+      stronger one's colour. Needs the keys' places (LANTERN_GEOMETRY: the
+      lantern,keys node's coords, or the physical layout's, asserted):
       src/effects/thin_ring.c measures the ring on the board. Default n: a
       consumer builds the effects it wants to pick from.
 
@@ -505,8 +528,8 @@ config LANTERN_DISC
       colour running once through the palette's colours in order as it
       fades, so the disc is brightest at its rim, dark behind it, and the
       day's colours pass inside it. A key under two discs shows the stronger
-      one's colour. Needs the lantern,keys node's coords, as the thin ring
-      does. Default n, as the thin ring.
+      one's colour. Needs the keys' places, as the thin ring does. Default
+      n, as the thin ring.
 
 config LANTERN_STAIN
     bool "Build the stain: the thin ring dyeing the keys it passes in its colour, until the countdown moves the picture"
@@ -551,8 +574,8 @@ config LANTERN_CROSS_RING
       is the pressed key's band (the lantern,keys node's slots), so both
       halves draw one press in one colour, at full brightness within the
       frame's cap (so the build refuses a LANTERN_BRIGHTNESS of 100); a key
-      under two rings shows the stronger one's colour. Needs the node's
-      coords, as the thin ring does. Default n, as the thin ring.
+      under two rings shows the stronger one's colour. Needs the keys'
+      places, as the thin ring does. Default n, as the thin ring.
 
 config LANTERN_BEAMS
     bool "Build the beams: from each pressed key, light running outward along its row and its column, in the key's band colour"
@@ -578,7 +601,7 @@ config LANTERN_BEAMS
       ring's, so both halves draw one press in one colour, at full
       brightness within the frame's cap (so the build refuses a
       LANTERN_BRIGHTNESS of 100); a key under two beams shows the stronger
-      one's colour. Needs the node's coords, as the thin ring does. Default
+      one's colour. Needs the keys' places, as the thin ring does. Default
       n, as the thin ring.
 
 config LANTERN_WATER
@@ -606,7 +629,7 @@ config LANTERN_WATER
       out) between colours nearer the middle; at full brightness within the
       frame's cap (so the build refuses a LANTERN_BRIGHTNESS of 100).
       zmk-advanced-underglow-effects-vfx's water, from its idea (nothing
-      copied). Needs the node's coords, as the thin ring does. Default n,
+      copied). Needs the keys' places, as the thin ring does. Default n,
       as the thin ring.
 
 config LANTERN_DART
@@ -631,7 +654,7 @@ config LANTERN_DART
       full brightness within the
       frame's cap (so the build refuses a LANTERN_BRIGHTNESS of 100).
       zmk-advanced-underglow-effects-vfx's dart, from its idea (nothing
-      copied). Needs the node's coords, as the thin ring does. Default n,
+      copied). Needs the keys' places, as the thin ring does. Default n,
       as the thin ring.
 
 config LANTERN_HIT
@@ -709,7 +732,7 @@ config LANTERN_PALETTE
       least 3 x the peripheral count (ZMK's default is 5), asserted too, and
       one more a half with each pick (LANTERN_EFFECT, LANTERN_INTRO: 10 for
       two halves with both). Default y where the node is present: the node
-      is the switch, as the lantern,rail node is for LANTERN_ON_USB_POWER.
+      is the switch, as the lantern,rail node is for LANTERN_RAIL.
 
 config LANTERN_PORT
     bool "Take palette, effect and intro commands on the split central's USB CDC ACM port"

@@ -291,20 +291,21 @@ BUILD_ASSERT(!IS_ENABLED(CONFIG_ZMK_RGB_UNDERGLOW),
              "the strip this module paints (the header says why)");
 BUILD_ASSERT(LED_COUNT == DT_PROP(STRIP, chain_length),
              "lantern,keys: positions needs one entry per LED, the strip's chain-length");
-BUILD_ASSERT(KEY_COUNT == ZMK_KEYMAP_LEN,
+BUILD_ASSERT(COND_CODE_1(DT_INST_NODE_HAS_PROP(0, slots), (DT_INST_PROP_LEN(0, slots)),
+                         (KEY_COUNT)) == KEY_COUNT,
              "lantern,keys: slots needs one entry per key position of the keymap");
 BUILD_ASSERT(KEY_COUNT <= 256, "lantern,keys: a key position is stored in a byte");
 BUILD_ASSERT(IS_ENABLED(CONFIG_LANTERN_ON_USB_POWER),
              "CONFIG_LANTERN_KEYS needs CONFIG_LANTERN_ON_USB_POWER: nothing else lights the LEDs");
 #define POSITION_IN_RANGE(node_id, prop, idx)                                                     \
     BUILD_ASSERT(DT_PROP_BY_IDX(node_id, prop, idx) < KEY_COUNT,                                  \
-                 "lantern,keys: a positions entry is no key position of slots");
+                 "lantern,keys: a positions entry is no key position of the keymap");
 DT_FOREACH_PROP_ELEM(NODE, positions, POSITION_IN_RANGE)
 
 #define SLOT_IN_RANGE(node_id, prop, idx)                                                         \
     BUILD_ASSERT(DT_PROP_BY_IDX(node_id, prop, idx) < LANTERN_PALETTE_SLOTS,                      \
                  "lantern,keys: a slots entry is no palette slot (0 to 5)");
-DT_FOREACH_PROP_ELEM(NODE, slots, SLOT_IN_RANGE)
+COND_CODE_1(DT_INST_NODE_HAS_PROP(0, slots), (DT_FOREACH_PROP_ELEM(NODE, slots, SLOT_IN_RANGE)), ())
 
 /* The levels are frame.h's (the header). */
 BUILD_ASSERT(PICTURE_LEVEL <= LEVEL,
@@ -414,18 +415,53 @@ BUILD_ASSERT(ARRAY_SIZE(intros) == __builtin_popcount(INTROS_BUILT),
 #endif
 
 #if IS_ENABLED(CONFIG_LANTERN_GEOMETRY)
-BUILD_ASSERT(DT_INST_NODE_HAS_PROP(0, coords),
-             "what measures the board (CONFIG_LANTERN_GEOMETRY: an effect that measures it, "
-             "the gradient or the intro) needs lantern,keys coords");
-BUILD_ASSERT(COND_CODE_1(DT_INST_NODE_HAS_PROP(0, coords), (DT_INST_PROP_LEN(0, coords)), (0)) ==
-                 2 * KEY_COUNT,
-             "lantern,keys: coords needs an x and a y per key position of slots");
-/* 30000 keeps a squared distance, 2 x 30000^2, inside 32 bits. */
+/* Where each key is (frame.h): the node's coords, or without them the
+ * keyboard's physical layout, the chosen one (else the first), each key's
+ * centre in its hundredths of a key unit, a rotated key's as if unrotated.
+ * The board is measured over the keys that have a place: every key position
+ * with coords, the layout's keys with a layout (a longer layout of the same
+ * keyboard fills ZMK_KEYMAP_LEN beyond them, with (0, 0); positions must not
+ * name one). The tables follow the chosen layout at build time: ZMK can
+ * select another at run time (ZMK Studio, kept in its settings and sent to
+ * the peripherals), whose positions then number the keys differently, so
+ * the LEDs and the effects land a key off until the chosen layout is
+ * selected again (canon t-41g7: not followed, by design). 30000 keeps a
+ * squared distance, 2 x 30000^2, inside 32 bits. */
+#if DT_INST_NODE_HAS_PROP(0, coords)
+#define BOARD_KEYS KEY_COUNT
+BUILD_ASSERT(DT_INST_PROP_LEN(0, coords) == 2 * KEY_COUNT,
+             "lantern,keys: coords needs an x and a y per key position of the keymap");
 #define COORD_IN_RANGE(node_id, prop, idx)                                                        \
     BUILD_ASSERT(DT_PROP_BY_IDX(node_id, prop, idx) <= 30000,                                     \
                  "lantern,keys: a coords entry is at most 30000 hundredths of a key unit");
-COND_CODE_1(DT_INST_NODE_HAS_PROP(0, coords), (DT_FOREACH_PROP_ELEM(NODE, coords, COORD_IN_RANGE)),
-            ())
+DT_FOREACH_PROP_ELEM(NODE, coords, COORD_IN_RANGE)
+#elif DT_HAS_COMPAT_STATUS_OKAY(zmk_physical_layout)
+#if DT_HAS_CHOSEN(zmk_physical_layout)
+#define LAYOUT DT_CHOSEN(zmk_physical_layout)
+#else
+#define LAYOUT DT_INST(0, zmk_physical_layout)
+#endif
+#define BOARD_KEYS DT_PROP_LEN_OR(LAYOUT, keys, 0)
+BUILD_ASSERT(BOARD_KEYS > 0 && BOARD_KEYS <= KEY_COUNT,
+             "what measures the board (CONFIG_LANTERN_GEOMETRY) needs the physical layout's keys, "
+             "or lantern,keys coords");
+#define LAYOUT_X(i)                                                                                \
+    ((int32_t)DT_PHA_BY_IDX(LAYOUT, keys, i, x) + (int32_t)DT_PHA_BY_IDX(LAYOUT, keys, i, width) / 2)
+#define LAYOUT_Y(i)                                                                                \
+    ((int32_t)DT_PHA_BY_IDX(LAYOUT, keys, i, y) + (int32_t)DT_PHA_BY_IDX(LAYOUT, keys, i, height) / 2)
+#define LAYOUT_IN_RANGE(i, _)                                                                      \
+    BUILD_ASSERT(LAYOUT_X(i) >= 0 && LAYOUT_X(i) <= 30000 && LAYOUT_Y(i) >= 0 && LAYOUT_Y(i) <= 30000, \
+                 "zmk,physical-layout: a key's centre is outside 0 to 30000 hundredths of a key unit")
+LISTIFY(BOARD_KEYS, LAYOUT_IN_RANGE, (;));
+#define LAYOUT_COORDS(i, _) (uint16_t)LAYOUT_X(i), (uint16_t)LAYOUT_Y(i)
+#define POSITION_ON_LAYOUT(node_id, prop, idx)                                                    \
+    BUILD_ASSERT(DT_PROP_BY_IDX(node_id, prop, idx) < BOARD_KEYS,                                  \
+                 "lantern,keys: a positions entry is no key of the physical layout");
+DT_FOREACH_PROP_ELEM(NODE, positions, POSITION_ON_LAYOUT)
+#else
+BUILD_ASSERT(0, "what measures the board (CONFIG_LANTERN_GEOMETRY: an effect that measures it, the "
+                "gradient or the intro) needs lantern,keys coords, or a zmk,physical-layout with keys");
+#endif
 #endif
 
 #if IS_ENABLED(CONFIG_LANTERN_GEOMETRY)
@@ -443,11 +479,11 @@ const struct lantern_board *lantern_board(void) {
     uint16_t left = UINT16_MAX, right = 0, bottom = 0;
     uint32_t span2 = 0, half2 = 0;
 
-    for (size_t k = 0; k < KEY_COUNT; k++) {
+    for (size_t k = 0; k < BOARD_KEYS; k++) {
         left = MIN(left, key_x(k));
         right = MAX(right, key_x(k));
         bottom = MAX(bottom, key_y(k));
-        for (size_t j = k + 1; j < KEY_COUNT; j++) {
+        for (size_t j = k + 1; j < BOARD_KEYS; j++) {
             span2 = MAX(span2, distance2((uint8_t)k, (uint8_t)j));
         }
     }
@@ -491,12 +527,19 @@ SYS_INIT(board_init, APPLICATION, CONFIG_APPLICATION_INIT_PRIORITY);
 #define LATCH_US 300
 
 static const struct device *const strip = DEVICE_DT_GET(STRIP);
-/* The node's tables (frame.h declares them for the effects and the intro). */
+/* The tables (frame.h declares them for the effects and the intro): the
+ * node's, and without slots every key slot 0. */
 const uint8_t lantern_positions[LED_COUNT] = DT_INST_PROP(0, positions);
-const uint8_t lantern_slots[KEY_COUNT] = DT_INST_PROP(0, slots);
+const uint8_t lantern_slots[KEY_COUNT] =
+    COND_CODE_1(DT_INST_NODE_HAS_PROP(0, slots), (DT_INST_PROP(0, slots)), ({0}));
 #if IS_ENABLED(CONFIG_LANTERN_GEOMETRY)
-/* Each key position's x and y, in hundredths of a key unit (frame.h). */
+/* Each key position's x and y, in hundredths of a key unit (frame.h): the
+ * node's coords, or the physical layout's key centres (above). */
+#if DT_INST_NODE_HAS_PROP(0, coords)
 const uint16_t lantern_coords[2 * KEY_COUNT] = DT_INST_PROP(0, coords);
+#else
+const uint16_t lantern_coords[2 * KEY_COUNT] = {LISTIFY(BOARD_KEYS, LAYOUT_COORDS, (,))};
+#endif
 #endif
 #if IS_ENABLED(CONFIG_LANTERN_SCATTER)
 BUILD_ASSERT(DT_INST_NODE_HAS_PROP(0, scatter_weights),

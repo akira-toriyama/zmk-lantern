@@ -5,11 +5,14 @@ how to build. Usage: [README.md](README.md). English only.
 
 ## What this repository is
 
-- A ZMK module for the key LEDs of a split half: lit while USB powers the half
-  and ZMK's activity state is active, dark and unpowered on battery and while
-  idle, a boot light at boot and when USB power arrives
+- A ZMK module for a keyboard's per-key LEDs: lit while USB powers the
+  keyboard (a split: the half) and ZMK's activity state is active, dark on
+  battery and while idle, a boot light at boot and when USB power arrives
   (`CONFIG_LANTERN_ON_USB_POWER`, `CONFIG_LANTERN_OFF_WHEN_IDLE`;
-  [src/on_usb_power.c](src/on_usb_power.c), binding `lantern,rail`); their
+  [src/on_usb_power.c](src/on_usb_power.c)), and where the consumer gives
+  the LEDs' supply pin, a `lantern,rail` node, the supply switched with
+  the LEDs, so that they draw nothing on battery (`CONFIG_LANTERN_RAIL`;
+  the same file); their
   picture, painted by the module itself, each LED the
   palette slot the consumer's node assigns to the key under it, and the
   countdown to the idle dark: the pictures cycling every ten seconds, the
@@ -17,7 +20,10 @@ how to build. Usage: [README.md](README.md). English only.
   `CONFIG_LANTERN_BRIGHTNESS`, `CONFIG_LANTERN_PICTURE_BRIGHTNESS`,
   `CONFIG_LANTERN_COUNTDOWN`,
   `CONFIG_LANTERN_COUNTDOWN_STAGE_MS`; [src/keys.c](src/keys.c), binding
-  `lantern,keys`); the pictures in place of the bands, one Kconfig choice
+  `lantern,keys`: the strip and `positions` required, `slots` optional,
+  every key slot 0 without, `coords` optional where the keyboard has a
+  `zmk,physical-layout`, whose key centres place the keys then); the
+  pictures in place of the bands, one Kconfig choice
   (`LANTERN_PICTURE`, the bands `CONFIG_LANTERN_BANDS` by default while
   canon t-skdt tries the others one image at a time; src/keys.c): the solid,
   every key in slot 0 (`CONFIG_LANTERN_SOLID`), the gradient, the colours
@@ -79,10 +85,19 @@ how to build. Usage: [README.md](README.md). English only.
   Cyboard's stock Imprint halves and its `imprint_dongle` shield plus the
   consumer-side lines each needs (`config/imprint.conf`, `config/imprint.overlay`,
   `config/imprint_left.conf`, `config/imprint_dongle.{conf,overlay}`,
-  `config/palette.dtsi`, `config/hit.dtsi`, `config/effect.dtsi`). With Cyboard's stock roles the left half is a split
-  central (canon's is a peripheral): the check build compiles the palette's
-  central side on the left half and the dongle, its half side on both halves.
-  Its `lantern,keys` node takes the chain in key order (`positions`), a
+  `config/palette.dtsi`, `config/hit.dtsi`, `config/effect.dtsi`,
+  `config/intro.dtsi`, `config/effect_next.dtsi`, `config/pick_keys.dtsi`),
+  and ZMK's own Corne shield on the nice!nano (`config/corne.overlay`,
+  `config/corne.conf`, `config/corne_left.conf`; canon t-41g7): a standard
+  split with a `zmk,physical-layout` and the per-key strip ZMK's underglow
+  would drive, built with the least a consumer writes, no `lantern,rail`
+  node, no `slots`, no `coords`, every effect and both intros, so that the
+  rail-less rule, the slot default and the layout's places compile for a
+  keyboard that is not the Imprint. With Cyboard's stock roles the Imprint's
+  left half is a split central (canon's is a peripheral), as the Corne's:
+  the check builds compile the palette's and the picks' central side on the
+  left halves and the dongle, their half side on every half. Every check
+  build's `lantern,keys` node takes the chain in key order (`positions`), a
   placeholder a consumer replaces with its measurement.
 - The one consumer, [canon](https://github.com/akira-toriyama/canon), pins
   this repository by commit SHA in its `config/west.yml` and carries the real
@@ -92,6 +107,10 @@ how to build. Usage: [README.md](README.md). English only.
   (the status advertisement) is the model for this repository's shape; the two
   stay separate on purpose (canon t-26y4, 2026-10-19).
 - Tasks: on canon's board for now (`furrow list -r canon`, epic e-s8c7).
+- README is written for a consumer, in the order a consumer reads it (the
+  least, then the options, then what it does): no canon task ids, dates or
+  history there (canon t-41g7); they live here. The hardware record, the
+  last item of Invariants, is where a hardware fact and its date go.
 
 ## Build
 
@@ -109,11 +128,19 @@ how to build. Usage: [README.md](README.md). English only.
   `CONFIG_LANTERN_KEYS=y`, `CONFIG_LANTERN_ON_USB_POWER=y`,
   `CONFIG_LANTERN_COUNTDOWN=y`, `CONFIG_LANTERN_COUNTDOWN_STAGE_MS=10000` and
   `CONFIG_LANTERN_PALETTE=y` in `.config` and no `CONFIG_ZMK_RGB_UNDERGLOW`,
-  a `lantern_keys` node with `compatible = "lantern,keys"`, a `lantern_rail`
-  node with `compatible = "lantern,rail"` and a `palette` node with
-  `compatible = "lantern,behavior-palette"` in `zephyr.dts`, the strip's
-  `chain-length = < 0x1d >` (29), and `keys.c.obj`, `on_usb_power.c.obj` and
-  `palette.c.obj` in `zmk.map`; a split peripheral half's (canon's both, the
+  a `lantern_keys` node with `compatible = "lantern,keys"` and a `palette`
+  node with `compatible = "lantern,behavior-palette"` in `zephyr.dts`, and
+  `keys.c.obj`, `on_usb_power.c.obj` and `palette.c.obj` in `zmk.map`; an
+  Imprint half's `CONFIG_LANTERN_RAIL=y`, a `lantern_rail` node with
+  `compatible = "lantern,rail"` and the strip's `chain-length = < 0x1d >`
+  (29); a Corne half's no `CONFIG_LANTERN_RAIL`, no `lantern_rail` node,
+  `chain-length = < 0x15 >` (21), `CONFIG_LANTERN_GEOMETRY=y` from the
+  effects with `lantern_coords` filled from the chosen
+  `foostan_corne_6col_layout` (42 keys, 168 bytes: key 0 at (50, 87), the
+  thumb key 38 at (598, 358), each a key's centre; read back from the ELF
+  with the SDK's nm and objdump, 2026-10-27) and `lantern_slots` 42 zeros;
+  the Imprint images unchanged to the byte by the rail, slots and coords
+  code of t-41g7 (the same sha256 before and after); a split peripheral half's (canon's both, the
   stock right) `CONFIG_LANTERN_USB_LATENCY=y` and `latency.c.obj` too; a split
   central's (the dongle, the stock left half) never the latency, and with a
   CDC ACM port (the dongle's board has one, the stock left half none)
@@ -127,7 +154,9 @@ how to build. Usage: [README.md](README.md). English only.
   and `effect_next.c.obj` from the effect-next node (`config/effect_next.dtsi`,
   on every target, a driver on the central only), and with the effects or
   the effect-next node `CONFIG_LANTERN_EFFECT_COLOUR=0` (`.config` writes a hex symbol's default
-  as `0`, autoconf.h as `0x0`); `config/pick_keys.dtsi` binds
+  as `0`, autoconf.h as `0x0`); the Corne's left half has no CDC ACM port in
+  its board's defaults, so no `CONFIG_LANTERN_PORT` (the dongle covers the
+  port); `config/pick_keys.dtsi` binds
   `&effect 1 0xFF0000` and `&effect_next` in a macro never invoked, so the
   bindings compile as a consumer's keymap would write them.
   `--kconfig CONFIG_LANTERN_THIN_RING=y`, `CONFIG_LANTERN_DISC=y`,
@@ -168,6 +197,14 @@ how to build. Usage: [README.md](README.md). English only.
   `./scripts/build-zmk.sh imprint --module <this checkout>` (canon #267,
   2026-10-19): the images carry `-lantern` and a stamp of canon's pinned
   inputs plus that variant, which `dongle.py check` reports as `debug`.
+- The host harness (`~/.cache/zmk-lantern-harness`, outside the repository,
+  never committed): the real `src/keys.c` with the intros and the effects
+  as one translation unit over stubbed Zephyr, the frames compared to the
+  byte with an older tree's, the rail rule's nine scenes over the real
+  `src/on_usb_power.c` with and without `CONFIG_LANTERN_RAIL` (the settle is
+  100 ms with the rail, 0 without), the Kconfig combinations with
+  `-fsyntax-only`. A change to the engine or the rule runs it before the
+  Docker check builds.
 - CI: `build.yml` → the local reusable `zmk-build.yml` (it says why not ZMK's);
   `shellcheck.yml`; the fleet gates. `release.yml` keeps a rolling draft
   release of the notes alone (glyph's reusable, verdict-only: the module ships
@@ -175,13 +212,18 @@ how to build. Usage: [README.md](README.md). English only.
 
 ## Invariants
 
-- **Never give the LED rail back to ZMK's `ext_power` driver**: the consumer's
-  EXT_POWER node stays `status = "disabled"`. The driver turns the rail on at
-  init and restores a stored `ext_power/state/EXT_POWER` at settings load (a
-  stored off kept canon's left half dark, 2026-10-19), and with
-  `CONFIG_ZMK_SLEEP=n` nothing turns the rail off again. The module drives the
-  node's `gpios` itself; the hog holds the pin low from POST_KERNEL until it
-  does.
+- **With a `lantern,rail` node, never give the LED rail back to ZMK's
+  `ext_power` driver**: the consumer's EXT_POWER node stays `status =
+  "disabled"`. The driver turns the rail on at init and restores a stored
+  `ext_power/state/EXT_POWER` at settings load (a stored off kept canon's
+  left half dark, 2026-10-19), and with `CONFIG_ZMK_SLEEP=n` nothing turns
+  the rail off again. The module drives the node's `gpios` itself
+  (`CONFIG_LANTERN_RAIL`, on by default with the node); the hog holds the
+  pin low from POST_KERNEL until it does. **Without the node the rule runs
+  the same machine with a rail that is nowhere** (`rail_set()` does nothing,
+  the settle is 0 ms; canon t-41g7): the supply is the board's, ZMK's
+  `ext_power` driver's or always on, and dark is the black frame; a
+  consumer whose LEDs cannot be unpowered loses only the saving.
 - **ZMK's underglow stays off on a half (`CONFIG_ZMK_RGB_UNDERGLOW=n`, asserted
   in `src/keys.c`): the module is the strip's one writer.** `rgb_underglow.c`
   repaints every LED with its one colour and effect at each 50 ms tick while
@@ -237,23 +279,37 @@ how to build. Usage: [README.md](README.md). English only.
   says why).
 - A target without a `lantern,keys` node builds none of the painting
   (`CONFIG_LANTERN_KEYS` depends on `DT_HAS_LANTERN_KEYS_ENABLED`) and none of
-  the rail (`CONFIG_LANTERN_ON_USB_POWER` depends on `LANTERN_KEYS` and on
-  `DT_HAS_LANTERN_RAIL_ENABLED`: the rail rule has nothing to show without
-  the picture); one without a `lantern,behavior-palette` node (canon's
-  Prospector Dongle) none of the palette. Exactly one node of each per target
-  (BUILD_ASSERT).
+  the rule (`CONFIG_LANTERN_ON_USB_POWER` depends on `LANTERN_KEYS`: the rule
+  has nothing to show without the picture), the rail only with its node
+  (`CONFIG_LANTERN_RAIL` depends on `DT_HAS_LANTERN_RAIL_ENABLED`); one
+  without a `lantern,behavior-palette` node (canon's Prospector Dongle) none
+  of the palette. At most one node of each per target (BUILD_ASSERT).
 - **`positions` and `chain-length` are the consumer's measurement, `slots` its
-  bands, `coords` its geometry**: `src/keys.c` asserts the lengths (`positions`
-  as many as the strip's `chain-length`, `slots` as many as `ZMK_KEYMAP_LEN`,
-  `coords` twice that where something measures the board, an effect, the
-  gradient or the intro, `CONFIG_LANTERN_GEOMETRY`, present only then)
-  and the ranges (a position below the key count, a slot below
+  bands, `coords` its geometry; the key count is ZMK's**: `src/frame.h`'s
+  `KEY_COUNT` is `ZMK_KEYMAP_LEN` (the longest physical layout's map where
+  the keyboard has layouts, else the chosen matrix transform's: a Corne
+  consumer who chooses the 5-column layout still writes 42 slots), never a
+  table's length, and `src/keys.c`
+  asserts the lengths (`positions` as many as the strip's `chain-length`,
+  `slots` as many as the keymap where given, `coords` twice that where
+  given) and the ranges (a position below the key count, a slot below
   `LANTERN_PALETTE_SLOTS`, a coordinate at most 30000 so that a squared
   distance fits 32 bits), and nothing about the order or the places: a wrong
   order paints the right colours on the wrong keys, a wrong table a ring that
   is round in the matrix and not on the board, which only the hardware shows
   (canon t-69g7 measures the order one LED at a time; the coords are
-  imprint.json times 100). The driver sends and buffers the whole
+  imprint.json times 100). Without `slots` every key is slot 0 (one colour
+  in the bands, the crossing ring and the beams); without `coords`, where
+  something measures the board (`CONFIG_LANTERN_GEOMETRY`), the keyboard's
+  chosen `zmk,physical-layout` (else its first) places the keys, each at
+  its centre in the layout's hundredths of a key unit, a rotated key as if
+  unrotated, at build time from the devicetree (`LISTIFY` over the layout's
+  `keys`, never ZMK's runtime selection: a layout switched by ZMK Studio
+  keeps the chosen one's places, canon t-41g7); the board is measured over
+  the layout's keys (`BOARD_KEYS`), `ZMK_KEYMAP_LEN` may run longer (a
+  longer layout of the same keyboard), and `positions` must name the
+  layout's keys (asserted). A keyboard with neither fails the build where
+  something measures the board. The driver sends and buffers the whole
   `chain-length` at every frame (Cyboard's overlay says 150, a placeholder),
   so the consumer sets the real count.
 - **The palette's node is named `palette` on every device of a split, and the
@@ -473,13 +529,49 @@ how to build. Usage: [README.md](README.md). English only.
   imprint_left` / `imprint_right` (a data cable, USB power), read a `--logging`
   image's lines with its `dongle.py log`, set and ask the palette with its
   `dongle.py palette` and the picks with its `dongle.py effect` and `intro`.
-  Hardware claims here, in README and
-  in task bodies carry a date; README "Status" holds what was seen (the USB
-  rule and the boot light on both halves, canon #263, 2026-10-19; the idle
-  rule: the right half, canon's logging build with a 20 s timeout,
-  2026-10-19; the palette through the underglow, 2026-10-19; the bands on
-  both halves, canon #271, 2026-10-20; the countdown on both halves, canon's
-  trial images, 2026-10-20).
+  Hardware claims here and in task bodies carry a date; README carries none
+  (it is the consumer's). **The hardware record**, the one keyboard this
+  module has run on, canon's Cyboard Imprint: builds for both halves
+  against ZMK `main` and Cyboard's `zephyr-4.1` (CI, and canon's own tree
+  with its patches, 2026-10-19). The USB rule and the boot light on both
+  halves (canon #263, 2026-10-19): the boot light on battery, then dark; lit
+  on plugging in and dark on unplugging, each half for itself; lit through
+  a boot on the cable. The idle rule (`CONFIG_LANTERN_OFF_WHEN_IDLE`): the
+  right half on 2026-10-19, canon's logging build with a 20 s
+  `CONFIG_ZMK_IDLE_TIMEOUT`: `dark: idle` once the half had sat untouched on
+  the cable, `lit: usb powered` at the next key; the five-minute product
+  images are canon's (its t-0y3a). The palette, 2026-10-19 with canon's
+  logging images on both halves and the Imprint Dongle (slot 0 then went
+  through ZMK's underglow): one `dongle.py palette` changed both halves over
+  the split (each logged `stored` and `applied`); a half rebooted on the
+  cable applied slot 0 from its settings at 0.3 s and took the central's
+  resend at 1.8 s; a half flashed fresh, with no palette stored, had it
+  1.7 s after boot from the resend; and the central's reboot resent it to
+  both halves within 2 s. The bands painted by the module (`src/keys.c`):
+  both halves on 2026-10-20 with canon #271's images, five bands from a
+  palette the host set while the halves ran on battery, shown when each
+  was plugged in (canon t-0967). The countdown (`CONFIG_LANTERN_COUNTDOWN`):
+  both halves on 2026-10-20 with canon's trial images (a palette of five
+  colours): a new picture every 10.000 s from the last key, the bands after
+  every fifth, the bands back at a key, `dark: idle` at ZMK's timeout; a
+  cable plugged in after a boot lit the stage the keys' clock said (canon
+  t-gsm2, t-x82q). The effects, on both halves with the Imprint Dongle
+  relaying (canon's trial images, one effect at a time, 2026-10-21 to
+  2026-10-26, then its product images with the pick, 2026-10-26): the thin
+  ring, the disc, the stain, the crossing ring in across the split, the
+  beams (2026-10-26, canon's product conf plus `CONFIG_LANTERN_BEAMS=y`, the
+  pick `beams` sent from the dongle's port), the water (2026-10-27, the same
+  way with `CONFIG_LANTERN_WATER=y` and the pick `water`, on both halves)
+  and the dart (2026-10-27, the same way with `CONFIG_LANTERN_DART=y` and
+  the pick `dart`, on both halves, the bar running in across the split),
+  each the user's OK on sight (canon t-6ttk, t-5hqx). The pick's colour
+  (2026-10-27, canon's pinned images of 3b6c21e on the dongle and both
+  halves, canon t-rgp5): `effect stain FF0000` dyed red, `effect stain`
+  returned the palette's colours, and the stored pick survived the flash
+  from the image before the colour. Not on hardware: the key bindings
+  `&effect` and `&effect_next`, the rail-less rule, the slot default and
+  the physical layout's places (the Corne check build and the host
+  harness only, canon t-41g7; no such keyboard at hand).
 
 ## Commits, pull requests, fleet files
 

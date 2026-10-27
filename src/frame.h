@@ -21,7 +21,9 @@
  *   the gradient for the board's ends): distances come from the consumer's
  *   coords, each key position's x and y in hundredths of a key unit (canon:
  *   imprint.json, keymap-drawer's physical layout, each key's top left
- *   corner; every key is one unit, so the offset to the centre cancels), so a
+ *   corner; every key is one unit, so the offset to the centre cancels), or
+ *   without the property from the keyboard's chosen zmk,physical-layout,
+ *   each key's centre in the same unit (src/keys.c), so a
  *   ring is round on the board, not in the matrix. An integer square root a
  *   hit an LED a frame, 8 x 29 of them every frame, costs a few percent of
  *   the CPU at most with eight live hits (about 0.7 ms a frame from the
@@ -67,14 +69,18 @@
 #include <zephyr/drivers/led_strip.h>
 #include <zephyr/sys/util.h>
 
+#include <zmk/matrix.h>
+
 #include "palette.h"
 
 /* The one lantern,keys node (src/keys.c asserts there is one), its LED count
- * (one positions entry an LED) and its key count (one slots entry a key
- * position of the keymap). */
+ * (one positions entry an LED) and the keymap's key count, ZMK's
+ * (ZMK_KEYMAP_LEN: the longest physical layout's map where the keyboard
+ * has layouts, else the chosen matrix transform's), which every table a key
+ * position long has. */
 #define LANTERN_KEYS_NODE DT_INST(0, lantern_keys)
 #define LED_COUNT DT_PROP_LEN(LANTERN_KEYS_NODE, positions)
-#define KEY_COUNT DT_PROP_LEN(LANTERN_KEYS_NODE, slots)
+#define KEY_COUNT ZMK_KEYMAP_LEN
 
 /* The device's brightness as a channel value, which the frame's cap counts
  * from, and the picture's, at most it (src/keys.c asserts). */
@@ -91,9 +97,10 @@
 #define CAP (3 * (LED_COUNT * LEVEL + CAP_KEYS * (HI_LEVEL - LEVEL)))
 #endif
 
-/* The node's tables, which src/keys.c defines from the node and asserts: the
- * key position under each LED in the chain's order, each key position's
- * palette slot, and with the geometry each key position's x and y. */
+/* The tables, which src/keys.c defines from the node and asserts: the key
+ * position under each LED in the chain's order, each key position's palette
+ * slot (0 for every key without slots), and with the geometry each key
+ * position's x and y (coords, or the physical layout's centres). */
 extern const uint8_t lantern_positions[LED_COUNT];
 extern const uint8_t lantern_slots[KEY_COUNT];
 #if IS_ENABLED(CONFIG_LANTERN_GEOMETRY)

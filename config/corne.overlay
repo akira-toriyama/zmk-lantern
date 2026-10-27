@@ -1,0 +1,36 @@
+// The Corne (ZMK's corne shield on the nice!nano: a split with a physical
+// layout and the per-key strip ZMK's underglow would drive): the check build
+// of a consumer with the least in its overlay. No lantern,rail node, so the
+// LEDs' supply stays the board's and dark is a black frame; no slots, so
+// every key is slot 0; no coords, so the chosen zmk,physical-layout's key
+// centres place the keys. The strip is the shield's board overlay's
+// (chosen zmk,underglow), its chain-length set to the LEDs this check build
+// names: the left half's 21 per-key LEDs in key order, a stand-in for a
+// consumer's measurement (a real Corne's chain starts with six LEDs under no
+// key, which a consumer maps to the nearest key, and the right half's keys
+// are its own positions). Both halves read this overlay (ZMK takes the
+// first user overlay whose name is a prefix of the shield's).
+
+#include "palette.dtsi"
+#include "hit.dtsi"
+#include "effect.dtsi"
+#include "intro.dtsi"
+#include "effect_next.dtsi"
+#include "pick_keys.dtsi"
+
+&led_strip {
+    chain-length = <21>;
+};
+
+/ {
+    lantern_keys: lantern_keys {
+        compatible = "lantern,keys";
+        strip = <&led_strip>;
+        positions = <
+             0  1  2  3  4  5
+            12 13 14 15 16 17
+            24 25 26 27 28 29
+                     36 37 38
+        >;
+    };
+};
