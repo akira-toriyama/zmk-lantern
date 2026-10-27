@@ -347,15 +347,19 @@ config LANTERN_EFFECT
     depends on SETTINGS
     select LANTERN_PICK
     help
-      Which of the effects built into a half's image draw, chosen at run
-      time: the host hands the split central a pick, one or more of the
-      effects by name (LANTERN_PORT), the central invokes the
-      lantern,behavior-effect node, which ZMK's split transport carries to
-      every half by its name (the node is named effect on every device,
-      src/effect.c, the binding), and the central and every half keep the
-      pick in their settings ("lantern/effect/mask"). A half draws the
-      picked effects it builds; with no pick stored, or none of its effects
-      built, it draws the one LANTERN_EFFECT_DEFAULT names. On a split
+      Which of the effects built into a half's image draw, and in which
+      colour, chosen at run time: the host hands the split central a pick,
+      one or more of the effects by name and a colour or none (LANTERN_PORT),
+      or a key of the central's keymap bound to the node does (`&effect
+      <mask> <colour>`; LANTERN_EFFECT_NEXT cycles the mask from a key), the
+      central invokes the lantern,behavior-effect node, which ZMK's split
+      transport carries to every half by its name (the node is named effect
+      on every device, src/effect.c, the binding), and the central and every
+      half keep the pick in their settings ("lantern/effect/mask",
+      "lantern/effect/colour"). A half draws the picked effects it builds, in
+      the pick's colour or without one in the palette's; with no pick
+      stored, or none of its effects built, it draws the one
+      LANTERN_EFFECT_DEFAULT names, in LANTERN_EFFECT_COLOUR. On a split
       central the pick is resent to a half at each of its battery reports,
       with the palette (src/palette.c says why that signal), so a half that
       was away gets it when it is back; the run queue must then hold the
@@ -411,6 +415,39 @@ config LANTERN_EFFECT_DEFAULT_DART
     depends on LANTERN_DART
 
 endchoice
+
+config LANTERN_EFFECT_COLOUR
+    hex "The effects' colour while no pick is stored, 0xRRGGBB; 0 = the palette's colours"
+    range 0 0xFFFFFF
+    default 0
+    depends on LANTERN_EFFECTS
+    help
+      The one colour every effect draws in before the host's first pick
+      (src/effect.c), and the only colour a consumer without a host has
+      unless a key sets another (the effect behavior's second parameter,
+      LANTERN_EFFECT). 0, the default, leaves the effects their own colours
+      from the palette: the thin ring and the stain the next colour a press,
+      the disc all of them in turn, the crossing ring and the beams the
+      pressed key's band, the water and the dart the first to the last. A
+      pick from the host or a key carries its own colour (0 for the
+      palette's) and this is not read again.
+
+config LANTERN_EFFECT_NEXT
+    bool "Cycle the effects' pick from a key of the central's keymap: the lantern,behavior-effect-next node"
+    default y
+    depends on DT_HAS_LANTERN_BEHAVIOR_EFFECT_NEXT_ENABLED
+    depends on LANTERN_EFFECT
+    depends on ZMK_SPLIT_ROLE_CENTRAL
+    help
+      A key bound to the lantern,behavior-effect-next node (`&effect_next`
+      in the keymap) picks, on press, the effect after the stored pick in
+      LANTERN_EFFECT_LIST's order, over the effects this central builds, or
+      the whole table where it builds none (a dongle), round again after the
+      last, and keeps the pick's colour (src/effect_next.c); the pick goes to
+      every half through the effect behavior, as the host's does. For a
+      keyboard without a host; `&effect <mask> <colour>` on a key is the
+      fixed pick. The behavior runs on the central only, where the keymap
+      runs. Default y where the node is present on a split central.
 
 config LANTERN_GEOMETRY
     bool
@@ -679,9 +716,10 @@ config LANTERN_PORT
       sets slots 0.. on every half and on the central and clears the rest,
       answered with "palette ok" and the six slots, and "palette" or
       "palette?" asks for them (LANTERN_PALETTE); "effect <name> [<name>
-      ...]" (src/effect.h's names) picks the effects on every half and on
-      the central, answered with "effect ok" and the names, and "effect" or
-      "effect?" asks (LANTERN_EFFECT); "intro <name>" (src/intro.h's names,
+      ...] [RRGGBB]" (src/effect.h's names, and a colour or none for the
+      palette's) picks the effects on every half and on the central,
+      answered with "effect ok", the names and the colour when set, and
+      "effect" or "effect?" asks (LANTERN_EFFECT); "intro <name>" (src/intro.h's names,
       one) picks the intro the boot light plays the same way, answered with
       "intro ok" and the name, and "intro" or "intro?" asks (LANTERN_INTRO).
       canon's scripts/dongle.py palette, effect and intro send them to the

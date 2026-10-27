@@ -1,0 +1,14 @@
+// The effect-next behavior's node (src/effect_next.c): a key of the central's
+// keymap bound to it picks the next effect in turn (a keyboard without a
+// host). The node is read on the central only, where the keymap runs; the
+// halves carry it with the keymap and build none of it. This check build
+// includes this file from every overlay; canon's keymap binds no key to it.
+
+/ {
+    behaviors {
+        effect_next: effect_next {
+            compatible = "lantern,behavior-effect-next";
+            #binding-cells = <0>;
+        };
+    };
+};

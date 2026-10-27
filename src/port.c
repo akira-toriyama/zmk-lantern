@@ -17,14 +17,17 @@
  *   palette  or  palette?         ask
  *     -> palette RRGGBB RRGGBB RRGGBB RRGGBB RRGGBB RRGGBB   or   palette none
  *
- *   effect <name> [<name> ...]    pick these effects (src/effect.h's names; two
- *                                 or more draw together)
- *     -> effect ok <name> [<name> ...]   the pick as stored, in the table's order
+ *   effect <name> [<name> ...] [RRGGBB]
+ *                                 pick these effects (src/effect.h's names; two
+ *                                 or more draw together), in one colour, or
+ *                                 without one in the palette's colours
+ *     -> effect ok <name> [<name> ...] [RRGGBB]   the pick as stored, in the
+ *                                   table's order, the colour when one is set
  *     -> effect error: <reason>
  *   effect  or  effect?           ask
- *     -> effect <name> [<name> ...]   or   effect none   (also for a stored
- *                                   pick whose bits this image's table does
- *                                   not know: a reply must never be a bare
+ *     -> effect <name> [<name> ...] [RRGGBB]   or   effect none   (also for a
+ *                                   stored pick whose bits this image's table
+ *                                   does not know: a reply must never be a bare
  *                                   "effect", which is itself an ask)
  *
  *   intro <name>                  pick the intro the boot light plays
@@ -34,10 +37,12 @@
  *   intro  or  intro?             ask
  *     -> intro <name>   or   intro none   (as the effect's)
  *
- * The two picks share one grammar (a word, then names from the word's table)
- * over one mechanism (src/pick.c): a pick word is a table, its instance's get
- * and send, and its error reasons, static strings (the parse runs on the
- * system work queue, whose stack the behavior path below it shares). A colour is exactly six hex digits, either case; the reply
+ * The two picks share one grammar (a word, then names from the word's table,
+ * then the argument where the word takes one, the effects' colour) over one
+ * mechanism (src/pick.c): a pick word is a table, its instance's get and send,
+ * whether it takes a colour, and its error reasons, static strings (the parse
+ * runs on the system work queue, whose stack the behavior path below it
+ * shares). A colour is exactly six hex digits, either case; the reply
  * writes upper case. A name is one of the table's, exactly. A line that begins
  * with none of the words is not for this file and gets no reply (the port may carry
  * anything else the host sends), and so is a line shaped like one of the
@@ -116,7 +121,7 @@ BUILD_ASSERT(IS_ENABLED(CONFIG_LANTERN_PALETTE) || IS_ENABLED(CONFIG_LANTERN_EFF
  * ...") is 58. */
 #define PICK_NAME_MAX 15
 #define PALETTE_LINE (16 + 7 * LANTERN_PALETTE_SLOTS)
-#define PICK_LINE(count) (16 + (PICK_NAME_MAX + 1) * (count))
+#define PICK_LINE(count) (16 + 7 + (PICK_NAME_MAX + 1) * (count))
 #define LINE_LIMIT                                                                                 \
     MAX(PALETTE_LINE, MAX(PICK_LINE(LANTERN_EFFECT_COUNT), PICK_LINE(LANTERN_INTRO_COUNT)))
 #define REPLY_MAX MAX(64, LINE_LIMIT)
@@ -198,23 +203,8 @@ static const char *arguments(const char *s, const char *word) {
     return s;
 }
 
-#if IS_ENABLED(CONFIG_LANTERN_PALETTE)
-
-static void reply_palette(const struct device *dev, const char *head) {
-    uint32_t colours[LANTERN_PALETTE_SLOTS];
-    char text[REPLY_MAX];
-    if (!lantern_palette_get(colours)) {
-        snprintk(text, sizeof(text), "%s none", PALETTE_WORD);
-    } else {
-        int n = snprintk(text, sizeof(text), "%s%s", PALETTE_WORD, head);
-        for (size_t i = 0; i < LANTERN_PALETTE_SLOTS && n < (int)sizeof(text); i++) {
-            n += snprintk(text + n, sizeof(text) - n, " %06X", colours[i]);
-        }
-    }
-    reply(dev, text);
-}
-
-/* The value of six hex digits, or false. */
+/* The value of six hex digits at s (a colour, the palette's and the effects'
+ * pick's), or false. */
 static bool parse_colour(const char *s, uint32_t *out) {
     uint32_t v = 0;
     for (size_t i = 0; i < COLOUR_DIGITS; i++) {
@@ -233,6 +223,22 @@ static bool parse_colour(const char *s, uint32_t *out) {
     }
     *out = v;
     return true;
+}
+
+#if IS_ENABLED(CONFIG_LANTERN_PALETTE)
+
+static void reply_palette(const struct device *dev, const char *head) {
+    uint32_t colours[LANTERN_PALETTE_SLOTS];
+    char text[REPLY_MAX];
+    if (!lantern_palette_get(colours)) {
+        snprintk(text, sizeof(text), "%s none", PALETTE_WORD);
+    } else {
+        int n = snprintk(text, sizeof(text), "%s%s", PALETTE_WORD, head);
+        for (size_t i = 0; i < LANTERN_PALETTE_SLOTS && n < (int)sizeof(text); i++) {
+            n += snprintk(text + n, sizeof(text) - n, " %06X", colours[i]);
+        }
+    }
+    reply(dev, text);
 }
 
 static void handle_palette(const struct device *dev, const char *s) {
@@ -283,20 +289,21 @@ struct pick_word {
     const char *word;
     const struct named_bit *names;
     size_t count;
-    bool (*get)(uint32_t *mask);
-    int (*send)(uint32_t mask);
+    bool (*get)(uint32_t *mask, uint32_t *arg);
+    int (*send)(uint32_t mask, uint32_t arg);
+    bool colour;         /* the word takes a trailing colour, the pick's argument (the effects') */
     const char *unknown; /* the error's reason for a name not in the table */
     const char *several; /* and for several names where the pick takes one; NULL where it takes any */
 };
 
 static void reply_pick(const struct device *dev, const struct pick_word *w, const char *head) {
-    uint32_t mask = 0, known = 0;
+    uint32_t mask = 0, arg = 0, known = 0;
     char text[REPLY_MAX];
 
     for (size_t i = 0; i < w->count; i++) {
         known |= w->names[i].bit;
     }
-    if (!w->get(&mask) || (mask & known) == 0) {
+    if (!w->get(&mask, &arg) || (mask & known) == 0) {
         snprintk(text, sizeof(text), "%s none", w->word);
     } else {
         int n = snprintk(text, sizeof(text), "%s%s", w->word, head);
@@ -304,6 +311,9 @@ static void reply_pick(const struct device *dev, const struct pick_word *w, cons
             if (mask & w->names[i].bit) {
                 n += snprintk(text + n, sizeof(text) - n, " %s", w->names[i].name);
             }
+        }
+        if (w->colour && arg != 0 && n < (int)sizeof(text)) {
+            snprintk(text + n, sizeof(text) - n, " %06X", arg);
         }
     }
     reply(dev, text);
@@ -325,7 +335,7 @@ static void handle_pick(const struct device *dev, const struct pick_word *w, con
         reply_pick(dev, w, "");
         return;
     }
-    uint32_t mask = 0;
+    uint32_t mask = 0, colour = 0, c;
     while (*s != '\0') {
         if (*s == ' ') {
             s++;
@@ -333,14 +343,27 @@ static void handle_pick(const struct device *dev, const struct pick_word *w, con
         }
         size_t len;
         uint32_t bit = parse_name(w, s, &len);
-        if (bit == 0) {
-            reply_error(dev, w->word, w->unknown);
-            return;
+        if (bit != 0) {
+            mask |= bit;
+            s += len;
+            continue;
         }
-        mask |= bit;
-        s += len;
+        /* a colour, where the word takes one: six hex digits to a space or the end */
+        if (w->colour && parse_colour(s, &c) &&
+            (s[COLOUR_DIGITS] == '\0' || s[COLOUR_DIGITS] == ' ')) {
+            colour = c;
+            s += COLOUR_DIGITS;
+            continue;
+        }
+        reply_error(dev, w->word, w->unknown);
+        return;
     }
-    int rc = w->send(mask);
+    if (mask == 0) {
+        /* a colour alone names no effect */
+        reply_error(dev, w->word, w->unknown);
+        return;
+    }
+    int rc = w->send(mask, colour);
     if (rc == -E2BIG && w->several != NULL) {
         reply_error(dev, w->word, w->several);
         return;
@@ -349,7 +372,7 @@ static void handle_pick(const struct device *dev, const struct pick_word *w, con
         reply_not_sent(dev, w->word, rc);
         return;
     }
-    LOG_INF("%s: pick %08x from %s", w->word, mask, dev->name);
+    LOG_INF("%s: pick %08x %06x from %s", w->word, mask, colour, dev->name);
     reply_pick(dev, w, " ok");
 }
 
@@ -366,6 +389,7 @@ static const struct pick_word effect_word = {
     .count = ARRAY_SIZE(effect_names),
     .get = lantern_effect_get,
     .send = lantern_effect_send,
+    .colour = true,
     .unknown = "no such effect (the names: effect?)",
     .several = NULL,
 };
@@ -381,6 +405,7 @@ static const struct pick_word intro_word = {
     .count = ARRAY_SIZE(intro_names),
     .get = lantern_intro_get,
     .send = lantern_intro_send,
+    .colour = false,
     .unknown = "no such intro (the names: intro?)",
     .several = "one intro at a time",
 };

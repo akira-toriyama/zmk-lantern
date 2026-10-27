@@ -353,9 +353,10 @@ than six colours clears the rest to `0x000000`, which the LEDs show as slot
 Two values the host chooses, which the central and every half keep in their
 settings and the central resends to a half that is back, one mechanism
 ([src/pick.c](src/pick.c)) with an instance each: the pick of the effects,
-which of the effects built into a half's image draw (`lantern/effect/mask`,
-[src/effect.c](src/effect.c)), so that the effect changes without a flash
-(canon's effect of the day, t-5hqx), and the pick of the intro, which of the
+which of the effects built into a half's image draw and in which colour
+(`lantern/effect/mask`, `lantern/effect/colour`, [src/effect.c](src/effect.c)),
+so that the effect changes without a flash (canon's effect of the day,
+t-5hqx; its colour, t-rgp5), and the pick of the intro, which of the
 intros built in the boot light plays (`lantern/intro/mask`,
 [src/intro.c](src/intro.c); canon t-qvgv). The image carries every effect and
 intro the consumer's conf builds; a half draws the picked effects it has, every
@@ -369,14 +370,18 @@ the one `LANTERN_INTRO_DEFAULT` names (`CONFIG_LANTERN_INTRO_DEFAULT_BANDS`,
 built, else the bands): the only picks a keyboard without a host has.
 
 - The host writes a text line on the central's USB CDC ACM port (canon:
-  `scripts/dongle.py effect` and `intro`): `effect <name> [<name> ...]` picks
-  these effects on every half and the central, answered with `effect ok` and
-  the pick's names in the table's order; `intro <name>` picks the intro the
-  same way, one name (two get `intro error: one intro at a time`), answered
-  with `intro ok` and the name; `effect` or `effect?`, `intro` or `intro?`
-  are answered with the names, or `effect none` / `intro none` before any; a
-  name not in the word's table gets `effect error: no such effect` (or the
-  intro's) and changes nothing ([src/port.c](src/port.c) is the grammar). The
+  `scripts/dongle.py effect` and `intro`): `effect <name> [<name> ...]
+  [RRGGBB]` picks these effects on every half and the central, in the one
+  colour when one is given (every picked effect then draws in it, the stain
+  dyes in it, and the picture keeps the palette's colours) or in the effects'
+  own colours from the palette without, answered with `effect ok`, the pick's
+  names in the table's order and the colour when set; `intro <name>` picks
+  the intro the same way, one name (two get `intro error: one intro at a
+  time`), answered with `intro ok` and the name; `effect` or `effect?`,
+  `intro` or `intro?` are answered with the names (and the colour), or
+  `effect none` / `intro none` before any; a name not in the word's table
+  gets `effect error: no such effect` (or the intro's) and changes nothing
+  ([src/port.c](src/port.c) is the grammar). The
   names, and the bit each carries on the wire: the effects' `thin-ring`,
   `disc`, `stain`, `cross-ring`, `beams`, `water`, `dart`
   ([src/effect.h](src/effect.h)'s table), the intros' `bands`, `star-waves`
@@ -404,6 +409,27 @@ built, else the bands): the only picks a keyboard without a host has.
   invocations and one per pick for every half at once:
   `CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE=10` for two halves with
   both picks (asserted at build time).
+
+### Without a host
+
+A keyboard whose central has no host on its port picks in its conf and its
+keymap. The conf: `CONFIG_LANTERN_EFFECT_DEFAULT_<EFFECT>=y` names the effect
+drawn while no pick is stored (one of the built; without the line the stain
+when built, else the first built), `CONFIG_LANTERN_EFFECT_COLOUR=0xRRGGBB` its
+colour (default 0, the palette's colours), `CONFIG_LANTERN_INTRO_DEFAULT_<INTRO>=y`
+the intro. The keymap, on the central: `&effect <mask> <colour>` on a key picks
+on press, the mask a sum of the effects' bits in [src/effect.h](src/effect.h)'s
+order (`thin-ring` 1, `disc` 2, `stain` 4, `cross-ring` 8, `beams` 16, `water`
+32, `dart` 64; several draw together) and the colour `0xRRGGBB` or 0 for the
+palette's (`&effect 4 0xFF0000`: the stain in red); `&effect_next` on a key
+picks the next effect in the table's order, round again after the last, and
+keeps the colour (the node `lantern,behavior-effect-next`, in the keymap's
+behaviors with `#binding-cells = <0>`, on the central's keymap;
+`CONFIG_LANTERN_EFFECT_NEXT` is on wherever it exists on a split central).
+Both store the pick as the host's line does, on the central and every half,
+and a stored pick outlives a boot. The two bindings compile in this
+repository's check build ([config/pick_keys.dtsi](config/pick_keys.dtsi)) and
+are unverified on hardware: canon's keymap binds neither, its host picks.
 
 ## Using it in a ZMK config
 
@@ -616,7 +642,8 @@ light 10000 ms` (the picked intro's length), `lit: usb powered`, `boot light:
 usb powered` when power arrives, `dark: on battery`, `dark: idle`, and the
 countdown's `stage N` at every move; the palette's: `slots 0-1 RRGGBB RRGGBB
 stored` (or `unchanged`) on every device, and on the central `N colour(s) from
-<port>` and `resent to half N`; the picks': `effect: 0000000X stored` (or
-`unchanged`; `intro: …` the same) on every device, and on the central `effect:
-pick 0000000X from <port>` and `effect: resent to half N` (the intro's the
-same); the picture logs only a frame the strip refused (`frame not written`).
+<port>` and `resent to half N`; the picks': `effect: 0000000X RRGGBB stored`
+(or `unchanged`; `intro: 0000000X stored` without a colour) on every device,
+and on the central `effect: pick 0000000X rrggbb from <port>` and `effect:
+resent to half N` (the intro's the same); the picture logs only a frame the
+strip refused (`frame not written`).

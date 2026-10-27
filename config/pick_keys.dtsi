@@ -1,0 +1,16 @@
+// A check that the picks' behaviors bind as keys do (canon t-rgp5): a macro
+// never bound to a key, whose bindings the build checks against the nodes'
+// #binding-cells, so that `&effect <mask> <colour>` (the thin ring in red) and
+// `&effect_next` compile as a consumer's keymap would write them (README,
+// "Without a host"). The stock keymap of this check build binds neither; the
+// macro is never invoked.
+
+/ {
+    macros {
+        pick_check: pick_check {
+            compatible = "zmk,behavior-macro";
+            #binding-cells = <0>;
+            bindings = <&effect 1 0xFF0000>, <&effect_next>;
+        };
+    };
+};
