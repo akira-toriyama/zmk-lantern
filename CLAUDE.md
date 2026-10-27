@@ -33,7 +33,9 @@ how to build. Usage: [README.md](README.md). English only.
   `CONFIG_LANTERN_CROSS_RING`, `CONFIG_LANTERN_BEAMS`, `CONFIG_LANTERN_WATER`,
   `CONFIG_LANTERN_DART`, each built into the image by the consumer's conf,
   off by default;
-  src/keys.c, the node's `coords` through `CONFIG_LANTERN_GEOMETRY`), and the
+  one file an effect under src/effects/ on the engine of src/keys.c, the
+  table and the node's `coords` through src/frame.h and
+  `CONFIG_LANTERN_GEOMETRY`), and the
   pick of which built effects draw, the host's over the central's port, kept
   across boots, or the Kconfig choice `LANTERN_EFFECT_DEFAULT`
   (`CONFIG_LANTERN_EFFECT`; [src/effect.c](src/effect.c), the effects' table
@@ -45,7 +47,7 @@ how to build. Usage: [README.md](README.md). English only.
   thumbs and back that the boot light plays instead of the picture, opening
   at boot and again whenever USB power arrives
   (`CONFIG_LANTERN_INTRO`, off by default while canon t-5v1f tries it; its
-  script in src/keys.c, its opening on USB power in src/on_usb_power.c); the
+  script in src/intro.c, its opening on USB power in src/on_usb_power.c); the
   split link's peripheral
   latency, 0 while USB powers a split peripheral and the central's on battery
   (`CONFIG_LANTERN_USB_LATENCY`; [src/latency.c](src/latency.c)); the palette: six
@@ -120,7 +122,10 @@ how to build. Usage: [README.md](README.md). English only.
   (`config/hit.dtsi`, on every target) turns on by itself, with `hit.c.obj`
   in zmk.map;
   `CONFIG_LANTERN_INTRO=y` adds `CONFIG_LANTERN_FRAMES=y` and
-  `CONFIG_LANTERN_GEOMETRY=y` and drops `CONFIG_LANTERN_BOOT_LIGHT_MS`;
+  `CONFIG_LANTERN_GEOMETRY=y`, drops `CONFIG_LANTERN_BOOT_LIGHT_MS` and
+  puts `intro.c.obj` in zmk.map, as each built effect puts its file's
+  (`thin_ring.c.obj`, the stain's too, `disc.c.obj`, `cross_ring.c.obj`,
+  `beams.c.obj`, `water.c.obj`, `dart.c.obj`);
   a half shows `CONFIG_LANTERN_BANDS=y`, or `CONFIG_LANTERN_SOLID=y`,
   `CONFIG_LANTERN_GRADIENT=y`, `CONFIG_LANTERN_SCATTER=y` or
   `CONFIG_LANTERN_NO_PICTURE=y` in its place,
@@ -183,7 +188,7 @@ how to build. Usage: [README.md](README.md). English only.
   touch a pixel. With the intro the boot light also opens when USB power
   arrives (`src/on_usb_power.c`'s listener, on the system work queue with
   the rest of the rail state) and lasts `LANTERN_INTRO_MS`, the script's
-  length in `src/keys.h`, which `src/keys.c` asserts it fits. **The
+  length in `src/intro.h`, which `src/intro.c` asserts it fits. **The
   countdown's clock and tick live on the system work queue**
   too (`src/keys.c`: the time of the half's last key, a delayable work item
   that computes the stage and arms itself for the next boundary; the stage
@@ -312,6 +317,21 @@ how to build. Usage: [README.md](README.md). English only.
   stack with margin). Replies are never commands: a line shaped like a reply
   is ignored, so an echoing host cannot start a loop; before the settings
   have loaded a command gets an error.
+- **A new effect is a line in `LANTERN_EFFECT_LIST` (`src/effect.h`), its
+  Kconfig symbol `LANTERN_<SYMBOL>` (depends on `LANTERN_KEYS`, selects
+  `LANTERN_EFFECTS` and, when it measures the board, `LANTERN_GEOMETRY`) and
+  its member of the choice `LANTERN_EFFECT_DEFAULT`, a file under
+  `src/effects/` defining its table entry (`src/frame.h`'s
+  `struct lantern_effect_entry`: its life, its draw, for a lasting state its
+  picture and clear hooks, and in `serves` any other line's bit it draws
+  for) and that file's line in `CMakeLists.txt`, never a change to
+  `src/keys.c`**: the engine builds its table from the list, in the list's
+  order, pairing each line's bit with its entry, and dispatches on that bit
+  and the entry's `serves` (the thin ring's entry names the stain's bit, so
+  the dyeing ring is one draw, first). An effect writes only the frame it is handed
+  and its own state, keeps every constant it needs in its file, and asserts
+  its life against `LANTERN_EFFECT_LIFE_MAX_MS`. The intro is
+  `src/intro.c` the same way, started and drawn by the engine.
 - **An effect never dims the picture, and a frame draws at most CAP**
   (`src/keys.c`): an effect pulls an LED from the picture toward its colour,
   and the cap takes any excess out of the effects' brightening alone. CAP is

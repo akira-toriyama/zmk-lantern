@@ -354,7 +354,11 @@ has.
   carries on the wire: `thin-ring`, `disc`, `stain`, `cross-ring`, `beams`,
   `water`, `dart`
   ([src/effect.h](src/effect.h)'s table; a new effect is a line there, its
-  Kconfig and its draw in src/keys.c). The central's code invokes the
+  Kconfig symbol and `LANTERN_EFFECT_DEFAULT` member, its own file under
+  [src/effects/](src/effects/), one entry of the engine's table, and that
+  file's line in CMakeLists.txt: the engine
+  in src/keys.c and the frame it hands an effect, src/frame.h, change for
+  none). The central's code invokes the
   `lantern,behavior-effect` node, which ZMK's split transport carries to every
   half by the node's name ([src/effect.c](src/effect.c)); nothing is bound to
   a key.

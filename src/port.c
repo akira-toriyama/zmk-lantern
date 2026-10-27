@@ -108,7 +108,7 @@ BUILD_ASSERT(IS_ENABLED(CONFIG_LANTERN_PALETTE) || IS_ENABLED(CONFIG_LANTERN_EFF
 #define REPLY_MAX MAX(64, LINE_LIMIT)
 #define LINES_WAITING 2
 
-#define EFFECT_NAME_FITS_(sym, bit, name)                                                          \
+#define EFFECT_NAME_FITS_(sym, bit, name, ops)                                                     \
     BUILD_ASSERT(sizeof(name) - 1 <= LANTERN_EFFECT_NAME_MAX,                                      \
                  "LANTERN_EFFECT_LIST: a name is longer than LANTERN_EFFECT_NAME_MAX");
 LANTERN_EFFECT_LIST(EFFECT_NAME_FITS_)
@@ -262,7 +262,7 @@ static const struct {
     uint32_t bit;
     const char *name;
 } effects[] = {
-#define EFFECT_ROW_(sym, bit, name) {BIT(bit), name},
+#define EFFECT_ROW_(sym, bit, name, ops) {BIT(bit), name},
     LANTERN_EFFECT_LIST(EFFECT_ROW_)
 #undef EFFECT_ROW_
 };

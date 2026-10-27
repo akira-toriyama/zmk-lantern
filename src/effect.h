@@ -11,9 +11,12 @@
  * behavior, on the central and the halves alike; the key LEDs only read.
  *
  * A new effect is one line in LANTERN_EFFECT_LIST, its Kconfig symbol
- * LANTERN_<SYMBOL> (which selects LANTERN_EFFECTS) and a default-choice member
- * LANTERN_EFFECT_DEFAULT_<SYMBOL>, and its draw in src/keys.c; the bit, the
- * name and the mask of what is built follow from the line. The bit is a wire
+ * LANTERN_<SYMBOL> (which selects LANTERN_EFFECTS, or an effect that does, as
+ * the stain's the thin ring) and a default-choice member
+ * LANTERN_EFFECT_DEFAULT_<SYMBOL>, its file under src/effects/ defining the
+ * entry lantern_effect_<ops> (src/frame.h's struct lantern_effect_entry) and that
+ * file's line in CMakeLists.txt; the bit, the name, the mask of what is built
+ * and the engine's table (src/keys.c) follow from the line. The bit is a wire
  * format (the behavior's param1, the settings value, canon's dongle.py names
  * it): never renumber a line, append.
  */
@@ -25,29 +28,32 @@
 
 #include <zephyr/sys/util.h>
 
-/* X(SYMBOL, bit, "name"): the effects, in the order the host's replies list
- * them. SYMBOL is the Kconfig suffix, the name the host's word for it. */
+/* X(SYMBOL, bit, "name", ops): the effects, in the order the host's replies
+ * list them and the engine draws them. SYMBOL is the Kconfig suffix, the name
+ * the host's word for it, ops the entry its file defines, lantern_effect_<ops>
+ * (the stain's is in the thin ring's file: the stain is that ring, dyeing). */
 #define LANTERN_EFFECT_LIST(X)                                                                     \
-    X(THIN_RING, 0, "thin-ring")                                                                   \
-    X(DISC, 1, "disc")                                                                             \
-    X(STAIN, 2, "stain")                                                                           \
-    X(CROSS_RING, 3, "cross-ring")                                                                 \
-    X(BEAMS, 4, "beams")                                                                           \
-    X(WATER, 5, "water")                                                                           \
-    X(DART, 6, "dart")
+    X(THIN_RING, 0, "thin-ring", thin_ring)                                                        \
+    X(DISC, 1, "disc", disc)                                                                       \
+    X(STAIN, 2, "stain", stain)                                                                    \
+    X(CROSS_RING, 3, "cross-ring", cross_ring)                                                     \
+    X(BEAMS, 4, "beams", beams)                                                                    \
+    X(WATER, 5, "water", water)                                                                    \
+    X(DART, 6, "dart", dart)
 
 /* Each effect's bit in a pick: LANTERN_EFFECT_THIN_RING and so on. */
 enum lantern_effect {
-#define LANTERN_EFFECT_BIT_(sym, bit, name) LANTERN_EFFECT_##sym = BIT(bit),
+#define LANTERN_EFFECT_BIT_(sym, bit, name, ops) LANTERN_EFFECT_##sym = BIT(bit),
     LANTERN_EFFECT_LIST(LANTERN_EFFECT_BIT_)
 #undef LANTERN_EFFECT_BIT_
 };
 
-#define LANTERN_EFFECT_OR_(sym, bit, name) | BIT(bit)
-#define LANTERN_EFFECT_BUILT_(sym, bit, name) | (IS_ENABLED(CONFIG_LANTERN_##sym) ? BIT(bit) : 0)
-#define LANTERN_EFFECT_DEFAULT_(sym, bit, name)                                                    \
+#define LANTERN_EFFECT_OR_(sym, bit, name, ops) | BIT(bit)
+#define LANTERN_EFFECT_BUILT_(sym, bit, name, ops)                                                 \
+    | (IS_ENABLED(CONFIG_LANTERN_##sym) ? BIT(bit) : 0)
+#define LANTERN_EFFECT_DEFAULT_(sym, bit, name, ops)                                               \
     | (IS_ENABLED(CONFIG_LANTERN_EFFECT_DEFAULT_##sym) ? BIT(bit) : 0)
-#define LANTERN_EFFECT_ONE_(sym, bit, name) +1
+#define LANTERN_EFFECT_ONE_(sym, bit, name, ops) +1
 
 /* Every effect the table knows, those built into this image, the one the
  * Kconfig choice LANTERN_EFFECT_DEFAULT picks, and how many the table has. */

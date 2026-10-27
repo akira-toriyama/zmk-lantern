@@ -6,7 +6,7 @@
  * The hit: a key press carried from the device that pressed it to the other
  * halves through the split central, so that an effect can spread from the
  * other half's key too (canon t-6ttk: the crossing ring and the beams,
- * src/keys.c). ZMK's
+ * src/effects/). ZMK's
  * halves know nothing of each other's keys: a half sends its key positions
  * to the central, where the keymap runs, and nothing comes back to a half
  * but what a behavior sends it.

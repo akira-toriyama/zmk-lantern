@@ -13,8 +13,8 @@
  * applies; lantern_keys_boot_light() tells the picture the boot light's state
  * before every light and again at its end with the LEDs lit, since the no
  * picture, which paints every key black, shows the bands for it, and the
- * intro plays in it (src/keys.c). With the intro (CONFIG_LANTERN_INTRO) the
- * boot light lasts LANTERN_INTRO_MS (keys.h) and opens again whenever USB
+ * intro plays in it (src/intro.c). With the intro (CONFIG_LANTERN_INTRO) the
+ * boot light lasts LANTERN_INTRO_MS (intro.h) and opens again whenever USB
  * power arrives, unless it is already open: a cable plugged in, into an idle
  * half too, plays the intro, then the rule applies as after a boot (the
  * user's wish, canon t-5v1f: the light at power-on, by the switch or by the
@@ -111,6 +111,7 @@
 #include <zmk/events/usb_conn_state_changed.h>
 #include <zmk/usb.h>
 
+#include "intro.h"
 #include "keys.h"
 
 LOG_MODULE_REGISTER(lantern, LOG_LEVEL_INF);
