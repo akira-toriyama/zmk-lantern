@@ -87,9 +87,9 @@
 #define WAVE_MS 1000        /* a wave's front from the outermost key to the innermost */
 #define WAVE_HEAD 64        /* how far ahead of its front a wave lights, rising */
 #define WAVE_TAIL 320       /* and behind it, fading */
-/* The core: the depth where it begins to glow and where it glows fully. On
- * canon's Imprint the thumb keys sit at 766 to 1024 and the next deepest key
- * at 626, so the whole thumb cluster glows, the inner keys brightest. */
+/* The core: the depth where it begins to glow and where it glows fully, of
+ * DEPTH_ONE: the deepest quarter or so of the half, the innermost keys
+ * brightest (on canon's halves the thumb cluster, and nothing above it). */
 #define CORE_FROM 700
 #define CORE_FULL 940
 #define CORE_SWELL 150      /* how much further out it begins by the burst */
@@ -106,10 +106,10 @@
 #define BURST_MS 450        /* a ring's front from the innermost key to the outermost */
 #define BURST_REACH 128     /* how far on either side of its front a ring lights */
 #define THIRDS_HOLD_MS 350  /* every key in its third, once the last ring's front is out */
-/* The thirds' level: on canon's 29 LEDs every key at it, 4640, fits the
- * frame's cap at the device's brightness (4851 at 16 %), so the hold and the
- * flow show at its level. */
-#define THIRDS_LEVEL 160
+/* The thirds' level: the design's 160, or what the frame's cap allows with
+ * every key at it in one channel when that is less, so that the hold and
+ * the flow show at their level and not under the cap. */
+#define THIRDS_LEVEL MIN(160, CAP / LED_COUNT)
 /* The flow: the thirds as three crests, a key dark at a band's edges and at
  * THIRDS_LEVEL at its middle, deepening in place from the hold's flat light
  * over FLOW_RAMP_MS (the pattern stands meanwhile: moved, it flipped a key's
@@ -150,17 +150,13 @@ static uint32_t from_middle(size_t i, int32_t mid, int32_t bottom) {
 }
 
 /* The bottom of the board's middle: halfway between its leftmost and
- * rightmost keys, level with its lowest (y grows downwards); the depths run
- * from this half's farthest LED from it to its nearest. */
+ * rightmost keys, level with its lowest (y grows downwards; lantern_board(),
+ * src/frame.h); the depths run from this half's farthest LED from it to its
+ * nearest. */
 static void depth_measure(void) {
-    uint16_t left = UINT16_MAX, right = 0, bottom = 0;
-
-    for (size_t k = 0; k < KEY_COUNT; k++) {
-        left = MIN(left, key_x(k));
-        right = MAX(right, key_x(k));
-        bottom = MAX(bottom, key_y(k));
-    }
-    int32_t mid = ((int32_t)left + right) / 2;
+    const struct lantern_board *b = lantern_board();
+    int32_t mid = ((int32_t)b->left + b->right) / 2;
+    int32_t bottom = b->bottom;
     uint32_t far = 0, near = UINT32_MAX;
 
     for (size_t i = 0; i < LED_COUNT; i++) {

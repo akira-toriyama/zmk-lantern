@@ -266,9 +266,13 @@ config LANTERN_EFFECTS
       The effects' engine in src/keys.c: the ring of the half's last
       presses and the pull from the picture toward an effect's colour, on
       the moving frames and their cap (LANTERN_FRAMES), the table of the
-      built effects (one file an effect under src/effects/, src/frame.h)
-      and the pick of which of them draw (LANTERN_EFFECT, the choice
-      LANTERN_EFFECT_DEFAULT). Each effect selects it; nothing to set.
+      built effects (one file an effect under src/effects/, src/frame.h;
+      each lives its design's time after a press, or on a larger board the
+      time its shape needs to cross it, measured from the lantern,keys
+      node's coords; the beams keep the design's fade) and the pick of
+      which of them draw (LANTERN_EFFECT,
+      the choice LANTERN_EFFECT_DEFAULT). Each effect selects it; nothing
+      to set.
 
 config LANTERN_EFFECT
     bool "Take the pick of the effects from the split central's host, and keep it across boots"
@@ -348,7 +352,7 @@ config LANTERN_GEOMETRY
       of a key unit (asserted present and twice the key count), and the
       distance between two keys through an integer square root. Each effect
       that measures the board selects it, the intro, and the gradient
-      picture for the coords alone; nothing to set.
+      picture for the board's ends; nothing to set.
 
 config LANTERN_THIN_RING
     bool "Build the thin ring: a thin ring of the palette's next colour from each pressed key"

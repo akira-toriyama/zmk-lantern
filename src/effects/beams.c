@@ -44,9 +44,13 @@
  * a unit of its y or x (the header). */
 #define BEAMS_LINE 50
 /* How long a hit draws the beams, fading out over it: the design's 600 had
- * the row's beam die between canon's halves (the header). */
+ * the row's beam die between canon's halves (the header). No board term: the
+ * row's beam's arrival on the other half depends on the gap between the
+ * halves, not on the board's size, and a wider gap wants a longer fade. */
 #define BEAMS_MS 1000
 BUILD_ASSERT(BEAMS_MS <= LANTERN_EFFECT_LIFE_MAX_MS, "the beams outlive a hit");
+
+static uint32_t beams_life(void) { return BEAMS_MS; }
 
 /* Whether key position a lies on b's row or column (the header), and then
  * how far along it, in hundredths of a key unit; b itself lies on both, at 0. */
@@ -104,6 +108,6 @@ static void beams_draw(struct led_rgb px[], const struct shades *sh, const struc
 }
 
 const struct lantern_effect_entry lantern_effect_beams = {
-    .life_ms = BEAMS_MS,
+    .life = beams_life,
     .draw = beams_draw,
 };

@@ -153,7 +153,17 @@ in across the split), each the user's OK on sight (canon t-6ttk, t-5hqx).
   picture; a frame draws at most what every LED white plus two keys white at
   full brightness would (an estimate of 280 + 100 mA at 16 %, unmeasured), so
   more keys lit at once by an effect on a white picture share that and dim
-  alike. The brightness must stay below 100 % with an effect (asserted).
+  alike. The brightness must stay below 100 % with an effect (asserted). An
+  effect lives its design's time after a press, or on a larger board the
+  time its shape needs to cross it (a ring until it has left the board, the
+  thin ring its half, a bar until it has run the board's width; measured
+  from `coords` at boot), so a wider board keeps it in sight; the beams
+  keep the design's fade, which answers to the gap between the halves. A
+  frame keeps moving while a press is within the picked effects' life. The
+  presses an effect still draws sit in a ring of sixteen, both halves
+  together: more presses than that within the longest picked life (ten a
+  second on canon's halves with the crossing ring, fewer on a larger board)
+  drop the oldest press's effect in one frame.
 - The thin ring (`CONFIG_LANTERN_THIN_RING`; the pick's `thin-ring`): from
   each key this half presses (and, with the hit below, from the other half's
   keys too, in across the split) a ring one key wide spreads at twelve key units
