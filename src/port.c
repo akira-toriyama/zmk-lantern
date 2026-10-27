@@ -43,7 +43,9 @@
  * whether it takes a colour, and its error reasons, static strings (the parse
  * runs on the system work queue, whose stack the behavior path below it
  * shares). A colour is exactly six hex digits, either case; the reply
- * writes upper case. A name is one of the table's, exactly. A line that begins
+ * writes upper case. A name is one of the table's, exactly, and read before
+ * a colour, so a name spelled in six hex letters (none today) would take a
+ * lower-case colour of that spelling. A line that begins
  * with none of the words is not for this file and gets no reply (the port may carry
  * anything else the host sends), and so is a line shaped like one of the
  * replies ("palette ok …", "effect none", "… error: …"): a host whose terminal
@@ -116,9 +118,9 @@ BUILD_ASSERT(IS_ENABLED(CONFIG_LANTERN_PALETTE) || IS_ENABLED(CONFIG_LANTERN_EFF
 #define COLOUR_DIGITS 6
 /* The longest name a pick's table may carry (asserted below), and the longest
  * line worth reading and the longest reply: "palette " and six slots of six
- * digits and a space each (49 and, with "ok ", 52), or a pick's word and every
- * name of its table with a space each; the longest error reply ("not ready:
- * ...") is 58. */
+ * digits and a space each (49 and, with "ok ", 52), or a pick's word, every
+ * name of its table with a space each and a colour with its space (7); the
+ * longest error reply ("not ready: ...") is 58. */
 #define PICK_NAME_MAX 15
 #define PALETTE_LINE (16 + 7 * LANTERN_PALETTE_SLOTS)
 #define PICK_LINE(count) (16 + 7 + (PICK_NAME_MAX + 1) * (count))
@@ -372,7 +374,11 @@ static void handle_pick(const struct device *dev, const struct pick_word *w, con
         reply_not_sent(dev, w->word, rc);
         return;
     }
-    LOG_INF("%s: pick %08x %06x from %s", w->word, mask, colour, dev->name);
+    if (w->colour) {
+        LOG_INF("%s: pick %08x %06x from %s", w->word, mask, colour, dev->name);
+    } else {
+        LOG_INF("%s: pick %08x from %s", w->word, mask, dev->name);
+    }
     reply_pick(dev, w, " ok");
 }
 

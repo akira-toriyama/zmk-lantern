@@ -15,7 +15,7 @@
  * LANTERN_EFFECT_DEFAULT names, in the colour LANTERN_EFFECT_COLOUR names). An
  * instance of the pick (src/pick.h, which says how it is stored, sent and
  * resent): the node lantern,behavior-effect, named effect on every device, the
- * keys "lantern/effect/mask" and "lantern/effect/colour", one or more bits a
+ * key "lantern/effect/mask" (the mask, then the colour), one or more bits a
  * pick (the grammar allows several, which draw together; canon sends one at a
  * time), and on a half a changed pick clears the effects' state and repaints
  * (lantern_keys_effect_changed(), src/keys.c): a ring half-way out would
@@ -62,8 +62,6 @@ static void changed(void) {
 static struct lantern_pick pick = {
     .name = "effect",
     .key = "lantern/effect/mask",
-    .arg_name = "colour",
-    .arg_key = "lantern/effect/colour",
     .behavior = DEVICE_DT_NAME(DT_DRV_INST(0)),
     .all = LANTERN_EFFECT_ALL,
     .arg_max = LANTERN_EFFECT_COLOUR_MAX,

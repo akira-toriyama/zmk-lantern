@@ -11,7 +11,8 @@ description: |
   and ZMK's split transport carries the same invocation to the halves by the
   node's name. A key of the central's keymap may bind it the same way
   (`&effect 1 0xFF0000`: the thin ring in red; `&effect 8 0`: the crossing
-  ring in the palette's colours), for a keyboard without a host.
+  ring in the palette's colours), for a keyboard without a host; the key
+  binding is unverified on hardware (canon's keymap binds none).
 
 compatible: "lantern,behavior-effect"
 

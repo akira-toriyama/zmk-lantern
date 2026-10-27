@@ -804,7 +804,7 @@ static void active_pick(uint32_t *fx, uint32_t *colour) {
 
     if (lantern_effect_get(&pick, &c)) {
         *fx = (pick & EFFECTS_BUILT) != 0 ? pick & EFFECTS_BUILT : EFFECT_DEFAULT;
-        *colour = c & LANTERN_EFFECT_COLOUR_MAX;
+        *colour = c;
     } else {
         *fx = EFFECT_DEFAULT;
         *colour = CONFIG_LANTERN_EFFECT_COLOUR;

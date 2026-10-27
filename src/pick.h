@@ -38,17 +38,15 @@
  * the rest are src/pick.c's. */
 struct lantern_pick {
     const char *name;      /* the port's word, and the log's */
-    const char *key;       /* the settings key, "lantern/<word>/mask" */
-    const char *arg_name;  /* the argument's settings name under the subtree ("colour"); NULL without one */
-    const char *arg_key;   /* the argument's settings key, "lantern/<word>/<arg_name>"; NULL without one */
+    const char *key;       /* the settings key, "lantern/<word>/mask": the mask, then the argument where the instance has one */
     const char *behavior;  /* the node's device name (DEVICE_DT_NAME), for the central's sends */
     uint32_t all;          /* every bit the instance's table knows */
-    uint32_t arg_max;      /* the largest argument the central sends (the effects' 0xFFFFFF); 0 without one */
+    uint32_t arg_max;      /* the largest argument (the effects' colour, 0xFFFFFF); 0 = the instance has none */
     bool one;              /* a pick is exactly one bit (the intro), else one or more (the effects) */
     void (*changed)(void); /* after a stored pick or argument changed, or the first arrived; NULL for none */
 
     atomic_t mask;   /* the host's bits as sent */
-    atomic_t arg;    /* the argument as sent; 0 without one */
+    atomic_t arg;    /* the argument as sent, at most arg_max; 0 without one */
     atomic_t have;   /* a pick is stored */
     atomic_t loaded; /* the settings have loaded: a send is refused before */
     struct k_work save_work;
@@ -72,15 +70,17 @@ bool lantern_pick_get(struct lantern_pick *p, uint32_t *mask, uint32_t *arg);
 
 /* The behavior's press, where ZMK runs behaviors: store mask and arg (saved
  * when either changed or the pick is the first, then the instance's changed
- * hook) and return 0; an empty mask is refused with -EINVAL. The bits are
- * stored as sent, those this image's table lacks included (src/pick.c says
- * why), and so is the argument. */
+ * hook) and return 0; an empty mask, or arg above arg_max, is refused with
+ * -EINVAL and nothing stored. The bits are stored as sent, those this
+ * image's table lacks included (src/pick.c says why), and so is the
+ * argument. */
 int lantern_pick_pressed(struct lantern_pick *p, uint32_t mask, uint32_t arg);
 
 /* The settings handler's set and commit, on the main thread inside
- * settings_load(): the stored values under the instance's subtree (the key
- * "mask", and the argument's; a value of another size, or an empty mask, is
- * ignored), and the load done. */
+ * settings_load(): the stored value under the instance's subtree (the key
+ * "mask": the mask, then the argument where the instance has one, or the
+ * mask alone, read with the argument 0; a value of another size, an empty
+ * mask or an argument above arg_max is ignored), and the load done. */
 int lantern_pick_set(struct lantern_pick *p, const char *name, size_t len, settings_read_cb read_cb,
                      void *cb_arg);
 void lantern_pick_commit(struct lantern_pick *p);

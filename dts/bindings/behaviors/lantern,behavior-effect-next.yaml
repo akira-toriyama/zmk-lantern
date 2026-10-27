@@ -7,8 +7,11 @@ description: |
   split central's keymap (`&effect_next`, no parameters). Each press picks the
   effect after the stored pick in src/effect.h's table, round again after the
   last, and keeps the pick's colour, through the effect behavior (the node
-  effect), which carries it to every half. It runs on the central only, where
-  the keymap runs, so its name is free of the split transport's 8 characters.
+  effect), which carries it to every half; with no pick stored, the effect
+  after the default (a dongle: the table's first) in the conf's colour. It
+  runs on the central only, where the keymap runs, so its name is free of
+  the split transport's 8 characters. Unverified on hardware (canon's keymap
+  binds none).
 
 compatible: "lantern,behavior-effect-next"
 

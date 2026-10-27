@@ -46,8 +46,6 @@ BUILD_ASSERT(DT_NUM_INST_STATUS_OKAY(DT_DRV_COMPAT) == 1,
 static struct lantern_pick pick = {
     .name = "intro",
     .key = "lantern/intro/mask",
-    .arg_name = NULL,
-    .arg_key = NULL,
     .behavior = DEVICE_DT_NAME(DT_DRV_INST(0)),
     .all = LANTERN_INTRO_ALL,
     .arg_max = 0,

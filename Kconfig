@@ -355,8 +355,8 @@ config LANTERN_EFFECT
       central invokes the lantern,behavior-effect node, which ZMK's split
       transport carries to every half by its name (the node is named effect
       on every device, src/effect.c, the binding), and the central and every
-      half keep the pick in their settings ("lantern/effect/mask",
-      "lantern/effect/colour"). A half draws the picked effects it builds, in
+      half keep the pick in their settings ("lantern/effect/mask": the mask,
+      then the colour). A half draws the picked effects it builds, in
       the pick's colour or without one in the palette's; with no pick
       stored, or none of its effects built, it draws the one
       LANTERN_EFFECT_DEFAULT names, in LANTERN_EFFECT_COLOUR. On a split
@@ -420,17 +420,20 @@ config LANTERN_EFFECT_COLOUR
     hex "The effects' colour while no pick is stored, 0xRRGGBB; 0 = the palette's colours"
     range 0 0xFFFFFF
     default 0
-    depends on LANTERN_EFFECTS
+    depends on LANTERN_EFFECTS || LANTERN_EFFECT_NEXT
     help
       The one colour every effect draws in before the host's first pick
-      (src/effect.c), and the only colour a consumer without a host has
+      (src/keys.c), and the only colour a consumer without a host has
       unless a key sets another (the effect behavior's second parameter,
       LANTERN_EFFECT). 0, the default, leaves the effects their own colours
       from the palette: the thin ring and the stain the next colour a press,
       the disc all of them in turn, the crossing ring and the beams the
       pressed key's band, the water and the dart the first to the last. A
       pick from the host or a key carries its own colour (0 for the
-      palette's) and this is not read again.
+      palette's) and this is not read again, except by LANTERN_EFFECT_NEXT's
+      first press with no pick stored, which keeps it: on a split central
+      that builds no effects (a dongle) set it to the halves' value, since
+      the central cannot read theirs.
 
 config LANTERN_EFFECT_NEXT
     bool "Cycle the effects' pick from a key of the central's keymap: the lantern,behavior-effect-next node"
@@ -443,11 +446,16 @@ config LANTERN_EFFECT_NEXT
       in the keymap) picks, on press, the effect after the stored pick in
       LANTERN_EFFECT_LIST's order, over the effects this central builds, or
       the whole table where it builds none (a dongle), round again after the
-      last, and keeps the pick's colour (src/effect_next.c); the pick goes to
-      every half through the effect behavior, as the host's does. For a
-      keyboard without a host; `&effect <mask> <colour>` on a key is the
-      fixed pick. The behavior runs on the central only, where the keymap
-      runs. Default y where the node is present on a split central.
+      last, and keeps the pick's colour (src/effect_next.c); with no pick
+      stored, the effect after LANTERN_EFFECT_DEFAULT where this central
+      builds effects (a dongle: the table's first) in LANTERN_EFFECT_COLOUR.
+      The pick goes to every half through the effect behavior, as the
+      host's does. For a keyboard without a host; `&effect <mask> <colour>`
+      on a key is the fixed pick. The behavior runs on the central only,
+      where the keymap runs, and the send is a split central's, hence the
+      dependency. Default y where the node is present on a split central.
+      Neither key binding is verified on hardware (canon's keymap binds
+      none; the check build compiles both).
 
 config LANTERN_GEOMETRY
     bool

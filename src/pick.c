@@ -22,10 +22,11 @@
  *   zmk_behavior_invoke_binding() as the palette's is (src/palette.c says how
  *   ZMK's split transport carries it by the node's name and why the name is at
  *   most 8 characters): param1 = the mask, absolute, param2 = the argument (0
- *   without one), press only. A key of the central's keymap bound to the
- *   behavior invokes it the same way (ZMK app/src/behavior.c: a GLOBAL
- *   behavior goes to every half and then runs here), on press and again on
- *   release, which stores the same values and changes nothing. One
+ *   without one), press only (the release is nothing: src/effect.c,
+ *   src/intro.c). A key of the central's keymap bound to the behavior
+ *   invokes it the same way (ZMK app/src/behavior.c: a GLOBAL behavior goes
+ *   to every half and then runs here), its release too, which does nothing
+ *   anywhere. One
  *   invocation a pick, so the central's run queue, which src/palette.c
  *   sizes for a whole palette a half, must hold one more a half for each pick
  *   built (asserted below): a resend after a half's battery report
@@ -46,14 +47,18 @@
  *   The central refuses a bit its own table lacks and, where the instance
  *   takes one bit (the intro), a mask of several; a half stores what it is
  *   sent and leaves the choice among several to the reader.
- * - Settings: the instance's key ("lantern/<word>/mask"), the mask as one
- *   32-bit value, and the argument under its own key ("lantern/effect/colour"),
- *   both saved when either changed or the first pick arrived, never for a
- *   pick a device already holds (a half is resent the pick at every battery
- *   report, as the palette); a stored value of another size is ignored at
- *   load, and a device without the argument's key has 0 (a device flashed
- *   from before the argument keeps its mask). The instance's changed hook runs
- *   after a changed or first store (the
+ * - Settings: the instance's key ("lantern/<word>/mask"), one value: the
+ *   mask as 32 bits and, where the instance has an argument, the argument as
+ *   32 more (one write, so a power loss leaves the old pick or the new,
+ *   never the new mask with the old argument), saved when either changed or
+ *   the first pick arrived, never for a pick a device already holds (a half
+ *   is resent the pick at every battery report, as the palette); a stored
+ *   value of another size, an empty mask or an argument above the
+ *   instance's largest is ignored at load, and the mask alone (an image
+ *   before the argument) is read with the argument 0, so a device flashed
+ *   from before the colour keeps its pick, and one flashed back to such an
+ *   image has none until the next. The instance's changed hook runs after a
+ *   changed or first store (the
  *   effects' clears the effects' state and repaints, src/keys.c; the intro's
  *   is none: the next boot light reads the pick). At boot the reader takes the
  *   mask itself after settings_load() restored it, so this subtree's commit
@@ -61,9 +66,15 @@
  *   -EAGAIN, as the palette's.
  * - Threads, as src/palette.c's: the handler runs where ZMK runs behaviors (a
  *   half: the Bluetooth receive work queue; the central: the system work
- *   queue, where the port's line and the resend run); the mask and the two
- *   flags are atomics; the save is a work item on the system work queue (a
- *   flash write stays off the Bluetooth queue).
+ *   queue, where the port's line and the resend run); the mask, the argument
+ *   and the two flags are atomics, set one after another, so a frame
+ *   composed between the mask's set and the argument's may draw the new
+ *   pick in the old colour once, and the changed hook's repaint, after both,
+ *   clears it; the save is a work item on the system work queue (a flash
+ *   write stays off the Bluetooth queue).
+ * - A failed save is logged and not retried (as before the argument): the
+ *   next change saves, and until then a boot returns to the previous pick,
+ *   whole.
  * - Delivery is not confirmed, as the palette's: the next battery report of a
  *   half resends the pick, RESEND_DELAY_MS after it (src/palette.c says why
  *   the wait).
@@ -125,15 +136,26 @@ bool lantern_pick_get(struct lantern_pick *p, uint32_t *out, uint32_t *arg) {
     return true;
 }
 
-/* System work queue: the mask, and the argument where the instance has one. */
+/* The stored value (the header): the mask, then the argument where the
+ * instance has one; the mask alone for an instance without. */
+struct stored {
+    uint32_t mask;
+    uint32_t arg;
+};
+BUILD_ASSERT(sizeof(struct stored) == 2 * sizeof(uint32_t), "the stored pick is packed");
+
+static size_t stored_size(const struct lantern_pick *p) {
+    return p->arg_max != 0 ? sizeof(struct stored) : sizeof(uint32_t);
+}
+
+/* System work queue: one write. */
 static void save(struct k_work *work) {
     struct lantern_pick *p = CONTAINER_OF(work, struct lantern_pick, save_work);
-    uint32_t copy = (uint32_t)atomic_get(&p->mask);
-    int rc = settings_save_one(p->key, &copy, sizeof(copy));
-    if (rc >= 0 && p->arg_key != NULL) {
-        copy = (uint32_t)atomic_get(&p->arg);
-        rc = settings_save_one(p->arg_key, &copy, sizeof(copy));
-    }
+    struct stored copy = {
+        .mask = (uint32_t)atomic_get(&p->mask),
+        .arg = (uint32_t)atomic_get(&p->arg),
+    };
+    int rc = settings_save_one(p->key, &copy, stored_size(p));
     if (rc < 0) {
         LOG_ERR("%s: save failed: %d", p->name, rc);
     }
@@ -144,13 +166,17 @@ int lantern_pick_pressed(struct lantern_pick *p, uint32_t m, uint32_t a) {
         LOG_WRN("%s: an empty pick", p->name);
         return -EINVAL;
     }
+    if (a > p->arg_max) {
+        LOG_WRN("%s: argument %08x above %08x", p->name, a, p->arg_max);
+        return -EINVAL;
+    }
     bool changed = (uint32_t)atomic_set(&p->mask, (atomic_val_t)m) != m;
     changed = ((uint32_t)atomic_set(&p->arg, (atomic_val_t)a) != a) || changed;
     bool new = atomic_set(&p->have, 1) == 0;
     if (changed || new) {
         k_work_submit(&p->save_work);
     }
-    if (p->arg_name != NULL) {
+    if (p->arg_max != 0) {
         LOG_INF("%s: %08x %06x %s", p->name, m, a, changed || new ? "stored" : "unchanged");
     } else {
         LOG_INF("%s: %08x %s", p->name, m, changed || new ? "stored" : "unchanged");
@@ -161,45 +187,35 @@ int lantern_pick_pressed(struct lantern_pick *p, uint32_t m, uint32_t a) {
     return 0;
 }
 
-/* One stored 32-bit value, or -EINVAL for another size. */
-static int read_value(struct lantern_pick *p, size_t len, settings_read_cb read_cb, void *cb_arg,
-                      uint32_t *out) {
-    if (len != sizeof(*out)) {
-        LOG_WRN("%s: stored value of %u bytes ignored", p->name, (unsigned int)len);
-        return -EINVAL;
-    }
-    ssize_t rc = read_cb(cb_arg, out, sizeof(*out));
-    return rc < 0 ? (int)rc : 0;
-}
-
 int lantern_pick_set(struct lantern_pick *p, const char *name, size_t len, settings_read_cb read_cb,
                      void *cb_arg) {
     const char *next;
-    uint32_t copy;
-    int rc;
-
-    if (settings_name_steq(name, "mask", &next) && !next) {
-        rc = read_value(p, len, read_cb, cb_arg, &copy);
-        if (rc < 0) {
-            return rc;
-        }
-        if (copy == 0) {
-            LOG_WRN("%s: stored empty pick ignored", p->name);
-            return -EINVAL;
-        }
-        atomic_set(&p->mask, (atomic_val_t)copy);
-        atomic_set(&p->have, 1);
-        return 0;
+    if (!settings_name_steq(name, "mask", &next) || next) {
+        return -ENOENT;
     }
-    if (p->arg_name != NULL && settings_name_steq(name, p->arg_name, &next) && !next) {
-        rc = read_value(p, len, read_cb, cb_arg, &copy);
-        if (rc < 0) {
-            return rc;
-        }
-        atomic_set(&p->arg, (atomic_val_t)copy);
-        return 0;
+    /* the mask alone (an image before the argument, or an instance without
+     * one), or the mask and the argument */
+    struct stored copy = {0};
+    if (len != sizeof(copy.mask) && len != stored_size(p)) {
+        LOG_WRN("%s: stored pick of %u bytes ignored", p->name, (unsigned int)len);
+        return -EINVAL;
     }
-    return -ENOENT;
+    ssize_t rc = read_cb(cb_arg, &copy, len);
+    if (rc < 0) {
+        return (int)rc;
+    }
+    if (copy.mask == 0) {
+        LOG_WRN("%s: stored empty pick ignored", p->name);
+        return -EINVAL;
+    }
+    if (copy.arg > p->arg_max) {
+        LOG_WRN("%s: stored argument %08x above %08x ignored", p->name, copy.arg, p->arg_max);
+        return -EINVAL;
+    }
+    atomic_set(&p->mask, (atomic_val_t)copy.mask);
+    atomic_set(&p->arg, (atomic_val_t)copy.arg);
+    atomic_set(&p->have, 1);
+    return 0;
 }
 
 void lantern_pick_commit(struct lantern_pick *p) { atomic_set(&p->loaded, 1); }

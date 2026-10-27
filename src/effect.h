@@ -88,8 +88,8 @@ static inline uint32_t lantern_effect_next(uint32_t mask, uint32_t set) {
 #if IS_ENABLED(CONFIG_LANTERN_EFFECT)
 
 /* The pick stored on this device, the host's bits as sent (built here or
- * not) and its colour (colour may be NULL). False while none has been stored,
- * and both are then left alone. */
+ * not) and its colour, at most LANTERN_EFFECT_COLOUR_MAX (colour may be
+ * NULL). False while none has been stored, and both are then left alone. */
 bool lantern_effect_get(uint32_t *mask, uint32_t *colour);
 
 /* Split central only: store the pick here and send it to every half. mask is
