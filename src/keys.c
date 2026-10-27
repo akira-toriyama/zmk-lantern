@@ -1597,7 +1597,8 @@ static struct led_rgb intro_led(size_t i, uint32_t t, uint32_t seed) {
         uint32_t crest = frac < FLOW_BAND / 2 ? frac * 2 : (FLOW_BAND - 1 - frac) * 2;
         uint32_t ramp = MIN(since * 256 / FLOW_RAMP_MS, 256u);
 
-        c[primary[at / FLOW_BAND]] += THIRDS_LEVEL - THIRDS_LEVEL * ramp * (255 - crest) / (255 * 256);
+        c[primary[at / FLOW_BAND]] +=
+            THIRDS_LEVEL - THIRDS_LEVEL * ramp * (255 - crest) / (255 * 256);
     }
 
     /* the star out, and the glitter once its head's light has left the key */
