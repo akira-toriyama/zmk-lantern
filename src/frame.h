@@ -75,8 +75,9 @@
 
 /* The one lantern,keys node (src/keys.c asserts there is one), its LED count
  * (one positions entry an LED) and the keymap's key count, ZMK's
- * (ZMK_KEYMAP_LEN: the chosen matrix transform's map, or the longest of the
- * physical layouts'), which every table a key position long has. */
+ * (ZMK_KEYMAP_LEN: the longest physical layout's map where the keyboard
+ * has layouts, else the chosen matrix transform's), which every table a key
+ * position long has. */
 #define LANTERN_KEYS_NODE DT_INST(0, lantern_keys)
 #define LED_COUNT DT_PROP_LEN(LANTERN_KEYS_NODE, positions)
 #define KEY_COUNT ZMK_KEYMAP_LEN

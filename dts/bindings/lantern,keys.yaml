@@ -30,7 +30,8 @@ properties:
     required: true
     description: |
       One entry per LED, in the chain's order: the key position the LED sits
-      under, an index into the keymap (the chosen matrix transform's map,
+      under, an index into the keymap (the longest physical layout's map
+      where the keyboard has layouts, else the chosen matrix transform's;
       global across a split) and into slots. Measured on the hardware, one
       LED at a time (canon t-69g7).
 

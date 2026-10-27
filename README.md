@@ -9,7 +9,9 @@ ring, a disc, a stain, a ring crossing both halves, beams, water or a dart,
 in the palette's colours or in one colour of the host's choosing. On a split
 keyboard each half lights for itself, the central relays the key presses and
 the host's choices to the halves, and a half that was away catches up when it
-is back. A keyboard whose LED supply has an enable pin can hand that pin to
+is back; the host's channel is the split central's USB port, so a keyboard
+that is not a split has the conf's defaults and a key's pick, without a
+palette. A keyboard whose LED supply has an enable pin can hand that pin to
 the module, which then cuts the LEDs' power whenever they are dark.
 
 The module paints the strip itself: ZMK's underglow stays off on a keyboard
@@ -59,11 +61,18 @@ lights what is at hand. The sibling module
    at a time (light one, see which key it sits under); an LED under no key
    takes the nearest key's position. The key positions are the keymap's,
    global across a split, and the key count is the keymap's
-   (`ZMK_KEYMAP_LEN`). The module takes each key's place from the keyboard's
-   chosen `zmk,physical-layout` (the key's centre, in the layout's hundredths
-   of a key unit), so a keyboard that has one needs nothing more for the
-   effects; one that has none writes `coords` (below). The check build of
-   ZMK's Corne is this least: [config/corne.overlay](config/corne.overlay).
+   (`ZMK_KEYMAP_LEN`: the longest physical layout's map where the keyboard
+   has layouts, else the chosen matrix transform's; a Corne that chooses
+   its 5-column layout still counts 42). The module takes each key's place
+   from the keyboard's chosen `zmk,physical-layout` (the key's centre, in
+   the layout's hundredths of a key unit), so a keyboard whose layout has
+   `keys` needs nothing more for the effects; one without writes `coords`
+   (below). The places follow the chosen layout: a layout selected at run
+   time instead (ZMK Studio) numbers the keys differently, and the LEDs and
+   the effects land a key off until the chosen one is selected again. The
+   check build of ZMK's Corne is this least plus the split's nodes and
+   every effect: [config/corne.overlay](config/corne.overlay),
+   [config/corne.conf](config/corne.conf).
 
 3. The keyboard's conf:
 
@@ -79,9 +88,9 @@ lights what is at hand. The sibling module
    (dark after ZMK's `CONFIG_ZMK_IDLE_TIMEOUT`, the consumer's line, 30 s by
    ZMK's default), `CONFIG_LANTERN_INTRO_BANDS` (the boot light: a second of
    the palette's bands at boot and when a cable is plugged in). With no more
-   than this, every key shows the palette's first colour (white before the
-   host hands a palette), and no effect is built: the effects and the other
-   pictures are conf lines, below.
+   than this, every key is white (the palette needs the split's palette
+   node, below; with it, the palette's first colour), and no effect is
+   built: the effects and the other pictures are conf lines, below.
 
 ### Then, as you want them
 
@@ -228,11 +237,13 @@ lights what is at hand. The sibling module
   what the central relays shows at once (The split link, below); `=n` leaves
   the link at the central's latency.
 
-- **The host.** With a USB CDC ACM port on the central (`CONFIG_USB_CDC_ACM`),
-  `CONFIG_LANTERN_PORT` is on by default, and a host sets the palette and
-  the picks by writing a text line on that port (The palette and The picks,
-  below). Without a host the keyboard has the Kconfig defaults, and a key of
-  the central's keymap can pick (Without a host, below).
+- **The host.** With a USB CDC ACM port on the split central
+  (`CONFIG_USB_CDC_ACM`), `CONFIG_LANTERN_PORT` is on by default, and a host
+  sets the palette and the picks by writing a text line on that port (The
+  palette and The picks, below). The port and the palette are a split
+  central's: a keyboard that is not a split has neither. Without a host the
+  keyboard has the Kconfig defaults, and a key of the central's keymap can
+  pick (Without a host, below).
 
 ## What it does
 

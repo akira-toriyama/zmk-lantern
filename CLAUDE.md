@@ -286,8 +286,10 @@ how to build. Usage: [README.md](README.md). English only.
   of the palette. At most one node of each per target (BUILD_ASSERT).
 - **`positions` and `chain-length` are the consumer's measurement, `slots` its
   bands, `coords` its geometry; the key count is ZMK's**: `src/frame.h`'s
-  `KEY_COUNT` is `ZMK_KEYMAP_LEN` (the chosen matrix transform's map, or the
-  longest physical layout's), never a table's length, and `src/keys.c`
+  `KEY_COUNT` is `ZMK_KEYMAP_LEN` (the longest physical layout's map where
+  the keyboard has layouts, else the chosen matrix transform's: a Corne
+  consumer who chooses the 5-column layout still writes 42 slots), never a
+  table's length, and `src/keys.c`
   asserts the lengths (`positions` as many as the strip's `chain-length`,
   `slots` as many as the keymap where given, `coords` twice that where
   given) and the ranges (a position below the key count, a slot below

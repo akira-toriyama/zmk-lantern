@@ -420,9 +420,13 @@ BUILD_ASSERT(ARRAY_SIZE(intros) == __builtin_popcount(INTROS_BUILT),
  * centre in its hundredths of a key unit, a rotated key's as if unrotated.
  * The board is measured over the keys that have a place: every key position
  * with coords, the layout's keys with a layout (a longer layout of the same
- * keyboard fills ZMK_KEYMAP_LEN beyond them; such a position never presses
- * while this layout is selected, and positions must not name one). 30000
- * keeps a squared distance, 2 x 30000^2, inside 32 bits. */
+ * keyboard fills ZMK_KEYMAP_LEN beyond them, with (0, 0); positions must not
+ * name one). The tables follow the chosen layout at build time: ZMK can
+ * select another at run time (ZMK Studio, kept in its settings and sent to
+ * the peripherals), whose positions then number the keys differently, so
+ * the LEDs and the effects land a key off until the chosen layout is
+ * selected again (canon t-41g7: not followed, by design). 30000 keeps a
+ * squared distance, 2 x 30000^2, inside 32 bits. */
 #if DT_INST_NODE_HAS_PROP(0, coords)
 #define BOARD_KEYS KEY_COUNT
 BUILD_ASSERT(DT_INST_PROP_LEN(0, coords) == 2 * KEY_COUNT,
@@ -437,7 +441,7 @@ DT_FOREACH_PROP_ELEM(NODE, coords, COORD_IN_RANGE)
 #else
 #define LAYOUT DT_INST(0, zmk_physical_layout)
 #endif
-#define BOARD_KEYS DT_PROP_LEN(LAYOUT, keys)
+#define BOARD_KEYS DT_PROP_LEN_OR(LAYOUT, keys, 0)
 BUILD_ASSERT(BOARD_KEYS > 0 && BOARD_KEYS <= KEY_COUNT,
              "what measures the board (CONFIG_LANTERN_GEOMETRY) needs the physical layout's keys, "
              "or lantern,keys coords");

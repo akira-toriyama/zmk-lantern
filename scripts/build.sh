@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 #
 # Build this repository's check images in Docker (zmkfirmware/zmk-build-arm:stable,
-# the image ZMK's own CI uses) and copy them to ./firmware/: both halves of the
-# Cyboard Imprint with this module (build.yaml), from Cyboard's stock shield
-# plus the consumer-side lines in config/. They prove the module builds; they
+# the image ZMK's own CI uses) and copy them to ./firmware/: every target of
+# build.yaml (both halves of the Cyboard Imprint and its dongle, from Cyboard's
+# stock shields, and both halves of ZMK's Corne on the nice!nano, each plus
+# the consumer-side lines in config/). They prove the module builds; they
 # are not a keyboard's firmware (a consumer's keymap and roles are its own).
 #
 #   ./scripts/build.sh                    # every target in build.yaml
