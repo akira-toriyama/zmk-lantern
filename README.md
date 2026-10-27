@@ -141,11 +141,11 @@ t-5hqx).
   plugged into a half that typed a while ago lights the stage its keys say.
   The clock is the half's own keys: a sensor or pointing input counts for
   ZMK's idle, not for the stages. One colour: the bands until the dark.
-- The effects: a picture that moves after a key, the six below. The
+- The effects: a picture that moves after a key, the seven below. The
   consumer's conf builds the ones it wants into the image
   (`CONFIG_LANTERN_THIN_RING`, `CONFIG_LANTERN_DISC`, `CONFIG_LANTERN_STAIN`,
   `CONFIG_LANTERN_CROSS_RING`, `CONFIG_LANTERN_BEAMS`, `CONFIG_LANTERN_WATER`,
-  each off by default), and the pick says which
+  `CONFIG_LANTERN_DART`, each off by default), and the pick says which
   of them draw (the pick, below): the host's, kept across boots, or without
   one the effect the Kconfig choice `LANTERN_EFFECT_DEFAULT` names. An effect
   pulls an LED toward its colour at full brightness and never dims the
@@ -225,6 +225,19 @@ t-5hqx).
   and last colours four times a second, and lower waves, later or farther
   out, between colours nearer the middle. It measures the board as the thin
   ring does.
+- The dart (`CONFIG_LANTERN_DART`; the pick's `dart`): from each pressed
+  key a bar runs across the rows toward the far side of the board, at
+  sixteen key units a second (a key left of the board's middle sends it
+  right, one right of it left), full at its head and gone four fifths of
+  a unit from it, full on the pressed key's row and two fifths as strong
+  on the other rows, fading out over 1.2 s, in the palette's first colour
+  at the key and sliding along the colours as it runs, the last colour a
+  board's width away, at full brightness within the frame's cap (with the
+  hit the bar runs on through the other half: a press of the other half
+  brings it in across the split at about two thirds of its strength from
+  an inner column, nearly full from a thumb); a key under two darts shows
+  the stronger one's colour. It measures the board from `coords` as the
+  thin ring does, along the rows only.
 - The intro (`CONFIG_LANTERN_INTRO`, off by default while canon tries it):
   the boot light plays a six-second show instead of the picture, in red,
   blue and green up to full brightness within the frame's cap, not the
@@ -269,8 +282,9 @@ hit for its effects while its LEDs are lit, as one of its own keys, and its
 countdown's clock ignores it (a stock half as the central counts the other
 half's keys through its own listener, as ZMK's idle does there). The crossing
 ring draws it from the other half's key; the beams, the thin ring, the
-disc and the water do too, in their own colours (the beams' row comes in
-across the split, the water's waves low), the stain dyes with it, and it
+disc, the water and the dart do too, in their own colours (the beams' row
+comes in across the split, the water's waves low, the dart's bar on its
+way), the stain dyes with it, and it
 counts in the press
 count the thin ring's colours follow. Delivery is not confirmed, as the
 palette's, and the hits share the central's run queue with the palette (the
@@ -331,7 +345,7 @@ has.
   `effect error: no such effect` and changes nothing
   ([src/port.c](src/port.c) is the grammar). The names, and the bit each
   carries on the wire: `thin-ring`, `disc`, `stain`, `cross-ring`, `beams`,
-  `water`
+  `water`, `dart`
   ([src/effect.h](src/effect.h)'s table; a new effect is a line there, its
   Kconfig and its draw in src/keys.c). The central's code invokes the
   `lantern,behavior-effect` node, which ZMK's split transport carries to every
@@ -471,9 +485,9 @@ has.
    `CONFIG_LANTERN_THIN_RING=y` builds the thin ring into the image,
    `CONFIG_LANTERN_DISC=y` the disc, `CONFIG_LANTERN_STAIN=y` the stain, the
    ring that dyes, `CONFIG_LANTERN_CROSS_RING=y` the crossing ring,
-   `CONFIG_LANTERN_BEAMS=y` the beams and `CONFIG_LANTERN_WATER=y` the water
-   (the six need `coords`, the crossing ring the hit node too, 4.); which of
-   them draw is
+   `CONFIG_LANTERN_BEAMS=y` the beams, `CONFIG_LANTERN_WATER=y` the water and
+   `CONFIG_LANTERN_DART=y` the dart (the seven need `coords`, the crossing
+   ring the hit node too, 4.); which of them draw is
    the pick's (the effect node, 4., and `dongle.py effect`), and without one
    the choice `LANTERN_EFFECT_DEFAULT` (`CONFIG_LANTERN_EFFECT_DEFAULT_CROSS_RING=y`
    on canon's halves; the first built effect unless a line says otherwise).

@@ -265,6 +265,26 @@
  *   (1.5 units). The sine is a quarter-wave table of 65 entries folded
  *   (sine()); the distance and its square root are the geometry's, as the
  *   thin ring's.
+ * - The dart (CONFIG_LANTERN_DART, canon t-6ttk): from a pressed key a bar
+ *   runs across the rows toward the far side of the board at DART_SPEED
+ *   key units a second (a key left of the board's middle sends it right,
+ *   one right of it left), full at its head and gone DART_WIDTH from it,
+ *   full on the pressed key's row and DART_ROWS of 256 on the others (a key
+ *   is on the row within DART_LINE of its y, the beams' rule), fading out
+ *   over DART_MS, and in the shade of how far it has run along span(),
+ *   shade 0 at the key and the last shade a board's width away, so the
+ *   bar's colour slides along the palette as it runs:
+ *   zmk-advanced-underglow-effects-vfx's dart, from its idea (nothing
+ *   copied), the research's light that runs at a press. The board's ends
+ *   are measured once, at the first frame that draws it, as the
+ *   gradient's. With the hit the bar runs on through the other half: a
+ *   press of this half sends it out through the inner column and the
+ *   thumbs, and a press of the other half, relayed, brings it in across
+ *   the split (from an inner column, 6.5 units off on canon's Imprint,
+ *   406 ms at 16 and two thirds of its strength; from a thumb, 1.5 units,
+ *   nearly full) and on to the outer column. Along the rows the distance
+ *   is the difference of x, so the dart takes no square root. An LED under
+ *   two darts takes the strongest one's colour at their summed strength.
  * - The solid (CONFIG_LANTERN_SOLID, canon t-skdt): every LED shows slot 0,
  *   so the countdown's pictures are the whole half in each shade in turn,
  *   shade 0's first. The node
@@ -541,7 +561,24 @@ BUILD_ASSERT(LANTERN_PALETTE_SLOTS == 6 && HIT_SEQ_CYCLE % 60 == 0,
 #else
 #define WATER_MS 0
 #endif
-#define HIT_LIFE_MS MAX(RING_MS, MAX(DISC_MS, MAX(CROSS_MS, MAX(BEAMS_MS, WATER_MS))))
+#if IS_ENABLED(CONFIG_LANTERN_DART)
+/* Key units a second the dart's head runs, the design's 16: across canon's
+ * board (16.5 units) from any key within its life; full at the head and
+ * gone DART_WIDTH hundredths of a unit from it, the design's 0.8. */
+#define DART_SPEED 16
+#define DART_WIDTH 80
+/* A key is on the pressed key's row within this many hundredths of a unit
+ * of its y (the beams' rule); off the row the bar is DART_ROWS of 256 as
+ * strong, the design's 0.4. */
+#define DART_LINE 50
+#define DART_ROWS 102
+/* How long a hit draws the dart, fading out over it: the design's 1.2 s. */
+#define DART_MS 1200
+#else
+#define DART_MS 0
+#endif
+#define HIT_LIFE_MS                                                                                \
+    MAX(RING_MS, MAX(DISC_MS, MAX(CROSS_MS, MAX(BEAMS_MS, MAX(WATER_MS, DART_MS)))))
 #if IS_ENABLED(CONFIG_LANTERN_STAIN)
 /* The least strength, of 256, a ring's crest must still have to dye: the
  * design's 0.6. */
@@ -572,8 +609,8 @@ BUILD_ASSERT(__builtin_popcount(EFFECT_DEFAULT) == 1 && (EFFECT_DEFAULT & EFFECT
 #if IS_ENABLED(CONFIG_LANTERN_GEOMETRY)
 BUILD_ASSERT(DT_INST_NODE_HAS_PROP(0, coords),
              "what measures the board (CONFIG_LANTERN_GEOMETRY: the thin ring, the disc, the "
-             "crossing ring, the beams, the water, the gradient or the intro) needs lantern,keys "
-             "coords");
+             "crossing ring, the beams, the water, the dart, the gradient or the intro) needs "
+             "lantern,keys coords");
 BUILD_ASSERT(COND_CODE_1(DT_INST_NODE_HAS_PROP(0, coords), (DT_INST_PROP_LEN(0, coords)), (0)) ==
                  2 * KEY_COUNT,
              "lantern,keys: coords needs an x and a y per key position of slots");
@@ -944,6 +981,10 @@ static uint32_t __maybe_unused distance(uint8_t a, uint8_t b) {
     return isqrt((uint32_t)(dx * dx + dy * dy));
 }
 
+/* How far apart two coordinates are: along a row or a column the distance
+ * (the beams, the dart). */
+static uint32_t __maybe_unused apart(uint16_t a, uint16_t b) { return a > b ? a - b : b - a; }
+
 #endif /* IS_ENABLED(CONFIG_LANTERN_GEOMETRY) */
 
 #if IS_ENABLED(CONFIG_LANTERN_THIN_RING)
@@ -1085,8 +1126,6 @@ static void cross_ring(const struct shades *sh, const struct hit live[], size_t 
 
 #if IS_ENABLED(CONFIG_LANTERN_BEAMS)
 
-static uint32_t apart(uint16_t a, uint16_t b) { return a > b ? a - b : b - a; }
-
 /* Whether key position a lies on b's row or column (the header), and then
  * how far along it, in hundredths of a key unit; b itself lies on both, at 0. */
 static bool along_line(uint8_t a, uint8_t b, uint32_t *along) {
@@ -1142,6 +1181,30 @@ static void beams(const struct shades *sh, const struct hit live[], size_t n) {
 
 #endif /* IS_ENABLED(CONFIG_LANTERN_BEAMS) */
 
+#if IS_ENABLED(CONFIG_LANTERN_WATER) || IS_ENABLED(CONFIG_LANTERN_DART)
+
+/* The shades at HI_LEVEL end to end (the water, the dart): p, 0..256, is
+ * how far from shade 0 at 0 to the last shade at 256, linear between
+ * neighbours, a blend brought back to full scale after the mix (mixed at
+ * that scale two hues dim each other, as the gradient's ramp() says). */
+static struct led_rgb span(const struct shades *sh, unsigned int p) {
+    if (sh->n == 1) {
+        return shade_hi(sh, 0);
+    }
+    /* 1/256 shades along: q >> 8 < n - 1 below p = 256, and at it the last
+     * shade itself */
+    unsigned int q = p * (sh->n - 1);
+    size_t k = q >> 8;
+
+    if ((q & 0xFF) == 0) {
+        return shade_hi(sh, k);
+    }
+    struct led_rgb m = mix(shade_hi(sh, k), shade_hi(sh, k + 1), q & 0xFF);
+    return scale(((uint32_t)m.r << 16) | ((uint32_t)m.g << 8) | m.b, HI_LEVEL);
+}
+
+#endif /* IS_ENABLED(CONFIG_LANTERN_WATER) || IS_ENABLED(CONFIG_LANTERN_DART) */
+
 #if IS_ENABLED(CONFIG_LANTERN_WATER)
 
 /* 127 x sin(2 pi i / 256) for i 0..64, the first quarter of the turn;
@@ -1159,26 +1222,6 @@ static int32_t sine(uint32_t i) {
         return sine_quarter[i < 64 ? i : 128 - i];
     }
     return -sine_quarter[i < 192 ? i - 128 : 256 - i];
-}
-
-/* The shades at HI_LEVEL end to end: p, 0..256, is how far from shade 0 at
- * 0 to the last shade at 256, linear between neighbours, a blend brought
- * back to full scale after the mix (mixed at that scale two hues dim each
- * other, as the gradient's ramp() says). */
-static struct led_rgb span(const struct shades *sh, unsigned int p) {
-    if (sh->n == 1) {
-        return shade_hi(sh, 0);
-    }
-    /* 1/256 shades along: q >> 8 < n - 1 below p = 256, and at it the last
-     * shade itself */
-    unsigned int q = p * (sh->n - 1);
-    size_t k = q >> 8;
-
-    if ((q & 0xFF) == 0) {
-        return shade_hi(sh, k);
-    }
-    struct led_rgb m = mix(shade_hi(sh, k), shade_hi(sh, k + 1), q & 0xFF);
-    return scale(((uint32_t)m.r << 16) | ((uint32_t)m.g << 8) | m.b, HI_LEVEL);
 }
 
 /* Each hit's waves (the header): behind the front, WATER_SPEED x the hit's
@@ -1220,6 +1263,71 @@ static void water(const struct shades *sh, const struct hit live[], size_t n) {
 }
 
 #endif /* IS_ENABLED(CONFIG_LANTERN_WATER) */
+
+#if IS_ENABLED(CONFIG_LANTERN_DART)
+
+/* The frame's thread: the leftmost and the rightmost key's x, measured from
+ * coords at the first frame that draws the dart (the header). */
+static bool dart_measured;
+static uint16_t dart_left, dart_right;
+
+/* Each hit's dart (the header): its head DART_SPEED x the hit's age from
+ * the pressed key toward the far side of the board, full at the head and
+ * gone DART_WIDTH from it, DART_ROWS of 256 as strong off the pressed
+ * key's row, fading out over DART_MS, in span() of how far it has run over
+ * the board's width. An LED under several darts takes the strongest one's
+ * colour at their summed strength. */
+static void dart(const struct shades *sh, const struct hit live[], size_t n) {
+    if (!dart_measured) {
+        uint16_t lo = UINT16_MAX, hi = 0;
+
+        for (size_t k = 0; k < KEY_COUNT; k++) {
+            lo = MIN(lo, coords[2 * k]);
+            hi = MAX(hi, coords[2 * k]);
+        }
+        dart_left = lo;
+        dart_right = hi;
+        dart_measured = true;
+    }
+    uint32_t width = MAX((uint32_t)(dart_right - dart_left), 1u);
+
+    for (size_t i = 0; i < LED_COUNT; i++) {
+        unsigned int w = 0, strongest = 0;
+        uint32_t run = 0;
+        int32_t x = coords[2 * positions[i]];
+
+        for (size_t h = 0; h < n; h++) {
+            if (live[h].age >= DART_MS) {
+                continue;
+            }
+            /* ms x units/s / 1000 x 100 hundredths */
+            uint32_t r = (uint32_t)live[h].age * DART_SPEED / 10;
+            int32_t from = coords[2 * live[h].key];
+            /* right from a key left of the middle (the key centres sit half a
+             * unit right of the corners coords give, on both sides) */
+            int32_t head = 2 * from < dart_left + dart_right ? from + (int32_t)r : from - (int32_t)r;
+            uint32_t off = (uint32_t)(x > head ? x - head : head - x);
+            if (off >= DART_WIDTH) {
+                continue;
+            }
+            unsigned int s = (DART_WIDTH - off) * 256 / DART_WIDTH;
+            if (apart(coords[2 * positions[i] + 1], coords[2 * live[h].key + 1]) >= DART_LINE) {
+                s = s * DART_ROWS / 256;
+            }
+            s = s * (DART_MS - live[h].age) / DART_MS;
+            if (s > strongest) {
+                strongest = s;
+                run = r;
+            }
+            w += s;
+        }
+        if (w > 0) {
+            pixels[i] = mix(pixels[i], span(sh, MIN(run * 256 / width, 256)), MIN(w, 256));
+        }
+    }
+}
+
+#endif /* IS_ENABLED(CONFIG_LANTERN_DART) */
 
 #if IS_ENABLED(CONFIG_LANTERN_INTRO)
 
@@ -1528,6 +1636,9 @@ static uint32_t effects_life(uint32_t fx) {
     if (fx & LANTERN_EFFECT_WATER) {
         life = MAX(life, (uint32_t)WATER_MS);
     }
+    if (fx & LANTERN_EFFECT_DART) {
+        life = MAX(life, (uint32_t)DART_MS);
+    }
     return life;
 }
 
@@ -1612,6 +1723,11 @@ static bool compose(size_t at) {
 #if IS_ENABLED(CONFIG_LANTERN_WATER)
     if (fx & LANTERN_EFFECT_WATER) {
         water(&frame_shades, live, n);
+    }
+#endif
+#if IS_ENABLED(CONFIG_LANTERN_DART)
+    if (fx & LANTERN_EFFECT_DART) {
+        dart(&frame_shades, live, n);
     }
 #endif
     hold_to_cap();

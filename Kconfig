@@ -333,6 +333,10 @@ config LANTERN_EFFECT_DEFAULT_WATER
     bool "The water"
     depends on LANTERN_WATER
 
+config LANTERN_EFFECT_DEFAULT_DART
+    bool "The dart"
+    depends on LANTERN_DART
+
 endchoice
 
 config LANTERN_GEOMETRY
@@ -484,6 +488,30 @@ config LANTERN_WATER
       out) between colours nearer the middle; at full brightness within the
       frame's cap (so the build refuses a LANTERN_BRIGHTNESS of 100).
       zmk-advanced-underglow-effects-vfx's water, from its idea (nothing
+      copied). Needs the node's coords, as the thin ring does. Default n,
+      as the thin ring.
+
+config LANTERN_DART
+    bool "Build the dart: from each pressed key, a bar running across the rows toward the far side of the board, its colour sliding along the palette as it runs"
+    depends on LANTERN_KEYS
+    select LANTERN_EFFECTS
+    select LANTERN_GEOMETRY
+    help
+      The effect dart (src/effect.h), built into the image and drawn when
+      the pick names it (LANTERN_EFFECT, LANTERN_EFFECT_DEFAULT): while the
+      key LEDs are lit, each pressed key sends a bar across the rows toward
+      the far side of the board, at sixteen key units a second (a key left
+      of the board's middle sends it right, one right of it left), full at
+      its head and gone four fifths of a unit from it, full on the pressed
+      key's row and two fifths as strong on the other rows, fading out
+      over 1.2 s, in the palette's first colour at the key and sliding
+      along the colours as it runs, the last colour a board's width away
+      (and, where the hit node exists, LANTERN_HIT, the bar runs on
+      through the other half: a press of the other half brings it in
+      across the split at about two thirds of its strength from an inner
+      column, nearly full from a thumb); at full brightness within the
+      frame's cap (so the build refuses a LANTERN_BRIGHTNESS of 100).
+      zmk-advanced-underglow-effects-vfx's dart, from its idea (nothing
       copied). Needs the node's coords, as the thin ring does. Default n,
       as the thin ring.
 
