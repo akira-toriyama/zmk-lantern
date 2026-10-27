@@ -13,10 +13,13 @@
  * the central and the halves alike; the key LEDs only read.
  *
  * A new effect is one line in LANTERN_EFFECT_LIST, its Kconfig symbol
- * LANTERN_<SYMBOL> (which selects LANTERN_EFFECTS, or an effect that does, as
- * the stain's the thin ring) and a default-choice member
+ * LANTERN_<SYMBOL> (which selects LANTERN_EFFECTS, or something that does: an
+ * effect, as the stain's the thin ring, or LANTERN_HOLDS, as the held keys')
+ * and a default-choice member
  * LANTERN_EFFECT_DEFAULT_<SYMBOL>, its file under src/effects/ defining the
- * entry lantern_effect_<ops> (src/frame.h's struct lantern_effect_entry) and that
+ * entry lantern_effect_<ops> (src/frame.h's struct lantern_effect_entry: its
+ * life, its draw of the hits and, with the holds, its hold of the keys down)
+ * and that
  * file's line in CMakeLists.txt; the bit, the name, the mask of what is built
  * and the engine's table (src/keys.c) follow from the line. The bit is a wire
  * format (the behavior's param1, the settings value, canon's dongle.py names

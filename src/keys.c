@@ -137,8 +137,10 @@
  *   span from the first colour to the last, yields the one colour, and the
  *   stain dyes in it; with none (0, or no pick and CONFIG_LANTERN_EFFECT_COLOUR
  *   0) the effects draw from the frame's shades, their own sources, as before
- *   the colour. A hit lives the picked effects' life, the longest among those
- *   that draw, and a frame keeps moving while one lives. When the pick
+ *   the colour. A hit lives the picked effects' life, the longest among the
+ *   picked entries (one without a draw, the held keys, counts too: with it
+ *   alone, the hits live its fade and draw nothing), and a frame keeps
+ *   moving while one lives. When the pick
  *   changes, src/effect.c clears the hits
  *   (lantern_keys_effect_changed()) and the frame clears the effects' state
  *   (the stain's dye), so a ring half-way out does not turn into the new
@@ -192,7 +194,12 @@
  *   is never a hold: nothing relays its release, so the other half's held
  *   keys show on the other half. The blank and the pick's change clear the
  *   holds with the hits; a release while dark is dropped with the press
- *   (the listener's rule), so no stale hold meets the next light. The list
+ *   (the listener's rule), so no stale hold meets the next light. A release
+ *   of a noted press sends a frame whatever is picked (one frame more a
+ *   release, measured in the review of 2026-10-27, which also found a tap
+ *   under the held keys alone costs the frames of the hits' life, about
+ *   seven, that draw nothing: the press's frame cannot know the key will be
+ *   let go). The list
  *   is static, a key position long (the frame thread's stack is small, the
  *   header's threads), as pixels and picture are.
  * - The effects brighten to full scale because twice LEVEL, the first try
@@ -791,7 +798,8 @@ static size_t hits_read(struct hit live[HITS], uint32_t life) {
 #define HOLD_DOWN_SHIFT 18
 #define HOLD_DOWN_MASK 0xFFFu
 BUILD_ASSERT(LANTERN_HOLD_SETTLE_MS <= HOLD_DOWN_MASK, "a hold's length is kept in 12 bits");
-BUILD_ASSERT(LANTERN_HOLD_SETTLE_MS < HIT_TIME / 2, "a hold's age must be told from a wrapped time");
+BUILD_ASSERT(LANTERN_HOLD_SETTLE_MS < HIT_TIME / 2,
+             "a hold's age must be told from a wrapped time");
 BUILD_ASSERT(LANTERN_HOLD_SETTLE_MS <= UINT16_MAX, "a hold's age and length are kept in 16 bits");
 
 static atomic_t holds[KEY_COUNT];
@@ -809,7 +817,10 @@ static void hold_note(uint32_t position) {
 
 /* The key listener only: position is let go; true when it was down (a
  * release of an unnoted press, or a second release, is nothing). The
- * compare-and-set: the frame may settle the key meanwhile. */
+ * compare-and-set loop: the frame settles the key by compare-and-set, and a
+ * listener the frame's thread could preempt (not ZMK's cooperative system
+ * work queue, which the frame's preemptible thread never interrupts) would
+ * read it again; the frame's own settle then fails and the key is let go. */
 static bool hold_release(uint32_t position) {
     atomic_val_t v;
     uint32_t next;
@@ -1049,12 +1060,14 @@ static void effects_clear(void) {
 
 #endif /* IS_ENABLED(CONFIG_LANTERN_EFFECTS) */
 
-/* The frame: the picture of stage at, the picked effects over it and the cap,
- * or the picked intro's frame while the boot light lasts; true while a picked
- * effect still moves or the intro does. The low priority work queue only: it
- * writes frame_shades, effect_shades, pixels, picture and the effects' state
- * and clears spent hits (the palette, the picks and the hits are atomics, read
- * from there). */
+/* The frame: the picture of stage at, the picked effects over it (the hits,
+ * then the holds) and the cap, or the picked intro's frame while the boot
+ * light lasts; true while a picked effect still moves, a hold does (a key
+ * down short of the settle, or let go within the hold hooks' life: whatever
+ * is picked) or the intro does. The low priority work queue only: it writes
+ * frame_shades, effect_shades, pixels, picture, held_list and the effects'
+ * state, settles holds and clears spent hits and holds (the palette, the
+ * picks, the hits and the holds are atomics, read from there). */
 static bool compose(size_t at) {
     uint32_t palette[LANTERN_PALETTE_SLOTS] = {0};
     bool have = IS_ENABLED(CONFIG_LANTERN_PALETTE) && lantern_palette_get(palette);

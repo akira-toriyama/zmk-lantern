@@ -331,8 +331,10 @@ lights what is at hand. The sibling module
   to cross it (a ring until it has left the board, the thin ring its half, a
   bar until it has run the board's width; measured from the keys' places at
   boot), so a wider board keeps it in sight; the beams keep the design's
-  fade, which answers to the gap between the halves. A frame keeps moving
-  while a press is within the picked effects' life. The presses an effect
+  fade, which answers to the gap between the halves, and the held keys
+  theirs. A frame keeps moving while a press is within the picked effects'
+  life, and while a key is down short of a second or was let go within the
+  held keys' fade. The presses an effect
   still draws sit in a ring of sixteen, both halves together: more presses
   than that within the longest picked life (ten a second on a 29-LED half
   with the crossing ring, fewer on a larger board) drop the oldest press's
@@ -480,7 +482,8 @@ ring draws it from the other half's key; the beams, the thin ring, the
 disc, the water and the dart do too, in their own colours (the beams' row
 comes in across the split, the water's waves low, the dart's bar on its
 way), the stain dyes with it, and it counts in the press count the thin
-ring's colours follow; the held keys ignore it, a press without a release. Delivery is not confirmed, as the palette's, and the
+ring's colours follow; the held keys ignore it, a press without a release.
+Delivery is not confirmed, as the palette's, and the
 hits share the central's run queue with the palette (the source says what a
 half that vanishes while lit costs).
 

@@ -42,9 +42,11 @@
  *   design's or the board's (lantern_life()); at a blank
  *   and when the stage or the pick moves, every entry's state goes (clear).
  *   With the holds built (CONFIG_LANTERN_HOLDS), the engine also keeps which
- *   of this half's keys are down and which were let go within that life,
- *   and lets every picked entry draw them after the hits (hold): the held
- *   keys' input, which a hit, a press alone, cannot carry.
+ *   of this half's keys are down and which were let go within the longest
+ *   life of the picked entries that read them (those with a hold), and lets
+ *   every such entry draw them after the hits (hold): the held keys' input,
+ *   which a hit, a press alone, cannot carry; a key down moves frames until
+ *   it settles, whatever is picked.
  *   An entry draws for its own line's bit, which the table gives it, and
  *   for any other line it names (serves: the thin ring's entry names the
  *   stain's bit, the stain being the ring that dyes, so that the ring is
@@ -222,9 +224,10 @@ static inline uint32_t distance(uint8_t a, uint8_t b) { return isqrt(distance2(a
  * x to the other, the farthest two of its keys apart (span) and the farthest
  * two of this half's keys, those under its LEDs (half_span; a key of this
  * half without an LED counts as the other half's). What an effect's life
- * follows from, under the design's own value (lantern_life()): no life
- * carries a board's size but the beams' fade, which answers to the gap
- * between the halves, not the board (src/effects/beams.c says). Measured
+ * follows from, under the design's own value (lantern_life()): the lives
+ * without a board term are the beams' fade, which answers to the gap
+ * between the halves, not the board (src/effects/beams.c says), and the
+ * held keys' fade, which answers to nothing on the board. Measured
  * at boot on the main thread (src/keys.c), read on the frame's. */
 struct lantern_board {
     uint16_t left, right, bottom;
@@ -278,7 +281,7 @@ static inline uint32_t lantern_life(uint32_t design_ms, uint32_t board_ms) {
 struct hold {
     uint8_t key;   /* a key position */
     bool released; /* let go: age counts from the release */
-    uint16_t age;  /* ms since the press, or since the release, at most LANTERN_HOLD_SETTLE_MS while down */
+    uint16_t age;  /* ms since the press, or since the release; while down, at most the settle */
     uint16_t held; /* ms the key has been, or was, down, at most LANTERN_HOLD_SETTLE_MS */
 };
 

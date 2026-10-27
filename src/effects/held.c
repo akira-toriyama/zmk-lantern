@@ -16,8 +16,11 @@
  * this half's own keys only, since a relayed press (src/hit.c) carries no
  * release, so the other half's held keys show on that half. No distance,
  * so no geometry. The life is the fade: how long the engine keeps a key let
- * go for this entry (and a hit, which this entry never draws). The engine settles a key down past LANTERN_HOLD_SETTLE_MS and moves
- * no frame for it, so the moment must come before that (asserted).
+ * go for this entry (and a hit, which this entry never draws: under this
+ * entry alone a tap costs the frames of that life, about seven, that draw
+ * nothing, since the press's frame cannot know the key will be let go). The
+ * engine settles a key down past LANTERN_HOLD_SETTLE_MS and moves no frame
+ * for it, so the moment must come before that (asserted).
  */
 
 #include <stdbool.h>

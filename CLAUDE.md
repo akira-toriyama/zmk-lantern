@@ -439,13 +439,15 @@ how to build. Usage: [README.md](README.md). English only.
   have loaded a command gets an error.
 - **A new effect is a line in `LANTERN_EFFECT_LIST` (`src/effect.h`), its
   Kconfig symbol `LANTERN_<SYMBOL>` (depends on `LANTERN_KEYS`, selects
-  `LANTERN_EFFECTS` and, when it measures the board, `LANTERN_GEOMETRY`) and
+  `LANTERN_EFFECTS`, or `LANTERN_HOLDS` when it reads the keys down, which
+  selects it, and, when it measures the board, `LANTERN_GEOMETRY`) and
   its member of the choice `LANTERN_EFFECT_DEFAULT`, a file under
   `src/effects/` defining its table entry (`src/frame.h`'s
   `struct lantern_effect_entry`: its life, a function returning the design's
   floor or the board's measure when longer, `lantern_life()` over
   `src/keys.c`'s `lantern_board()`, under `LANTERN_EFFECT_LIFE_MAX_MS`; its
-  draw; for a lasting state its picture and clear hooks; and in `serves` any
+  draw of the hits; with the holds its `hold` of the keys down; for a
+  lasting state its picture and clear hooks; and in `serves` any
   other line's bit it draws for) and that file's line in `CMakeLists.txt`,
   never a change to
   `src/keys.c`**: the engine builds its table from the list, in the list's
@@ -456,8 +458,8 @@ how to build. Usage: [README.md](README.md). English only.
   its design's life against `LANTERN_EFFECT_LIFE_MAX_MS`, under which
   `lantern_life()` holds the board's; the board is measured once at boot on
   the main thread (`src/keys.c`'s `board_init()`), and the frame's thread
-  reads it. The beams are the one life without a board term: their fade
-  answers to the gap between the halves. **An input the engine lacks is the
+  reads it. Two lives have no board term: the beams' fade answers to the
+  gap between the halves, the held keys' to nothing on the board. **An input the engine lacks is the
   engine's change, not an effect's**: the hits were (canon t-6ttk), and so
   are the holds (`CONFIG_LANTERN_HOLDS`, the held keys): one atomic a key
   position of this half, down with the press's time, let go with its

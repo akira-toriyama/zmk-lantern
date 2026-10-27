@@ -348,7 +348,8 @@ config LANTERN_EFFECTS
       built effects (one file an effect under src/effects/, src/frame.h;
       each lives its design's time after a press, or on a larger board the
       time its shape needs to cross it, measured from the lantern,keys
-      node's coords; the beams keep the design's fade) and the pick of
+      node's coords; the beams and the held keys keep the design's fade)
+      and the pick of
       which of them draw (LANTERN_EFFECT,
       the choice LANTERN_EFFECT_DEFAULT). Each effect selects it; nothing
       to set.
@@ -358,12 +359,13 @@ config LANTERN_HOLDS
     select LANTERN_EFFECTS
     help
       The holds in src/keys.c's engine: which of this half's own keys are
-      down and for how long, and which were let go within the picked
-      effects' life, for an effect that draws what is held rather than what
-      was pressed (the held keys, LANTERN_HELD), through the hold hook of
-      the effects' table (src/frame.h); a key down past a second is
-      settled, and moves no frame until it is let go. An effect that reads
-      them selects it; nothing to set.
+      down and for how long, and which were let go within the life of the
+      picked effects that read them, for an effect that draws what is held
+      rather than what was pressed (the held keys, LANTERN_HELD), through
+      the hold hook of the effects' table (src/frame.h); a key down past a
+      second is settled, and moves no frame until it is let go. An effect
+      that reads them selects it (and this selects LANTERN_EFFECTS); nothing
+      to set.
 
 config LANTERN_PICK
     bool
@@ -465,8 +467,9 @@ config LANTERN_EFFECT_COLOUR
       unless a key sets another (the effect behavior's second parameter,
       LANTERN_EFFECT). 0, the default, leaves the effects their own colours
       from the palette: the thin ring and the stain the next colour a press,
-      the disc all of them in turn, the crossing ring and the beams the
-      pressed key's band, the water and the dart the first to the last. A
+      the disc all of them in turn, the crossing ring, the beams and the
+      held keys the pressed key's band, the water and the dart the first to
+      the last. A
       pick from the host or a key carries its own colour (0 for the
       palette's) and this is not read again, except by LANTERN_EFFECT_NEXT's
       first press with no pick stored, which keeps it: on a split central
