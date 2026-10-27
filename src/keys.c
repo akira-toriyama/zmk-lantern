@@ -358,27 +358,27 @@
  *   outermost key to DEPTH_ONE at its innermost, by its key's distance
  *   (coords) from the bottom of the board's middle, the point between the two
  *   thumb clusters, so the show moves from the outer columns' top to the
- *   inner thumb. The script, in order: the star, a head crossing the half in
- *   STAR_MS, each key in the colour of its third of the depths (the thirds
- *   the burst ends in, below), each key glittering for GLITTER_MS from the
- *   head's passing, in sight once the head's light has left it, every beat a
- *   primary or none at random (the dice: an integer hash of the LED, the beat
- *   and a seed taken at the start, so the frame keeps no state for it); the
- *   waves, red, blue and green WAVE_GAP_MS apart, each front crossing in
- *   WAVE_MS with a fading tail; the core, the deepest keys, each in the
- *   colour of the newest wave to reach it, so that a wave coming into the
- *   core never meets another colour there, with a flash at each wave's
- *   arrival, then pulsing for CHARGE_MS a colour a beat, the last wave's
- *   green, red, blue, green, and swelling outwards; and the burst, a red, a
- *   blue and a green ring from the core out BURST_GAP_MS apart, each crossing
- *   in BURST_MS, the last leaving each key it passes in its third of the
- *   depths, the outer red, the middle blue and the inner green (the waves'
- *   order from the outside), held THIRDS_HOLD_MS; the flow (canon t-x46t,
- *   2026-10-27: the user asked for a longer show, more scenes at the same
- *   tempo), the thirds as three crests, a key dark at a band's edges and at
- *   the thirds' level at its middle, deepening in place from the hold's flat
- *   light over FLOW_RAMP_MS, then sliding outward at the waves' pace, so that
- *   a key changes colour while dark and in the user's order, for three
+ *   inner thumb and, from the burst, back. The script, in order: the star, a
+ *   head crossing the half in STAR_MS, each key in the colour of its third of
+ *   the depths (the thirds the burst ends in, below), each key glittering for
+ *   GLITTER_MS from the head's passing, in sight once the head's light has
+ *   left it, every beat a primary or none at random (the dice: an integer
+ *   hash of the LED, the beat and a seed taken at the start, so the frame
+ *   keeps no state for it); the waves, red, blue and green WAVE_GAP_MS apart,
+ *   each front crossing in WAVE_MS with a fading tail; the core, the deepest
+ *   keys, each in the colour of the newest wave to reach it, so that a wave
+ *   coming into the core never meets another colour there, with a flash at
+ *   each wave's arrival, then pulsing for CHARGE_MS a colour a beat, the last
+ *   wave's green, red, blue, green, and swelling outwards; and the burst, a
+ *   red, a blue and a green ring from the core out BURST_GAP_MS apart, each
+ *   crossing in BURST_MS, the last leaving each key it passes in its third of
+ *   the depths, the outer red, the middle blue and the inner green (the
+ *   waves' order from the outside), held THIRDS_HOLD_MS; the flow (canon
+ *   t-x46t, 2026-10-27: the user asked for a longer show, more scenes at the
+ *   same tempo), the thirds as three crests, a key dark at a band's edges and
+ *   at the thirds' level at its middle, deepening in place from the hold's
+ *   flat light over FLOW_RAMP_MS, then sliding outward at the waves' pace, so
+ *   that a key changes colour while dark and in the user's order, for three
  *   depths, and standing again where they began; and the star out, a head
  *   running back from the innermost key to the outermost in STAR_MS,
  *   brightening each key in its own colour, the flow ending at each key as it
@@ -1357,8 +1357,8 @@ static void dart(const struct shades *sh, const struct hit live[], size_t n) {
 #define GLITTER_ON 160      /* of 256: the chance that a key shows in a beat */
 /* The glitter's level as it begins, fading to 0 over GLITTER_MS: at 255 the
  * star out's head with every key glittering behind it could pass the frame's
- * cap by a tenth (Opus review, 2026-10-27); at this level neither star's
- * worst roll does. */
+ * cap by nearly a tenth (Opus review, 2026-10-27); at this level neither
+ * star's worst roll does (the star out's 4818 of 4851 on canon's halves). */
 #define GLITTER_PEAK 225
 #define WAVE_FROM_MS 1300   /* the first wave's start; the others follow */
 #define WAVE_GAP_MS 500
@@ -1393,9 +1393,10 @@ static void dart(const struct shades *sh, const struct hit live[], size_t n) {
  * over FLOW_RAMP_MS (the pattern stands meanwhile: moved, it flipped a key's
  * colour while lit; Opus review, 2026-10-27), then sliding outward at the
  * waves' pace (a depth, three bands, in WAVE_MS), so that a key changes
- * colour while dark and in the user's order, red, blue, green, for three
- * depths, and standing again where they began, so that the star out's head,
- * in the key's third's colour, brightens each key in its own colour. */
+ * colour while dark (at 14 of 255 at most on a frame's step) and in the
+ * user's order, red, blue, green, for three depths, and standing again where
+ * they began, so that the star out's head, in the key's third's colour,
+ * brightens each key in its own colour. */
 #define FLOW_FROM_MS (BURST_FROM_MS + 2 * BURST_GAP_MS + BURST_MS + THIRDS_HOLD_MS)
 #define FLOW_RAMP_MS 333
 #define FLOW_MS (FLOW_RAMP_MS + 3 * WAVE_MS)
