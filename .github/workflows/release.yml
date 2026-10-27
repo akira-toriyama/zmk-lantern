@@ -28,7 +28,7 @@ jobs:
   release:
     permissions:
       contents: write
-    uses: akira-toriyama/glyph/.github/workflows/release.yml@v6.0.1
+    uses: akira-toriyama/glyph/.github/workflows/release.yml@v6.1.0
     with:
       dry-run: ${{ github.event.inputs.dry_run == 'true' }}
       install-notes: |
