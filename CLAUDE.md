@@ -191,7 +191,8 @@ how to build. Usage: [README.md](README.md). English only.
   `relay.c.obj` from the hit and the layer, a peripheral neither (the
   check builds of 2026-10-28: all five targets, and the Imprint halves with
   `--kconfig CONFIG_LANTERN_LAYER_KEYS=y`, whose sorted `.config` against
-  the stock one adds exactly those);
+  the stock one adds those, and on the right half, a peripheral without the
+  effect-next node, `CONFIG_LANTERN_EFFECT_COLOUR=0` too);
   `CONFIG_LANTERN_INTRO_STAR_WAVES=y` adds `CONFIG_LANTERN_FRAMES=y`,
   `CONFIG_LANTERN_GEOMETRY=y` and `CONFIG_LANTERN_INTRO_DEFAULT_STAR_WAVES=y`
   (the choice `LANTERN_INTRO_DEFAULT` with no line of its own, in place of
@@ -356,18 +357,22 @@ how to build. Usage: [README.md](README.md). English only.
   positions, param2's low 29 bits the rest and its top 3 the palette slot;
   zeros for no layer; press only, a state's chunks in order, the half taking
   it whole at the marked one and keeping the chunks its own keymap holds, so
-  the devices' keymaps may count other chunks: the module's check build has
-  the stock dongle's 82 key positions and its halves' 76): the central
+  the devices' keymaps may count other chunks, say a 58-key central's one
+  against a 76-key half's two (only the host harness counts them apart: the
+  module's check build has the stock dongle's 82 key positions and its
+  halves' 76, two chunks either way)): the central
   computes it from the keymap (the shown layer's bindings that are neither
   `&none` nor `&trans` nor the default layer's) and the node's `layers`
   pairs, which only the central reads (asserted there, optional on a half),
   and sends it from the relay's queue to the halves at latency 0, when it
   changes, a layer coming into view after a settle of 60 ms that nothing
-  cuts short (Opus review 2026-10-28: a queued run that finds the settle
-  pending sends nothing, and a half's latency-0 resend waits for it), once
-  a second after boot, and when a half's link comes to latency 0 (Zephyr's
-  `le_param_updated` on the central); a half drops it when its link or its
-  USB power goes and takes none on battery. On a half the behavior runs on
+  cuts short (Opus reviews 2026-10-28: a run that, having read the state,
+  finds the settle pending sends nothing, and a half's latency-0 resend
+  waits for it), once a second after boot, and when a half's link comes to
+  latency 0 (Zephyr's `le_param_updated` on the central); a half drops it
+  when its link or its USB power goes (ZMK's USB event, which the half's
+  drop of what arrives meanwhile follows too) and takes none on battery. On
+  a half the behavior runs on
   the Bluetooth receive work queue, the link's end and the USB event on the
   system work queue (Zephyr's conn.c reports a disconnection from its
   deferred work there), all cooperative, so the store's writers never

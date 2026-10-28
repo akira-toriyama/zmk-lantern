@@ -26,11 +26,14 @@
  *   byte) and the last chunk marked there, all of a state's chunks in order
  *   to a half, which takes the state whole at the marked one: one invocation
  *   for a keymap of up to 61 key positions (canon's 58), two up to 122. The
- *   mark lets a half whose keymap counts other chunks than the central's (the
- *   module's check build: the stock dongle's 82 key positions, its halves'
- *   76) take the states whole all the same, keeping the chunks its keymap
- *   holds. A half holds no table of layers: the central computes everything,
- *   and the halves' images need not change with the property below.
+ *   mark lets a half whose keymap counts other chunks than the central's
+ *   (say a 58-key central's one against a 76-key half's two) take the states
+ *   whole all the same, keeping the chunks its keymap holds; the devices'
+ *   keymaps may differ in length (the module's check build: the stock
+ *   dongle's 82 key positions, its halves' 76, two chunks either way; only
+ *   the host harness counts the chunks apart). A half holds no table of
+ *   layers: the central computes everything, and the halves' images need not
+ *   change with the property below.
  * - Which layer shows: the node's layers property, pairs of a layer and a
  *   palette slot (the consumer's; canon's config/imprint_behaviors.dtsi),
  *   names the layers that show and the colour of each; only the central
@@ -57,10 +60,11 @@
  *   hold-tap or a macro raises for a short tap only does not flash (canon
  *   t-6ttk's research: 60 ms); a change that leaves no layer in view clears
  *   at once. Nothing cuts a wait short: a run of the work that finds a wait
- *   pending (a change came after the run was queued: Zephyr's reschedule
- *   leaves a queued run queued, kernel/work.c) sends nothing and leaves the
- *   state to the wait's own run, and a half that comes to latency 0 meanwhile
- *   is sent the state then (Opus review 2026-10-28). The listener runs on the
+ *   pending once it has read the state (a change came after the run was
+ *   queued, or while it ran: Zephyr's reschedule leaves a queued run queued,
+ *   kernel/work.c) sends nothing and leaves the state to the wait's own run,
+ *   and a half that comes to latency 0 meanwhile is sent the state then (Opus
+ *   reviews 2026-10-28). The listener runs on the
  *   system work queue, where ZMK raises zmk_layer_state_changed (for a real
  *   change only, keymap.c's set_layer_state()), and only schedules the
  *   relay's work, which reads the layer state and the keymap when it runs,
@@ -73,10 +77,12 @@
  *   (Zephyr's le_param_updated, raised on the central for a change the half
  *   asked for too, src/latency.c). A half drops its state when its link to
  *   the central goes and when its USB power goes, the moment the central
- *   stops sending to it, and takes none while unpowered (one still on its way
- *   then is the past's): a cable plugged back in shows no layer until the
- *   central's state at latency 0 arrives, under the boot light the plug-in
- *   opens, and none at all where the half never comes to latency 0
+ *   stops sending to it, and takes none while it has seen the power gone (one
+ *   still on its way then is the past's; seen through ZMK's USB event, so a
+ *   drop always comes with the clear): a cable plugged back in shows no
+ *   layer until the central's state at latency 0 arrives, under the boot
+ *   light the plug-in opens, and none at all where the half never comes to
+ *   latency 0
  *   (src/latency.c gives up after refused requests on USB). Nothing persists,
  *   since the state is a held key's, not a setting, and no battery report
  *   resends it (the run queue is sized for the palette's and the picks'
@@ -142,6 +148,25 @@ BUILD_ASSERT(DT_NUM_INST_STATUS_OKAY(DT_DRV_COMPAT) == 1,
 #define NODE DT_DRV_INST(0)
 #define BEHAVIOR_NAME DEVICE_DT_NAME(NODE)
 
+#if IS_ENABLED(CONFIG_LANTERN_LAYER_KEYS) && !IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
+
+/* USB power as usb_listener() last saw it (the header): none seen yet (0),
+ * then powered or unpowered. A half drops a chunk only while the listener has
+ * seen the power gone, and the listener clears the state as it sees that, so
+ * no drop goes without its clear: ZMK merges a dip shorter than its notifier
+ * into one event, which reads powered, and a chunk the dip met is kept
+ * (Opus review 2026-10-28). Before the first event, the live status. */
+enum { USB_NOT_SEEN, USB_POWERED, USB_UNPOWERED };
+static atomic_t usb_seen;
+
+static bool on_battery(void) {
+    atomic_val_t seen = atomic_get(&usb_seen);
+
+    return seen == USB_NOT_SEEN ? !zmk_usb_is_powered() : seen == USB_UNPOWERED;
+}
+
+#endif
+
 /* A chunk of a state, on a half (the Bluetooth receive work queue): its
  * number and the last mark in the event's position (the header). */
 static int on_binding_pressed(struct zmk_behavior_binding *binding,
@@ -156,7 +181,7 @@ static int on_binding_pressed(struct zmk_behavior_binding *binding,
     }
 #if IS_ENABLED(CONFIG_LANTERN_LAYER_KEYS)
 #if !IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
-    if (!zmk_usb_is_powered()) {
+    if (on_battery()) {
         return ZMK_BEHAVIOR_OPAQUE; /* the past's (the header) */
     }
 #endif
@@ -198,10 +223,16 @@ BT_CONN_CB_DEFINE(lantern_layer_link) = {
     .disconnected = disconnected,
 };
 
-/* USB power came or went (the system work queue, where ZMK raises it): gone,
- * the state goes too (the header). */
+/* USB power came or went (the system work queue, where ZMK raises it): noted
+ * for the handler, and gone, the state goes too (the header). */
 static int usb_listener(const zmk_event_t *eh) {
-    if (as_zmk_usb_conn_state_changed(eh) != NULL && !zmk_usb_is_powered()) {
+    if (as_zmk_usb_conn_state_changed(eh) == NULL) {
+        return ZMK_EV_EVENT_BUBBLE;
+    }
+    bool powered = zmk_usb_is_powered();
+
+    atomic_set(&usb_seen, powered ? USB_POWERED : USB_UNPOWERED);
+    if (!powered) {
         lantern_layer_keys_clear();
     }
     return ZMK_EV_EVENT_BUBBLE;
@@ -370,17 +401,23 @@ static int send_to(uint8_t s, const struct state *now) {
 }
 
 /* The relay's queue only: the state of the moment to every lit half that
- * needs it (the header). A wait pending leaves it to the wait's run. */
+ * needs it (the header). A wait pending leaves it to the wait's run: the
+ * state is read before the wait is looked for, since ZMK writes a layer and
+ * runs the listener that arms its wait in one cooperative step, so a state
+ * that shows a new layer always finds that wait (Opus review 2026-10-28: the
+ * other order sent a layer read just after the look); a forced half's bit
+ * stays for that run. */
 static void send_state(struct k_work *work) {
     ARG_UNUSED(work);
+    struct state now;
+
+    state_now(&now);
     if (k_work_delayable_busy_get(&state_work) & K_WORK_DELAYED) {
         return;
     }
-    struct state now;
     uint32_t lit = lantern_relay_lit();
     uint32_t force = (uint32_t)atomic_clear(&again);
 
-    state_now(&now);
     for (uint8_t s = 0; s < ZMK_SPLIT_CENTRAL_PERIPHERAL_COUNT; s++) {
         if (!(lit & BIT(s))) {
             sent[s].valid = false;
@@ -442,9 +479,12 @@ BT_CONN_CB_DEFINE(lantern_layer_links) = {
 };
 
 /* The state once at boot (the header), BOOT_MS on, past every init: ZMK
- * fills the keymap's position map at APPLICATION too
- * (zmk_physical_layouts_init()), and an init that blocks before it, as
- * Bluetooth's does on the controller, would let the relay's queue run first. */
+ * fills the keymap's position map and its layers' order at APPLICATION too
+ * (zmk_physical_layouts_init(), keymap_init(), at this file's priority, the
+ * link deciding the order; after this file's in canon's images), and an init
+ * linked between that waited (on flash, on the controller) would let the
+ * relay's queue run the work before them. None does today (Opus review
+ * 2026-10-28; Bluetooth's waits at priority 50, before this file's 90). */
 #define BOOT_MS 1000
 
 static int layer_init(void) {
