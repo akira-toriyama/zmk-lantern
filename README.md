@@ -6,9 +6,11 @@ battery and after the idle timeout, plays an intro at boot and whenever a
 cable is plugged in, paints the keys from a palette of six colours the host
 hands the keyboard over USB, and draws an effect from every key you press: a
 ring, a disc, a stain, a ring crossing both halves, beams, water or a dart,
-in the palette's colours or in one colour of the host's choosing. On a split
-keyboard each half lights for itself, the central relays the key presses and
-the host's choices to the halves, and a half that was away catches up when it
+in the palette's colours or in one colour of the host's choosing; or, while
+you hold a layer, lights the keys that layer gives a meaning, in its colour.
+On a split keyboard each half lights for itself, the central relays the key
+presses, the held layer and the host's choices to the halves, and a half
+that was away catches up when it
 is back; the host's channel is the split central's USB port, so a keyboard
 that is not a split has the conf's defaults and a key's pick, without a
 palette. A keyboard whose LED supply has an enable pin can hand that pin to
@@ -149,8 +151,9 @@ lights what is at hand. The sibling module
   override it): an x and a y per key position, in hundredths of a key unit
   on the whole board (both halves of a split, so a distance reads the same
   from either), at most 30000 each; keymap-drawer's physical layout times
-  100 is one source. What measures the board (every effect, the gradient,
-  the star waves) asserts one or the other at build time.
+  100 is one source. What measures the board (every effect but the layer
+  keys, the gradient, the star waves) asserts one or the other at build
+  time.
 
   ```dts
   &lantern_keys {
@@ -230,11 +233,13 @@ lights what is at hand. The sibling module
   `CONFIG_LANTERN_PALETTE`, `CONFIG_LANTERN_EFFECT`, `CONFIG_LANTERN_INTRO`,
   `CONFIG_LANTERN_HIT` and `CONFIG_LANTERN_LAYER` are on wherever their node
   exists; the hit (the central relaying each half's key presses to the other
-  half) is what the crossing ring and the beams need, and every effect uses;
-  the layer (the central telling the halves which keys the held layer binds)
-  is what the layer keys need. Its `layers` pairs each layer to show, its
-  index in the keymap, with a palette slot, 0 to 5; the central reads them,
-  so a change of them is the central's image alone. The split
+  half) is what the crossing ring and the beams need, and every effect but
+  the layer keys uses; the layer (the central telling the halves which keys
+  the held layer binds) is what the layer keys need. Its `layers` pairs each
+  layer to show, its index in the keymap, with a palette slot, 0 to 5; the
+  central's node needs them (asserted) and only the central reads them, so
+  a half's node may leave them out and a change of them is the central's
+  image alone. The split
   central's conf needs `CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING=y`
   (a half's battery report is what tells the central the half is back, and
   the palette and the picks are resent to it then) and a run queue that
@@ -431,7 +436,12 @@ lights what is at hand. The sibling module
   hold-tap that holds while undecided). A layer shows 60 ms after it comes
   into view, so a short tap does not flash, and goes as soon as no named
   layer is held. A press draws nothing of it; picked with other effects it
-  draws over them. A layer of one half's keys lights that half alone.
+  draws over them and shares the frame's cap with them, so its keys dim
+  while a press's effect lives, and a layer of many keys or a whitish
+  colour shows dimmer than one of few. A pick's colour paints every layer
+  in it, so layers told apart by colour alone then look alike. A layer of
+  one half's keys lights that half alone, and only while that half is lit:
+  a half gone dark for idle shows it from its own next input.
 - The pick's colour: with one, every picked effect draws in that one colour
   in place of its own source above (the stain dyes in it too); the picture
   keeps the palette's colours.
@@ -485,8 +495,9 @@ request for the first 5 s of a connection, and the central's host accepts it
 The hit (`CONFIG_LANTERN_HIT`, on wherever the `lantern,behavior-hit` node
 exists on a BLE split, named `hit` on every device like the palette's node):
 the split central sends each key press, a half's or its own, to every other
-half as one invocation of the node (param1 the key position), from a work
-queue of the module's own ([src/hit.c](src/hit.c)), and only to a half whose
+half as one invocation of the node (param1 the key position,
+[src/hit.c](src/hit.c)), from a work queue of the module's own, the relay's
+([src/relay.c](src/relay.c)), and only to a half whose
 link runs at latency 0, the sign that USB powers it and its LEDs may be lit; a
 half on battery is dark and gets nothing. A half notes a relayed press as a
 hit for its effects while its LEDs are lit, as one of its own keys, and its
@@ -507,11 +518,15 @@ the layer that shows binds to something of its own and the palette slot of
 its colour, whenever that changes ([src/layer.c](src/layer.c)), from the
 same work queue as the hit and to the same halves, those whose link runs at
 latency 0 ([src/relay.c](src/relay.c)). A half whose link comes to latency 0,
-as USB power arrives, is sent the state of the moment, and a half forgets
-the state when its link to the central goes, so it never shows a layer from
-before it was dark or away. Nothing is kept in the settings: the state is a
-held key's. A change is one invocation a lit half for a keymap of up to 61
-key positions, two up to 122.
+as USB power arrives, is sent the state of the moment. A half forgets the
+state when its link to the central goes and when its USB power goes, and
+takes none on battery, so a cable plugged back in shows no layer until the
+central's state arrives (under the intro the plug-in opens) rather than one
+from before. Nothing is kept in the settings: the state is a held key's. A
+change is one invocation a lit half for a keymap of up to 61 key positions,
+two up to 122, each device counting from its own keymap; the last is marked,
+so a half whose keymap counts other chunks than the central's still takes
+each state whole.
 
 ## The palette
 

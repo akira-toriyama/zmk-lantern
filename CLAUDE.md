@@ -180,14 +180,18 @@ how to build. Usage: [README.md](README.md). English only.
   `CONFIG_LANTERN_GEOMETRY=y` and `CONFIG_LANTERN_HIT=y`, which the hit node
   (`config/hit.dtsi`, on every target) turns on by itself, with `hit.c.obj`
   in zmk.map;
-  `CONFIG_LANTERN_LAYER_KEYS=y` adds `CONFIG_LANTERN_EFFECTS=y` and
+  `CONFIG_LANTERN_LAYER_KEYS=y` adds `CONFIG_LANTERN_EFFECTS=y`,
+  `CONFIG_LANTERN_FRAMES=y` and, where it is the one effect built,
+  `CONFIG_LANTERN_EFFECT_DEFAULT_LAYER_KEYS=y`, and no
+  `CONFIG_LANTERN_GEOMETRY` (it measures nothing); it needs
   `CONFIG_LANTERN_LAYER=y`, which the layer node (`config/layer.dtsi`, on
   every target) turns on by itself, with `layer.c.obj` in every target's
   zmk.map and `layer_keys.c.obj` where the effect is built; a split central
   (the dongle, the stock left halves) shows `CONFIG_LANTERN_RELAY=y` and
   `relay.c.obj` from the hit and the layer, a peripheral neither (the
   check builds of 2026-10-28: all five targets, and the Imprint halves with
-  `--kconfig CONFIG_LANTERN_LAYER_KEYS=y`);
+  `--kconfig CONFIG_LANTERN_LAYER_KEYS=y`, whose sorted `.config` against
+  the stock one adds exactly those);
   `CONFIG_LANTERN_INTRO_STAR_WAVES=y` adds `CONFIG_LANTERN_FRAMES=y`,
   `CONFIG_LANTERN_GEOMETRY=y` and `CONFIG_LANTERN_INTRO_DEFAULT_STAR_WAVES=y`
   (the choice `LANTERN_INTRO_DEFAULT` with no line of its own, in place of
@@ -347,17 +351,28 @@ how to build. Usage: [README.md](README.md). English only.
   sign of USB power (`src/latency.c`); a half on battery gets nothing.
   **The layer's node is named `layer` on every device, its invocations a
   wire format too** (`src/layer.h`: a state in chunks of 61 key positions,
-  the chunk's number in the event's position, a byte on the wire; param1 the
-  chunk's first 32 positions, param2's low 29 bits the rest and its top 3
-  the palette slot; zeros for no layer; press only, a state's chunks in
-  order, the half taking it whole at the last): the central computes it
-  from the keymap (the shown layer's bindings that are neither `&none` nor
-  `&trans` nor the default layer's) and the node's `layers` pairs, which
-  only the central reads, and sends it from the relay's queue to the
-  halves at latency 0, when it changes and when a half's link comes to
-  latency 0 (Zephyr's `le_param_updated` on the central); a half drops it
-  when its link goes. Nothing of it is in the settings or in the resends of
-  the battery reports. **The effect's and
+  the chunk's number in the event position's low 7 bits and the last chunk
+  marked by its top bit, a byte on the wire; param1 the chunk's first 32
+  positions, param2's low 29 bits the rest and its top 3 the palette slot;
+  zeros for no layer; press only, a state's chunks in order, the half taking
+  it whole at the marked one and keeping the chunks its own keymap holds, so
+  the devices' keymaps may count other chunks: the module's check build has
+  the stock dongle's 82 key positions and its halves' 76): the central
+  computes it from the keymap (the shown layer's bindings that are neither
+  `&none` nor `&trans` nor the default layer's) and the node's `layers`
+  pairs, which only the central reads (asserted there, optional on a half),
+  and sends it from the relay's queue to the halves at latency 0, when it
+  changes, a layer coming into view after a settle of 60 ms that nothing
+  cuts short (Opus review 2026-10-28: a queued run that finds the settle
+  pending sends nothing, and a half's latency-0 resend waits for it), once
+  a second after boot, and when a half's link comes to latency 0 (Zephyr's
+  `le_param_updated` on the central); a half drops it when its link or its
+  USB power goes and takes none on battery. On a half the behavior runs on
+  the Bluetooth receive work queue, the link's end and the USB event on the
+  system work queue (Zephyr's conn.c reports a disconnection from its
+  deferred work there), all cooperative, so the store's writers never
+  interleave. Nothing of it is in the settings or in the resends of the
+  battery reports. **The effect's and
   the intro's nodes are named `effect` and `intro` on every device, their
   invocations wire formats too** (`src/pick.c` for both: param1 = the pick, a
   mask of `src/effect.h`'s or `src/intro.h`'s bits, param2 = the effect's
@@ -604,7 +619,10 @@ how to build. Usage: [README.md](README.md). English only.
   from the image before the colour. Not on hardware: the key bindings
   `&effect` and `&effect_next`, the rail-less rule, the slot default and
   the physical layout's places (the Corne check build and the host
-  harness only, canon t-41g7; no such keyboard at hand).
+  harness only, canon t-41g7; no such keyboard at hand); the layer keys and
+  the layer, and the hit sent from the relay's queue (`src/relay.c`, the
+  hit's own queue up to 72df855) (canon t-6ttk, 2026-10-28: the check
+  builds and the host harness only, until canon's trial).
 
 ## Commits, pull requests, fleet files
 

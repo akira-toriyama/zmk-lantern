@@ -21,20 +21,27 @@
 
 #include <zmk/matrix.h>
 
-/* A state goes as LANTERN_LAYER_CHUNKS invocations, chunk c carried in the
- * event's position (0 first; the last one completes the state, so the
- * chunks of a state go in order, as ZMK's run queue keeps them), each
- * holding the key positions from c x LANTERN_LAYER_CHUNK_KEYS: param1 the
- * first 32 of them, a bit each, param2's low LANTERN_LAYER_HIGH_KEYS bits
- * the next, and param2 from LANTERN_LAYER_SLOT_SHIFT up the palette slot of
- * the layer's colour, the same in every chunk. No key in any chunk is no
- * layer shown, sent as zeros. One chunk up to 61 key positions (canon's 58),
- * two up to 122 (Cyboard's stock Imprint keymap, 76). */
+/* A state goes as one invocation a chunk of LANTERN_LAYER_CHUNK_KEYS key
+ * positions, in order, chunk c holding the positions from
+ * c x LANTERN_LAYER_CHUNK_KEYS: param1 the first 32 of them, a bit each,
+ * param2's low LANTERN_LAYER_HIGH_KEYS bits the next, and param2 from
+ * LANTERN_LAYER_SLOT_SHIFT up the palette slot of the layer's colour, the
+ * same in every chunk. The event's position carries the chunk's number in
+ * its low bits and, on the state's last chunk, LANTERN_LAYER_LAST (ZMK's
+ * split transport carries the position as a byte), so a half takes the state
+ * whole at the chunk so marked, whatever its own chunk count. No key in any
+ * chunk is no layer shown, sent as zeros. Each device counts its chunks from
+ * its own keymap (ZMK_KEYMAP_LEN): one up to 61 key positions (canon's 58),
+ * two up to 122 (the module's check builds: the stock Imprint halves' 76,
+ * the stock dongle's 82); a half keeps the chunks its keymap holds and passes
+ * over the rest, which name no key under its LEDs. */
 #define LANTERN_LAYER_HIGH_KEYS 29u
 #define LANTERN_LAYER_CHUNK_KEYS (32u + LANTERN_LAYER_HIGH_KEYS)
 #define LANTERN_LAYER_SLOT_SHIFT LANTERN_LAYER_HIGH_KEYS
 #define LANTERN_LAYER_HIGH_MASK (BIT(LANTERN_LAYER_HIGH_KEYS) - 1u)
 #define LANTERN_LAYER_CHUNKS DIV_ROUND_UP((uint32_t)ZMK_KEYMAP_LEN, LANTERN_LAYER_CHUNK_KEYS)
+#define LANTERN_LAYER_LAST 0x80u
+#define LANTERN_LAYER_CHUNK_MASK (LANTERN_LAYER_LAST - 1u)
 
 /* A state as words: chunk c's param1 at 2c, its param2 at 2c + 1. */
 #define LANTERN_LAYER_WORDS (2u * LANTERN_LAYER_CHUNKS)
@@ -58,13 +65,14 @@ static inline uint32_t lantern_layer_slot(uint32_t param2) {
 }
 
 #if IS_ENABLED(CONFIG_LANTERN_LAYER_KEYS)
-/* Chunk c of a state arrived (src/layer.c: on a half from the Bluetooth
- * receive work queue, on a split central with key LEDs from the relay's
- * queue; c below LANTERN_LAYER_CHUNKS, the slot a palette slot): kept, and
- * at the last chunk the state is the layer keys', the LEDs repainted while
- * lit when it changed. One thread at a time per device. */
-void lantern_layer_keys_set(uint32_t chunk, uint32_t param1, uint32_t param2);
+/* Chunk chunk of a state arrived, last when it completes the state
+ * (src/layer.c: on a half from the Bluetooth receive work queue, on a split
+ * central with key LEDs from the relay's queue; the slot a palette slot): a
+ * chunk this device's keymap holds is kept, and at the last the state is the
+ * layer keys', the LEDs repainted while lit when it changed. Callers on one
+ * device never interleave (src/effects/layer_keys.c says why). */
+void lantern_layer_keys_set(uint32_t chunk, bool last, uint32_t param1, uint32_t param2);
 
-/* No layer shown, as from the central (a half's link to it went). */
+/* No layer shown (a half's link to the central went, or its USB power). */
 void lantern_layer_keys_clear(void);
 #endif

@@ -682,7 +682,12 @@ config LANTERN_LAYER_KEYS
       node, on a BLE split), a layer coming into view 60 ms after it does,
       so a short tap of a key that raises a layer does not flash, and no
       layer at once. A press draws nothing; with other effects picked the
-      layer keys draw over them. Default n, as the thin ring.
+      layer keys draw over them and share the frame's cap with them, so
+      they dim while a press's effect lives, and a layer of many keys or a
+      whitish colour shows dimmer than one of few. A pick's colour paints
+      every layer in it. A half shows the layer only while it is lit: one
+      gone dark for idle lights at its own next input, as ever. Default n,
+      as the thin ring.
 
 config LANTERN_HIT
     bool "Carry each half's key presses to the other half through the split central, for the effects that cross the split"
@@ -723,21 +728,24 @@ config LANTERN_LAYER
     depends on ZMK_SPLIT_BLE
     help
       The split central sends every half the state of the keymap's layer as
-      one invocation of the lantern,behavior-layer node, which ZMK's split
-      transport carries by the node's name: the node is named layer on
-      every device (src/layer.c, the binding). The state is which keys the
-      layer that shows binds to something of its own, and the palette slot
-      of its colour (src/layer.h); the node's layers property, pairs of a
-      layer and a slot, names the layers that show, the highest held one
-      showing and the others passed over. A half hands the state to its
-      layer keys (LANTERN_LAYER_KEYS). The central sends a state when it
-      changes, a layer coming into view 60 ms late, and only to a half whose
-      link runs at peripheral latency 0, as the hit (LANTERN_HIT), from the
-      relay's work queue (LANTERN_RELAY), and again to a half when its link
-      comes to latency 0; a half drops its state when its link to the
-      central goes. Nothing is kept in the settings. A keymap of at most 61
-      key positions (asserted). Default y where the node is present on a
-      BLE split: the node is the switch, as the hit's.
+      invocations of the lantern,behavior-layer node, one per chunk of 61
+      key positions (one for a keymap of up to 61, two up to 122; the
+      chunk's number and the last chunk's mark ride in the event position,
+      src/layer.h), which ZMK's split transport carries by the node's name:
+      the node is named layer on every device (src/layer.c, the binding).
+      The state is which keys the layer that shows binds to something of its
+      own, and the palette slot of its colour; the node's layers property,
+      pairs of a layer and a slot, names the layers that show, the highest
+      held one showing and the others passed over, and only the central
+      reads it. A half hands the state to its layer keys
+      (LANTERN_LAYER_KEYS). The central sends a state when it changes, a
+      layer coming into view 60 ms late, and only to a half whose link runs
+      at peripheral latency 0, as the hit (LANTERN_HIT), from the relay's
+      work queue (LANTERN_RELAY), and again to a half when its link comes to
+      latency 0; a half drops its state when its link to the central or its
+      USB power goes, and takes none on battery. Nothing is kept in the
+      settings. Default y where the node is present on a BLE split: the node
+      is the switch, as the hit's.
 
 config LANTERN_RELAY
     bool

@@ -17,10 +17,11 @@ include: two_param.yaml
 properties:
   layers:
     type: array
-    required: true
     description: |
       The layers that show, pairs of a layer of the keymap (its index, the
       order of the keymap's layer nodes) and the palette slot (0 to 5) its
       keys light in. The highest held layer named here shows; a held layer
       not named is passed over, and the default layer shows only when named.
-      Read on the split central (a half needs the node, not the pairs).
+      The split central's node needs it (asserted at build time) and only the
+      central reads it; a half's node may leave it out, so a change of the
+      pairs is the central's image alone.

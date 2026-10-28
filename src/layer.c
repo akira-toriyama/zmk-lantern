@@ -14,32 +14,35 @@
  * - One behavior, lantern,behavior-layer, the node named layer on every
  *   device of the split (the consumer's keymap or an overlay, as the hit's):
  *   the central sends it to a half with zmk_split_central_invoke_behavior(),
- *   one invocation a state, press only, from the relay's work queue
- *   (src/relay.c); ZMK's split transport carries it by the node's name
+ *   one invocation a chunk of the state, press only, from the relay's work
+ *   queue (src/relay.c); ZMK's split transport carries it by the node's name
  *   (src/palette.c says how, and why the name is at most 8 characters). On a
- *   half the handler, on the Bluetooth receive work queue, hands the state
+ *   half the handler, on the Bluetooth receive work queue, hands each chunk
  *   to the layer keys (lantern_layer_keys_set()). Nothing binds it to a key.
  * - The state is absolute (src/layer.h, the wire format): the key positions
  *   shown, a bit each, and the palette slot of their colour; no key is no
- *   layer shown. It goes in chunks of 61 key positions, the chunk's number
- *   in the invocation's event position (ZMK's split transport carries it as
- *   a byte), all of a state's chunks in order to a half, which takes the
- *   state whole at the last: one invocation for a keymap of up to 61 key
- *   positions (canon's 58), two up to 122. A half holds no table of layers
- *   or keymap: the central computes everything, and the halves' images need
- *   not change with the property below.
+ *   layer shown. It goes in chunks of 61 key positions, the chunk's number in
+ *   the invocation's event position (ZMK's split transport carries it as a
+ *   byte) and the last chunk marked there, all of a state's chunks in order
+ *   to a half, which takes the state whole at the marked one: one invocation
+ *   for a keymap of up to 61 key positions (canon's 58), two up to 122. The
+ *   mark lets a half whose keymap counts other chunks than the central's (the
+ *   module's check build: the stock dongle's 82 key positions, its halves'
+ *   76) take the states whole all the same, keeping the chunks its keymap
+ *   holds. A half holds no table of layers: the central computes everything,
+ *   and the halves' images need not change with the property below.
  * - Which layer shows: the node's layers property, pairs of a layer and a
  *   palette slot (the consumer's; canon's config/imprint_behaviors.dtsi),
- *   names the layers that show and the colour of each. The highest active
- *   layer it names shows, an active layer it does not name is passed over
- *   (canon's arrow layers, which an arrow key's hold-tap raises for the
- *   length of a mere tap: canon t-6ttk's research, 2.4), and with none of
- *   them active nothing shows. The walk goes down to the default layer, as
- *   ZMK's own resolution does, which shows only where the property names
- *   it. A layer is ZMK's layer id, its index in the keymap at build time
- *   (canon: config/layers.h), walked by index from the top, so a keymap
- *   reordered at run time (ZMK Studio) keeps each named layer's colour and
- *   shows the one on top.
+ *   names the layers that show and the colour of each; only the central
+ *   reads it. The highest active layer it names shows, an active layer it
+ *   does not name is passed over (canon's arrow layers, which an arrow key's
+ *   hold-tap raises for the length of a mere tap: canon t-6ttk's research,
+ *   2.4), and with none of them active nothing shows. The walk goes down to
+ *   the default layer, as ZMK's own resolution does, which shows only where
+ *   the property names it. A layer is ZMK's layer id, its index in the keymap
+ *   at build time (canon: config/layers.h), walked by index from the top, so
+ *   a keymap reordered at run time (ZMK Studio) keeps each named layer's
+ *   colour and shows the one on top.
  * - Which keys: those whose binding on the shown layer is neither a &none
  *   nor a &trans (every zmk,behavior-none and zmk,behavior-transparent node)
  *   and, on a layer other than the default, not the default layer's at the
@@ -53,20 +56,35 @@
  *   brought it, each change meanwhile restarting the wait, so a layer that a
  *   hold-tap or a macro raises for a short tap only does not flash (canon
  *   t-6ttk's research: 60 ms); a change that leaves no layer in view clears
- *   at once. The listener runs on the system work queue, where ZMK raises
- *   zmk_layer_state_changed (for a real change only, keymap.c's
- *   set_layer_state()), and only reschedules the relay's work, which reads
- *   the layer state and the keymap when it runs, and sends.
+ *   at once. Nothing cuts a wait short: a run of the work that finds a wait
+ *   pending (a change came after the run was queued: Zephyr's reschedule
+ *   leaves a queued run queued, kernel/work.c) sends nothing and leaves the
+ *   state to the wait's own run, and a half that comes to latency 0 meanwhile
+ *   is sent the state then (Opus review 2026-10-28). The listener runs on the
+ *   system work queue, where ZMK raises zmk_layer_state_changed (for a real
+ *   change only, keymap.c's set_layer_state()), and only schedules the
+ *   relay's work, which reads the layer state and the keymap when it runs,
+ *   and sends. The state is computed once a second after boot too, for a
+ *   central's own LEDs when the property names the default layer.
  * - To whom: the halves the relay calls lit (src/relay.c), each sent the
  *   state when it differs from the last it was sent. A half that was not
  *   lit meanwhile (on battery, away) is sent the state of the moment when
  *   its link comes to peripheral latency 0, the sign that USB power arrived
  *   (Zephyr's le_param_updated, raised on the central for a change the half
- *   asked for too, src/latency.c), and a half drops its state when its link
- *   to the central goes: a half never shows a layer from before it went
- *   dark or away. Nothing persists, since the state is a held key's, not a
- *   setting, and no battery report resends it (the run queue is sized for
- *   the palette's and the picks' resends, src/pick.c).
+ *   asked for too, src/latency.c). A half drops its state when its link to
+ *   the central goes and when its USB power goes, the moment the central
+ *   stops sending to it, and takes none while unpowered (one still on its way
+ *   then is the past's): a cable plugged back in shows no layer until the
+ *   central's state at latency 0 arrives, under the boot light the plug-in
+ *   opens, and none at all where the half never comes to latency 0
+ *   (src/latency.c gives up after refused requests on USB). Nothing persists,
+ *   since the state is a held key's, not a setting, and no battery report
+ *   resends it (the run queue is sized for the palette's and the picks'
+ *   resends, src/pick.c).
+ * - Threads on a half: the handler on the Bluetooth receive work queue, the
+ *   link's end and the USB event on the system work queue (Zephyr's conn.c
+ *   reports a disconnection from its deferred work there), all cooperative,
+ *   so their stores never interleave (src/effects/layer_keys.c).
  * - The run queue is shared with the palette, the picks and the hits
  *   (src/hit.c says what a vanished half costs): a state is a chunk's
  *   invocation a lit half a change. Delivery is not confirmed, as the
@@ -89,6 +107,7 @@
 #include <zephyr/bluetooth/conn.h>
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
+#include <zephyr/init.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/atomic.h>
@@ -106,6 +125,10 @@
 #include <zmk/split/central.h>
 
 #include "relay.h"
+#elif IS_ENABLED(CONFIG_LANTERN_LAYER_KEYS)
+#include <zmk/event_manager.h>
+#include <zmk/events/usb_conn_state_changed.h>
+#include <zmk/usb.h>
 #endif
 
 #include "layer.h"
@@ -120,11 +143,11 @@ BUILD_ASSERT(DT_NUM_INST_STATUS_OKAY(DT_DRV_COMPAT) == 1,
 #define BEHAVIOR_NAME DEVICE_DT_NAME(NODE)
 
 /* A chunk of a state, on a half (the Bluetooth receive work queue): its
- * number in the event's position (the header). */
+ * number and the last mark in the event's position (the header). */
 static int on_binding_pressed(struct zmk_behavior_binding *binding,
                               struct zmk_behavior_binding_event event) {
-    if (event.position >= LANTERN_LAYER_CHUNKS) {
-        LOG_WRN("no chunk %u of %u", event.position, (unsigned int)LANTERN_LAYER_CHUNKS);
+    if (event.position > UINT8_MAX) {
+        LOG_WRN("no chunk position %u", event.position);
         return -EINVAL;
     }
     if (lantern_layer_slot(binding->param2) >= LANTERN_PALETTE_SLOTS) {
@@ -132,7 +155,14 @@ static int on_binding_pressed(struct zmk_behavior_binding *binding,
         return -EINVAL;
     }
 #if IS_ENABLED(CONFIG_LANTERN_LAYER_KEYS)
-    lantern_layer_keys_set(event.position, binding->param1, binding->param2);
+#if !IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
+    if (!zmk_usb_is_powered()) {
+        return ZMK_BEHAVIOR_OPAQUE; /* the past's (the header) */
+    }
+#endif
+    lantern_layer_keys_set(event.position & LANTERN_LAYER_CHUNK_MASK,
+                           (event.position & LANTERN_LAYER_LAST) != 0, binding->param1,
+                           binding->param2);
 #endif
     return ZMK_BEHAVIOR_OPAQUE;
 }
@@ -155,9 +185,9 @@ BEHAVIOR_DT_INST_DEFINE(0, NULL, NULL, NULL, NULL, POST_KERNEL, CONFIG_KERNEL_IN
 
 #if IS_ENABLED(CONFIG_LANTERN_LAYER_KEYS) && !IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
 
-/* The half's link to the central went (the Bluetooth receive work queue): its
- * state goes with it (the header). A split peripheral's one link is the
- * central's. */
+/* The half's link to the central went (the system work queue: Zephyr's
+ * deferred disconnect work): its state goes with it (the header). A split
+ * peripheral's one link is the central's. */
 static void disconnected(struct bt_conn *conn, uint8_t reason) {
     ARG_UNUSED(conn);
     ARG_UNUSED(reason);
@@ -168,6 +198,18 @@ BT_CONN_CB_DEFINE(lantern_layer_link) = {
     .disconnected = disconnected,
 };
 
+/* USB power came or went (the system work queue, where ZMK raises it): gone,
+ * the state goes too (the header). */
+static int usb_listener(const zmk_event_t *eh) {
+    if (as_zmk_usb_conn_state_changed(eh) != NULL && !zmk_usb_is_powered()) {
+        lantern_layer_keys_clear();
+    }
+    return ZMK_EV_EVENT_BUBBLE;
+}
+
+ZMK_LISTENER(lantern_layer, usb_listener);
+ZMK_SUBSCRIPTION(lantern_layer, zmk_usb_conn_state_changed);
+
 #endif
 
 #if IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
@@ -177,18 +219,21 @@ BT_CONN_CB_DEFINE(lantern_layer_link) = {
 
 /* The node's layers property (the header): a layer and a palette slot, pair
  * by pair. */
-BUILD_ASSERT(DT_PROP_LEN(NODE, layers) % 2 == 0,
+BUILD_ASSERT(DT_NODE_HAS_PROP(NODE, layers),
+             "lantern,behavior-layer: the split central's node needs layers, the layers to show");
+BUILD_ASSERT(DT_PROP_LEN_OR(NODE, layers, 0) % 2 == 0,
              "lantern,behavior-layer: layers pairs each layer with a palette slot");
 #define PAIR_IN_RANGE(node_id, prop, idx)                                                          \
     BUILD_ASSERT(DT_PROP_BY_IDX(node_id, prop, idx) <                                              \
                      ((idx) % 2 == 0 ? ZMK_KEYMAP_LAYERS_LEN : LANTERN_PALETTE_SLOTS),             \
                  "lantern,behavior-layer: a layers pair is a layer of the keymap and a palette "   \
                  "slot (0 to 5)");
-DT_FOREACH_PROP_ELEM(NODE, layers, PAIR_IN_RANGE)
-BUILD_ASSERT(LANTERN_LAYER_CHUNKS <= UINT8_MAX + 1,
-             "a chunk's number rides in the event position, a byte on the wire");
+COND_CODE_1(DT_NODE_HAS_PROP(NODE, layers), (DT_FOREACH_PROP_ELEM(NODE, layers, PAIR_IN_RANGE)), ())
+BUILD_ASSERT(LANTERN_LAYER_CHUNKS <= LANTERN_LAYER_CHUNK_MASK + 1,
+             "a chunk's number rides in the event position's low bits (src/layer.h)");
 
-static const uint8_t shown[] = DT_PROP(NODE, layers);
+static const uint8_t shown[] =
+    COND_CODE_1(DT_NODE_HAS_PROP(NODE, layers), (DT_PROP(NODE, layers)), ({0, 0}));
 
 /* The behaviors that give a key nothing of its own (the header): every &none
  * and &trans node, by the device name a binding carries. */
@@ -300,8 +345,8 @@ static atomic_t again;
 static void send_state(struct k_work *work);
 static K_WORK_DELAYABLE_DEFINE(state_work, send_state);
 
-/* The relay's queue only: every chunk of the state, in order, to half s; 0
- * or the first error. */
+/* The relay's queue only: every chunk of the state, in order, the last
+ * marked, to half s; 0 or the first error. */
 static int send_to(uint8_t s, const struct state *now) {
     for (uint32_t c = 0; c < LANTERN_LAYER_CHUNKS; c++) {
         struct zmk_behavior_binding binding = {
@@ -311,7 +356,7 @@ static int send_to(uint8_t s, const struct state *now) {
         };
         struct zmk_behavior_binding_event event = {
             .layer = 0,
-            .position = c,
+            .position = c | (c == LANTERN_LAYER_CHUNKS - 1 ? LANTERN_LAYER_LAST : 0),
             .timestamp = k_uptime_get(),
             .source = ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL,
         };
@@ -325,9 +370,12 @@ static int send_to(uint8_t s, const struct state *now) {
 }
 
 /* The relay's queue only: the state of the moment to every lit half that
- * needs it (the header). */
+ * needs it (the header). A wait pending leaves it to the wait's run. */
 static void send_state(struct k_work *work) {
     ARG_UNUSED(work);
+    if (k_work_delayable_busy_get(&state_work) & K_WORK_DELAYED) {
+        return;
+    }
     struct state now;
     uint32_t lit = lantern_relay_lit();
     uint32_t force = (uint32_t)atomic_clear(&again);
@@ -353,12 +401,14 @@ static void send_state(struct k_work *work) {
 #if IS_ENABLED(CONFIG_LANTERN_LAYER_KEYS)
     /* this central's own key LEDs (the header) */
     for (uint32_t c = 0; c < LANTERN_LAYER_CHUNKS; c++) {
-        lantern_layer_keys_set(c, now.w[2 * c], now.w[2 * c + 1]);
+        lantern_layer_keys_set(c, c == LANTERN_LAYER_CHUNKS - 1, now.w[2 * c], now.w[2 * c + 1]);
     }
 #endif
 }
 
-/* System work queue, where ZMK raises the layers' changes (the header). */
+/* System work queue, where ZMK raises the layers' changes (the header): a
+ * layer in view waits SETTLE_MS from this change; none in view goes at once,
+ * the wait cancelled. */
 static int layer_listener(const zmk_event_t *eh) {
     if (as_zmk_layer_state_changed(eh) == NULL) {
         return ZMK_EV_EVENT_BUBBLE;
@@ -372,7 +422,8 @@ ZMK_LISTENER(lantern_layer, layer_listener);
 ZMK_SUBSCRIPTION(lantern_layer, zmk_layer_state_changed);
 
 /* A link's parameters changed (the Bluetooth receive work queue): a half at
- * latency 0 is lit now, and is sent the state of the moment (the header). */
+ * latency 0 is lit now, and is sent the state of the moment, at once or at a
+ * pending wait's end (the header). */
 static void param_updated(struct bt_conn *conn, uint16_t interval, uint16_t latency,
                           uint16_t timeout) {
     ARG_UNUSED(interval);
@@ -383,11 +434,24 @@ static void param_updated(struct bt_conn *conn, uint16_t interval, uint16_t late
         return;
     }
     atomic_or(&again, (atomic_val_t)BIT(slot));
-    k_work_reschedule_for_queue(lantern_relay_queue(), &state_work, K_NO_WAIT);
+    k_work_schedule_for_queue(lantern_relay_queue(), &state_work, K_NO_WAIT);
 }
 
 BT_CONN_CB_DEFINE(lantern_layer_links) = {
     .le_param_updated = param_updated,
 };
+
+/* The state once at boot (the header), BOOT_MS on, past every init: ZMK
+ * fills the keymap's position map at APPLICATION too
+ * (zmk_physical_layouts_init()), and an init that blocks before it, as
+ * Bluetooth's does on the controller, would let the relay's queue run first. */
+#define BOOT_MS 1000
+
+static int layer_init(void) {
+    k_work_schedule_for_queue(lantern_relay_queue(), &state_work, K_MSEC(BOOT_MS));
+    return 0;
+}
+
+SYS_INIT(layer_init, APPLICATION, CONFIG_APPLICATION_INIT_PRIORITY);
 
 #endif /* IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL) */
