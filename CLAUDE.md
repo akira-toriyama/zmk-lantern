@@ -626,13 +626,17 @@ how to build. Usage: [README.md](README.md). English only.
   (2026-10-27, canon's pinned images of 3b6c21e on the dongle and both
   halves, canon t-rgp5): `effect stain FF0000` dyed red, `effect stain`
   returned the palette's colours, and the stored pick survived the flash
-  from the image before the colour. Not on hardware: the key bindings
+  from the image before the colour. The layer keys and the layer
+  (2026-10-28, canon's trial images of 959f194 on the dongle and both
+  halves, `CONFIG_LANTERN_LAYER_KEYS=y` on the halves, the pick
+  `layer-keys` alone, canon t-6ttk): holding a layer lit its keys in its
+  colour, the user's OK on sight; the state went from the relay's queue
+  (`src/relay.c`). Not on hardware: the key bindings
   `&effect` and `&effect_next`, the rail-less rule, the slot default and
   the physical layout's places (the Corne check build and the host
-  harness only, canon t-41g7; no such keyboard at hand); the layer keys and
-  the layer, and the hit sent from the relay's queue (`src/relay.c`, the
-  hit's own queue up to 72df855) (canon t-6ttk, 2026-10-28: the check
-  builds and the host harness only, until canon's trial).
+  harness only, canon t-41g7; no such keyboard at hand); the hit sent from
+  the relay's queue (the hit's own queue up to 72df855; the layer keys'
+  trial picked no effect that draws a hit).
 
 ## Commits, pull requests, fleet files
 

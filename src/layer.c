@@ -509,6 +509,11 @@ BT_CONN_CB_DEFINE(lantern_layer_links) = {
 #define BOOT_MS 1000
 
 static int layer_init(void) {
+    /* heard starts from ZMK's word, a static initialiser valid before
+     * keymap_init(), so that the boot run and an early latency-0 resend pass
+     * the heard comparison whatever ZMK starts it at (0 at canon's pin; the
+     * final review of 2026-10-28) */
+    atomic_set(&heard, (atomic_val_t)zmk_keymap_layer_state());
     k_work_schedule_for_queue(lantern_relay_queue(), &state_work, K_MSEC(BOOT_MS));
     return 0;
 }
