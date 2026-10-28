@@ -4,11 +4,13 @@
  * SPDX-License-Identifier: MIT
  *
  * The key LEDs' picture (src/keys.c), for the rail rule (src/on_usb_power.c),
- * the palette (src/palette.c), the hit (src/hit.c) and the pick of the
- * effects (src/effect.c). Layer contract: this file is the strip's one
- * writer; callers say lit or dark, when the boot light lasts, which key was
- * pressed on the other half and that the pick changed, and never touch a
- * pixel. The frame is written on ZMK's low priority work queue; the
+ * the palette (src/palette.c), the hit (src/hit.c), the pick of the effects
+ * (src/effect.c) and an effect's state set from outside the frame (the
+ * layer keys', src/effects/layer_keys.c). Layer contract: this file is the
+ * strip's one writer; callers say lit or dark, when the boot light lasts,
+ * which key was pressed on the other half, that the pick changed and that
+ * something a frame draws from changed, and never touch a pixel. The frame
+ * is written on ZMK's low priority work queue; the
  * countdown's clock runs on the system work queue, so the light, the blank
  * and the boot light are called from there (the rail rule's thread), the
  * refresh, the hit and the pick's change from any thread.
@@ -31,7 +33,8 @@ void lantern_keys_light(void);
  * waits BLANK_MS). System work queue. */
 void lantern_keys_blank(void);
 
-/* The palette changed: repaint while lit, nothing while dark. Any thread. */
+/* Something a frame draws from changed (the palette, the layer keys' state):
+ * repaint while lit, nothing while dark. Any thread. */
 void lantern_keys_refresh(void);
 
 /* The boot light's state, before every light (on only for the boot light's)

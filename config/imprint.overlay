@@ -27,6 +27,7 @@
 
 #include "palette.dtsi"
 #include "hit.dtsi"
+#include "layer.dtsi"
 #include "effect.dtsi"
 #include "intro.dtsi"
 #include "effect_next.dtsi"
