@@ -6,9 +6,11 @@ battery and after the idle timeout, plays an intro at boot and whenever a
 cable is plugged in, paints the keys from a palette of six colours the host
 hands the keyboard over USB, and draws an effect from every key you press: a
 ring, a disc, a stain, a ring crossing both halves, beams, water or a dart,
-in the palette's colours or in one colour of the host's choosing. On a split
-keyboard each half lights for itself, the central relays the key presses and
-the host's choices to the halves, and a half that was away catches up when it
+in the palette's colours or in one colour of the host's choosing; or, while
+you hold a layer, lights the keys that layer gives a meaning, in its colour.
+On a split keyboard each half lights for itself, the central relays the key
+presses, the held layer and the host's choices to the halves, and a half
+that was away catches up when it
 is back; the host's channel is the split central's USB port, so a keyboard
 that is not a split has the conf's defaults and a key's pick, without a
 palette. A keyboard whose LED supply has an enable pin can hand that pin to
@@ -149,8 +151,9 @@ lights what is at hand. The sibling module
   override it): an x and a y per key position, in hundredths of a key unit
   on the whole board (both halves of a split, so a distance reads the same
   from either), at most 30000 each; keymap-drawer's physical layout times
-  100 is one source. What measures the board (every effect, the gradient,
-  the star waves) asserts one or the other at build time.
+  100 is one source. What measures the board (every effect but the layer
+  keys, the gradient, the star waves) asserts one or the other at build
+  time.
 
   ```dts
   &lantern_keys {
@@ -174,7 +177,8 @@ lights what is at hand. The sibling module
   `CONFIG_LANTERN_THIN_RING=y`, `CONFIG_LANTERN_DISC=y`,
   `CONFIG_LANTERN_STAIN=y` (the ring that dyes), `CONFIG_LANTERN_CROSS_RING=y`
   (it brings the hit, below), `CONFIG_LANTERN_BEAMS=y`,
-  `CONFIG_LANTERN_WATER=y`, `CONFIG_LANTERN_DART=y`; which of the built ones
+  `CONFIG_LANTERN_WATER=y`, `CONFIG_LANTERN_DART=y`,
+  `CONFIG_LANTERN_LAYER_KEYS=y` (it brings the layer, below); which of the built ones
   draw is the pick's (below), and without a pick the choice
   `LANTERN_EFFECT_DEFAULT` (`CONFIG_LANTERN_EFFECT_DEFAULT_<EFFECT>=y`; the
   stain when built, else the first built) in `CONFIG_LANTERN_EFFECT_COLOUR`
@@ -194,8 +198,9 @@ lights what is at hand. The sibling module
   name, so each node exists on every device of the split under the one name
   (the keymap's behaviors, or an overlay every device includes; the module's
   own check build includes [config/palette.dtsi](config/palette.dtsi),
-  [config/effect.dtsi](config/effect.dtsi), [config/intro.dtsi](config/intro.dtsi)
-  and [config/hit.dtsi](config/hit.dtsi) from every overlay):
+  [config/effect.dtsi](config/effect.dtsi), [config/intro.dtsi](config/intro.dtsi),
+  [config/hit.dtsi](config/hit.dtsi) and [config/layer.dtsi](config/layer.dtsi)
+  from every overlay):
 
   ```dts
   / {
@@ -216,14 +221,25 @@ lights what is at hand. The sibling module
               compatible = "lantern,behavior-hit";
               #binding-cells = <2>;
           };
+          layer: layer {
+              compatible = "lantern,behavior-layer";
+              #binding-cells = <2>;
+              layers = <1 0  2 1>; /* layer 1 in slot 0's colour, layer 2 in slot 1's */
+          };
       };
   };
   ```
 
-  `CONFIG_LANTERN_PALETTE`, `CONFIG_LANTERN_EFFECT`, `CONFIG_LANTERN_INTRO`
-  and `CONFIG_LANTERN_HIT` are on wherever their node exists; the hit (the
-  central relaying each half's key presses to the other half) is what the
-  crossing ring and the beams need, and every effect uses. The split
+  `CONFIG_LANTERN_PALETTE`, `CONFIG_LANTERN_EFFECT`, `CONFIG_LANTERN_INTRO`,
+  `CONFIG_LANTERN_HIT` and `CONFIG_LANTERN_LAYER` are on wherever their node
+  exists; the hit (the central relaying each half's key presses to the other
+  half) is what the crossing ring and the beams need, and every effect but
+  the layer keys uses; the layer (the central telling the halves which keys
+  the held layer binds) is what the layer keys need. Its `layers` pairs each
+  layer to show, its index in the keymap, with a palette slot, 0 to 5; the
+  central's node needs them (asserted) and only the central reads them, so
+  a half's node may leave them out and a change of them is the central's
+  image alone. The split
   central's conf needs `CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING=y`
   (a half's battery report is what tells the central the half is back, and
   the palette and the picks are resent to it then) and a run queue that
@@ -316,7 +332,8 @@ lights what is at hand. The sibling module
   plugged into a half that typed a while ago lights the stage its keys say.
   The clock is the half's own keys: a sensor or pointing input counts for
   ZMK's idle, not for the stages. One colour: the bands until the dark.
-- The effects: a picture that moves after a key, the seven below. The conf
+- The effects: a picture that moves after a key, the seven below, and the
+  layer keys, which follow the held layer instead (below the dart). The conf
   builds the ones it wants into the image, and the pick says which of them
   draw (The picks, below): the host's, kept across boots, or without one the
   effect the Kconfig choice `LANTERN_EFFECT_DEFAULT` names, in the pick's
@@ -406,6 +423,25 @@ lights what is at hand. The sibling module
   away, at full brightness within the frame's cap (with the hit the bar runs
   on through the other half, and a press of the other half brings it in
   across the split); a key under two darts shows the stronger one's colour.
+- The layer keys (`CONFIG_LANTERN_LAYER_KEYS`; the pick's `layer-keys`, and
+  it brings the layer, below): while you hold a layer that the `layer` node's
+  `layers` names, the keys that layer gives a meaning of its own light in
+  its colour, the palette slot `layers` gives it, at full brightness within
+  the frame's cap (above), and the rest stay as the picture and the other
+  effects leave them. A key of its own is one whose binding on that layer is
+  neither `&none` nor `&trans` and differs from the default layer's at that
+  key, so thumbs a layer repeats from the default layer stay dark. The
+  highest held layer that `layers` names shows; a held layer it does not name
+  is passed over (keep out a layer a tap raises, such as one behind a
+  hold-tap that holds while undecided). A layer shows 60 ms after it comes
+  into view, so a short tap does not flash, and goes as soon as no named
+  layer is held. A press draws nothing of it; picked with other effects it
+  draws over them and shares the frame's cap with them, so its keys dim
+  while a press's effect lives, and a layer of many keys or a whitish
+  colour shows dimmer than one of few. A pick's colour paints every layer
+  in it, so layers told apart by colour alone then look alike. A layer of
+  one half's keys lights that half alone, and only while that half is lit:
+  a half gone dark for idle shows it from its own next input.
 - The pick's colour: with one, every picked effect draws in that one colour
   in place of its own source above (the stain dyes in it too); the picture
   keeps the palette's colours.
@@ -459,8 +495,9 @@ request for the first 5 s of a connection, and the central's host accepts it
 The hit (`CONFIG_LANTERN_HIT`, on wherever the `lantern,behavior-hit` node
 exists on a BLE split, named `hit` on every device like the palette's node):
 the split central sends each key press, a half's or its own, to every other
-half as one invocation of the node (param1 the key position), from a work
-queue of the module's own ([src/hit.c](src/hit.c)), and only to a half whose
+half as one invocation of the node (param1 the key position,
+[src/hit.c](src/hit.c)), from a work queue of the module's own, the relay's
+([src/relay.c](src/relay.c)), and only to a half whose
 link runs at latency 0, the sign that USB powers it and its LEDs may be lit; a
 half on battery is dark and gets nothing. A half notes a relayed press as a
 hit for its effects while its LEDs are lit, as one of its own keys, and its
@@ -473,6 +510,23 @@ way), the stain dyes with it, and it counts in the press count the thin
 ring's colours follow. Delivery is not confirmed, as the palette's, and the
 hits share the central's run queue with the palette (the source says what a
 half that vanishes while lit costs).
+
+The layer (`CONFIG_LANTERN_LAYER`, on wherever the `lantern,behavior-layer`
+node exists on a BLE split, named `layer` on every device like the hit's):
+the split central, where the keymap runs, sends every lit half which keys
+the layer that shows binds to something of its own and the palette slot of
+its colour, whenever that changes ([src/layer.c](src/layer.c)), from the
+same work queue as the hit and to the same halves, those whose link runs at
+latency 0 ([src/relay.c](src/relay.c)). A half whose link comes to latency 0,
+as USB power arrives, is sent the state of the moment. A half forgets the
+state when its link to the central goes and when its USB power goes, and
+takes none on battery, so a cable plugged back in shows no layer until the
+central's state arrives (under the intro the plug-in opens) rather than one
+from before. Nothing is kept in the settings: the state is a held key's. A
+change is one invocation a lit half for a keymap of up to 61 key positions,
+two up to 122, each device counting from its own keymap; the last is marked,
+so a half whose keymap counts other chunks than the central's still takes
+each state whole.
 
 ## The palette
 
@@ -534,8 +588,9 @@ built, else the bands): the only picks a keyboard without a host has.
   any; a name not in the word's table gets `effect error: no such effect`
   (or the intro's) and changes nothing ([src/port.c](src/port.c) is the
   grammar). The names, and the bit each carries on the wire: the effects'
-  `thin-ring`, `disc`, `stain`, `cross-ring`, `beams`, `water`, `dart`
-  ([src/effect.h](src/effect.h)'s table), the intros' `bands`, `star-waves`
+  `thin-ring`, `disc`, `stain`, `cross-ring`, `beams`, `water`, `dart`,
+  `layer-keys` ([src/effect.h](src/effect.h)'s table; bit 7 is no
+  effect's), the intros' `bands`, `star-waves`
   ([src/intro.h](src/intro.h)'s). The central's code invokes the
   `lantern,behavior-effect` or `lantern,behavior-intro` node, which ZMK's
   split transport carries to every half by the node's name; a key of the
@@ -564,8 +619,9 @@ colour (default 0, the palette's colours), `CONFIG_LANTERN_INTRO_DEFAULT_<INTRO>
 the intro. The keymap, on the central: `&effect <mask> <colour>` on a key picks
 on press, the mask a sum of the effects' bits in [src/effect.h](src/effect.h)'s
 order (`thin-ring` 1, `disc` 2, `stain` 4, `cross-ring` 8, `beams` 16, `water`
-32, `dart` 64; several draw together) and the colour `0xRRGGBB` or 0 for the
-palette's (`&effect 4 0xFF0000`: the stain in red); `&effect_next` on a key
+32, `dart` 64, `layer-keys` 256; several draw together) and the colour
+`0xRRGGBB` or 0 for the palette's (`&effect 4 0xFF0000`: the stain in red);
+`&effect_next` on a key
 picks the next effect in the table's order, round again after the last, and
 keeps the colour (the node `lantern,behavior-effect-next`, in the keymap's
 behaviors with `#binding-cells = <0>`, on the central's keymap;

@@ -435,6 +435,10 @@ config LANTERN_EFFECT_DEFAULT_DART
     bool "The dart"
     depends on LANTERN_DART
 
+config LANTERN_EFFECT_DEFAULT_LAYER_KEYS
+    bool "The layer keys"
+    depends on LANTERN_LAYER_KEYS
+
 endchoice
 
 config LANTERN_EFFECT_COLOUR
@@ -449,7 +453,8 @@ config LANTERN_EFFECT_COLOUR
       LANTERN_EFFECT). 0, the default, leaves the effects their own colours
       from the palette: the thin ring and the stain the next colour a press,
       the disc all of them in turn, the crossing ring and the beams the
-      pressed key's band, the water and the dart the first to the last. A
+      pressed key's band, the water and the dart the first to the last,
+      the layer keys the slot of the layer's colour. A
       pick from the host or a key carries its own colour (0 for the
       palette's) and this is not read again, except by LANTERN_EFFECT_NEXT's
       first press with no pick stored, which keeps it: on a split central
@@ -657,6 +662,33 @@ config LANTERN_DART
       copied). Needs the keys' places, as the thin ring does. Default n,
       as the thin ring.
 
+config LANTERN_LAYER_KEYS
+    bool "Build the layer keys: while a layer is held, the keys it binds light in its colour"
+    depends on LANTERN_KEYS
+    select LANTERN_EFFECTS
+    select LANTERN_LAYER
+    help
+      The effect layer-keys (src/effect.h), built into the image and drawn
+      when the pick names it (LANTERN_EFFECT, LANTERN_EFFECT_DEFAULT):
+      while the key LEDs are lit and a layer the split central shows is
+      held, the keys that layer binds to something of its own (neither
+      &none nor &trans, nor the default layer's binding at that key) light
+      in its colour, the palette slot the lantern,behavior-layer node's
+      layers property gives it, at full brightness within the frame's cap
+      (so the build refuses a LANTERN_BRIGHTNESS of 100); with no shown
+      layer held, nothing. The central knows the keymap and its layers,
+      a half neither: the central sends each half the keys and the slot
+      (LANTERN_LAYER, selected: this half and the central need the layer
+      node, on a BLE split), a layer coming into view 60 ms after it does,
+      so a short tap of a key that raises a layer does not flash, and no
+      layer at once. A press draws nothing; with other effects picked the
+      layer keys draw over them and share the frame's cap with them, so
+      they dim while a press's effect lives, and a layer of many keys or a
+      whitish colour shows dimmer than one of few. A pick's colour paints
+      every layer in it. A half shows the layer only while it is lit: one
+      gone dark for idle lights at its own next input, as ever. Default n,
+      as the thin ring.
+
 config LANTERN_HIT
     bool "Carry each half's key presses to the other half through the split central, for the effects that cross the split"
     default y
@@ -683,11 +715,47 @@ config LANTERN_HIT
       connection events each and, in a run, dry the TX pool on which the run
       queue's drain blocks with the lit half's writes behind; a consumer
       that turns LANTERN_USB_LATENCY off on its halves gets no relay. The
-      sending runs on a work queue of the module's own, never the system
-      work queue, and the hits share the central's run queue with the
-      palette (src/hit.c says why, and what a vanished half costs). Default
-      y where the node is present on a BLE split: the node is the switch,
-      as the palette's.
+      sending runs on the relay's work queue (LANTERN_RELAY), never the
+      system work queue, and the hits share the central's run queue with the
+      palette (src/relay.c and src/hit.c say why, and what a vanished half
+      costs). Default y where the node is present on a BLE split: the node
+      is the switch, as the palette's.
+
+config LANTERN_LAYER
+    bool "Carry the keymap's layer to the halves through the split central, for the layer keys"
+    default y
+    depends on DT_HAS_LANTERN_BEHAVIOR_LAYER_ENABLED
+    depends on ZMK_SPLIT_BLE
+    help
+      The split central sends every half the state of the keymap's layer as
+      invocations of the lantern,behavior-layer node, one per chunk of 61
+      key positions (one for a keymap of up to 61, two up to 122; the
+      chunk's number and the last chunk's mark ride in the event position,
+      src/layer.h), which ZMK's split transport carries by the node's name:
+      the node is named layer on every device (src/layer.c, the binding).
+      The state is which keys the layer that shows binds to something of its
+      own, and the palette slot of its colour; the node's layers property,
+      pairs of a layer and a slot, names the layers that show, the highest
+      held one showing and the others passed over, and only the central
+      reads it. A half hands the state to its layer keys
+      (LANTERN_LAYER_KEYS). The central sends a state when it changes, a
+      layer coming into view 60 ms late, and only to a half whose link runs
+      at peripheral latency 0, as the hit (LANTERN_HIT), from the relay's
+      work queue (LANTERN_RELAY), and again to a half when its link comes to
+      latency 0; a half drops its state when its link to the central or its
+      USB power goes, and takes none on battery. Nothing is kept in the
+      settings. Default y where the node is present on a BLE split: the node
+      is the switch, as the hit's.
+
+config LANTERN_RELAY
+    bool
+    default y if ZMK_SPLIT_ROLE_CENTRAL && (LANTERN_HIT || LANTERN_LAYER)
+    help
+      The split central's work queue for what the module's code sends the
+      halves, the hit's presses (LANTERN_HIT) and the layer's state
+      (LANTERN_LAYER), and the rule of whom to send to, a half whose link
+      runs at peripheral latency 0 (src/relay.c). On by itself with either
+      on a split central; nothing to set.
 
 config LANTERN_USB_LATENCY
     bool "Ask the split central for peripheral latency 0 while USB powers this half"

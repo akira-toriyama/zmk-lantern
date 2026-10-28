@@ -1,0 +1,21 @@
+// The layer behavior's node (src/layer.c), the same on every device of the
+// split, as the hit's (config/hit.dtsi): the central sends the halves which
+// keys the held layer binds, for the layer keys (src/effects/layer_keys.c).
+// layers pairs a layer of the keymap with a palette slot: this check
+// build's keymaps all have layers 1 and 2 (Cyboard's stock Imprint halves
+// four layers of 76 key positions, its stock dongle five of 82, ZMK's Corne
+// three of 42). Only the central reads the pairs; a half's node may leave
+// them out. A consumer with a keymap of its own puts the node among the
+// keymap's behaviors, with its own layers (canon:
+// config/imprint_behaviors.dtsi); this check build includes this file from
+// every overlay.
+
+/ {
+    behaviors {
+        layer: layer {
+            compatible = "lantern,behavior-layer";
+            #binding-cells = <2>;
+            layers = <1 0 2 1>;
+        };
+    };
+};

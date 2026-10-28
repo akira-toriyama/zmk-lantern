@@ -1,12 +1,14 @@
 // The Imprint Dongle (the imprint_dongle shield of Cyboard's module, canon's
-// split central): the palette's, the hit's, the effect's, the intro's and the
-// effect-next's nodes, and the picks' key check. ZMK reads imprint_dongle.overlay
+// split central): the palette's, the hit's, the layer's, the effect's, the
+// intro's and the effect-next's nodes, and the picks' key check (the layer's
+// pairs are read here, where the keymap runs). ZMK reads imprint_dongle.overlay
 // before imprint.overlay for this shield (zmk app/boards/post_boards_shields.cmake
 // tries the shield's own name first) and takes the first that exists, so the
 // halves' overlay, with the rail node the dongle's board lacks, stays theirs.
 
 #include "palette.dtsi"
 #include "hit.dtsi"
+#include "layer.dtsi"
 #include "effect.dtsi"
 #include "intro.dtsi"
 #include "effect_next.dtsi"

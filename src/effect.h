@@ -33,7 +33,10 @@
 /* X(SYMBOL, bit, "name", ops): the effects, in the order the host's replies
  * list them and the engine draws them. SYMBOL is the Kconfig suffix, the name
  * the host's word for it, ops the entry its file defines, lantern_effect_<ops>
- * (the stain's is in the thin ring's file: the stain is that ring, dyeing). */
+ * (the stain's is in the thin ring's file: the stain is that ring, dyeing).
+ * Bit 7 is no line's and never will be: canon t-6ttk's trial of an effect
+ * that never reached main had it (2026-10-27), and a device that ran the
+ * trial may still hold it in its settings. */
 #define LANTERN_EFFECT_LIST(X)                                                                     \
     X(THIN_RING, 0, "thin-ring", thin_ring)                                                        \
     X(DISC, 1, "disc", disc)                                                                       \
@@ -41,7 +44,8 @@
     X(CROSS_RING, 3, "cross-ring", cross_ring)                                                     \
     X(BEAMS, 4, "beams", beams)                                                                    \
     X(WATER, 5, "water", water)                                                                    \
-    X(DART, 6, "dart", dart)
+    X(DART, 6, "dart", dart)                                                                       \
+    X(LAYER_KEYS, 8, "layer-keys", layer_keys)
 
 /* Each effect's bit in a pick: LANTERN_EFFECT_THIN_RING and so on. */
 enum lantern_effect {

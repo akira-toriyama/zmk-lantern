@@ -1,0 +1,27 @@
+# Copyright (c) 2026 akira-toriyama
+# SPDX-License-Identifier: MIT
+
+description: |
+  The layer behavior (CONFIG_LANTERN_LAYER, src/layer.c): one node, named
+  layer, on the split central and on every half, in the keymap's behaviors
+  or an overlay (a name of at most 8 characters, as the palette's). Never
+  bound to a key: the central's code sends a half the state of the keymap's
+  layer, which keys the layer that shows binds to something of its own and
+  the palette slot of its colour (src/layer.h), and the half's layer keys
+  draw it (CONFIG_LANTERN_LAYER_KEYS).
+
+compatible: "lantern,behavior-layer"
+
+include: two_param.yaml
+
+properties:
+  layers:
+    type: array
+    description: |
+      The layers that show, pairs of a layer of the keymap (its index, the
+      order of the keymap's layer nodes) and the palette slot (0 to 5) its
+      keys light in. The highest held layer named here shows; a held layer
+      not named is passed over, and the default layer shows only when named.
+      The split central's node needs it (asserted at build time) and only the
+      central reads it; a half's node may leave it out, so a change of the
+      pairs is the central's image alone.

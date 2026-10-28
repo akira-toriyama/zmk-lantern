@@ -35,11 +35,12 @@ how to build. Usage: [README.md](README.md). English only.
   picture, every key black under the effects and the bands for the boot
   light (`CONFIG_LANTERN_NO_PICTURE`); the
   effects that move the picture after a key, the thin ring, the disc, the
-  stain, the crossing ring, the beams, the water and the dart
+  stain, the crossing ring, the beams, the water and the dart, and the one
+  that follows the held layer, the layer keys
   (`CONFIG_LANTERN_THIN_RING`, `CONFIG_LANTERN_DISC`, `CONFIG_LANTERN_STAIN`,
   `CONFIG_LANTERN_CROSS_RING`, `CONFIG_LANTERN_BEAMS`, `CONFIG_LANTERN_WATER`,
-  `CONFIG_LANTERN_DART`, each built into the image by the consumer's conf,
-  off by default;
+  `CONFIG_LANTERN_DART`, `CONFIG_LANTERN_LAYER_KEYS`, each built into the
+  image by the consumer's conf, off by default;
   one file an effect under src/effects/ on the engine of src/keys.c, the
   table and the node's `coords` through src/frame.h and
   `CONFIG_LANTERN_GEOMETRY`), and the
@@ -53,7 +54,14 @@ how to build. Usage: [README.md](README.md). English only.
   `lantern,behavior-effect-next`, the central only); the
   hit, each half's key presses relayed to the other half by the split
   central for the effects that cross the split (`CONFIG_LANTERN_HIT`;
-  [src/hit.c](src/hit.c), binding `lantern,behavior-hit`); the
+  [src/hit.c](src/hit.c), binding `lantern,behavior-hit`); the layer, which
+  keys the keymap's held layer binds and in which palette slot's colour,
+  sent by the split central to the halves for the layer keys
+  (`CONFIG_LANTERN_LAYER`; [src/layer.c](src/layer.c), the wire format
+  [src/layer.h](src/layer.h), binding `lantern,behavior-layer` with the
+  consumer's `layers` pairs; canon t-6ttk); the relay, the split central's
+  one work queue and lit-half rule for both (`CONFIG_LANTERN_RELAY`, on by
+  itself; [src/relay.c](src/relay.c)); the
   intros, what the boot light plays, one file an intro under src/intros/ on
   the same engine and table shape as the effects (the table
   [src/intro.h](src/intro.h), `CONFIG_LANTERN_INTROS`): the bands, a second
@@ -85,8 +93,9 @@ how to build. Usage: [README.md](README.md). English only.
   Cyboard's stock Imprint halves and its `imprint_dongle` shield plus the
   consumer-side lines each needs (`config/imprint.conf`, `config/imprint.overlay`,
   `config/imprint_left.conf`, `config/imprint_dongle.{conf,overlay}`,
-  `config/palette.dtsi`, `config/hit.dtsi`, `config/effect.dtsi`,
-  `config/intro.dtsi`, `config/effect_next.dtsi`, `config/pick_keys.dtsi`),
+  `config/palette.dtsi`, `config/hit.dtsi`, `config/layer.dtsi`,
+  `config/effect.dtsi`, `config/intro.dtsi`, `config/effect_next.dtsi`,
+  `config/pick_keys.dtsi`),
   and ZMK's own Corne shield on the nice!nano (`config/corne.overlay`,
   `config/corne.conf`, `config/corne_left.conf`; canon t-41g7): a standard
   split with a `zmk,physical-layout` and the per-key strip ZMK's underglow
@@ -171,13 +180,27 @@ how to build. Usage: [README.md](README.md). English only.
   `CONFIG_LANTERN_GEOMETRY=y` and `CONFIG_LANTERN_HIT=y`, which the hit node
   (`config/hit.dtsi`, on every target) turns on by itself, with `hit.c.obj`
   in zmk.map;
+  `CONFIG_LANTERN_LAYER_KEYS=y` adds `CONFIG_LANTERN_EFFECTS=y`,
+  `CONFIG_LANTERN_FRAMES=y` and, where it is the one effect built,
+  `CONFIG_LANTERN_EFFECT_DEFAULT_LAYER_KEYS=y`, and no
+  `CONFIG_LANTERN_GEOMETRY` (it measures nothing); it needs
+  `CONFIG_LANTERN_LAYER=y`, which the layer node (`config/layer.dtsi`, on
+  every target) turns on by itself, with `layer.c.obj` in every target's
+  zmk.map and `layer_keys.c.obj` where the effect is built; a split central
+  (the dongle, the stock left halves) shows `CONFIG_LANTERN_RELAY=y` and
+  `relay.c.obj` from the hit and the layer, a peripheral neither (the
+  check builds of 2026-10-28: all five targets, and the Imprint halves with
+  `--kconfig CONFIG_LANTERN_LAYER_KEYS=y`, whose sorted `.config` against
+  the stock one adds those, and on the right half, a peripheral, where the
+  effect-next node builds no driver (`CONFIG_LANTERN_EFFECT_NEXT` is a
+  central's), `CONFIG_LANTERN_EFFECT_COLOUR=0` too);
   `CONFIG_LANTERN_INTRO_STAR_WAVES=y` adds `CONFIG_LANTERN_FRAMES=y`,
   `CONFIG_LANTERN_GEOMETRY=y` and `CONFIG_LANTERN_INTRO_DEFAULT_STAR_WAVES=y`
   (the choice `LANTERN_INTRO_DEFAULT` with no line of its own, in place of
   the bands') and puts `star_waves.c.obj` in zmk.map, as each built effect
   puts its file's
   (`thin_ring.c.obj`, the stain's too, `disc.c.obj`, `cross_ring.c.obj`,
-  `beams.c.obj`, `water.c.obj`, `dart.c.obj`);
+  `beams.c.obj`, `water.c.obj`, `dart.c.obj`, `layer_keys.c.obj`);
   a half shows `CONFIG_LANTERN_BANDS=y`, or `CONFIG_LANTERN_SOLID=y`,
   `CONFIG_LANTERN_GRADIENT=y`, `CONFIG_LANTERN_SCATTER=y` or
   `CONFIG_LANTERN_NO_PICTURE=y` in its place,
@@ -323,11 +346,43 @@ how to build. Usage: [README.md](README.md). English only.
   node is named `hit` on every device, its invocation a wire format too**
   (`src/hit.c`: param1 = the key position, param2 = 0, press only): the
   central sends it with `zmk_split_central_invoke_behavior()` from the
-  module's own work queue, never the system work queue (a put into ZMK's run
-  queue waits up to 100 ms or more when it is full, and the system work
-  queue carries the host's Bluetooth TX and the halves' key events), and
-  only to a half whose link is at peripheral latency 0, the sign of USB
-  power (`src/latency.c`); a half on battery gets nothing. **The effect's and
+  relay's work queue (`src/relay.c`), never the system work queue (a put
+  into ZMK's run queue waits up to 100 ms or more when it is full, and the
+  system work queue carries the host's Bluetooth TX and the halves' key
+  events), and only to a half whose link is at peripheral latency 0, the
+  sign of USB power (`src/latency.c`); a half on battery gets nothing.
+  **The layer's node is named `layer` on every device, its invocations a
+  wire format too** (`src/layer.h`: a state in chunks of 61 key positions,
+  the chunk's number in the event position's low 7 bits and the last chunk
+  marked by its top bit, a byte on the wire; param1 the chunk's first 32
+  positions, param2's low 29 bits the rest and its top 3 the palette slot;
+  zeros for no layer; press only, a state's chunks in order, the half taking
+  it whole at the marked one and keeping the chunks its own keymap holds, so
+  the devices' keymaps may count other chunks, say a 58-key central's one
+  against a 76-key half's two (only the host harness counts them apart: the
+  module's check build has the stock dongle's 82 key positions and its
+  halves' 76, two chunks either way)): the central
+  computes it from the keymap (the shown layer's bindings that are neither
+  `&none` nor `&trans` nor the default layer's) and the node's `layers`
+  pairs, which only the central reads (asserted there, optional on a half),
+  and sends it from the relay's queue to the halves at latency 0, when it
+  changes, a layer coming into view after a settle of 60 ms that nothing
+  cuts short (Opus reviews 2026-10-28, three rounds: a run reads the layers
+  once and sends only if the listener has heard them, no settle is pending
+  and no run is queued since its read, so neither a settle armed nor a
+  release made around the read sends a layer outside its settle, whatever
+  the order of `zmk_layer_state_changed`'s subscribers, canon's vkey
+  listener among them, which can block; a half's latency-0 resend waits for
+  a pending settle), once a second after boot, and when a half's link comes to
+  latency 0 (Zephyr's `le_param_updated` on the central); a half drops it
+  when its link or its USB power goes (ZMK's USB event, which the half's
+  drop of what arrives meanwhile follows too) and takes none on battery. On
+  a half the behavior runs on
+  the Bluetooth receive work queue, the link's end and the USB event on the
+  system work queue (Zephyr's conn.c reports a disconnection from its
+  deferred work there), all cooperative, so the store's writers never
+  interleave. Nothing of it is in the settings or in the resends of the
+  battery reports. **The effect's and
   the intro's nodes are named `effect` and `intro` on every device, their
   invocations wire formats too** (`src/pick.c` for both: param1 = the pick, a
   mask of `src/effect.h`'s or `src/intro.h`'s bits, param2 = the effect's
@@ -348,13 +403,16 @@ how to build. Usage: [README.md](README.md). English only.
   pick over the effects this central builds, or the whole table where it
   builds none, and sends it through `lantern_effect_send()`); canon's keymap
   binds neither, and neither is verified on hardware (the check build's
-  `config/pick_keys.dtsi` compiles the bindings). The hits share
-  the run queue with the palette: a lit half that vanishes keeps its link
-  for the supervision timeout, and hits relayed to it meanwhile can fill
-  the queue (the source header). The slot of a link comes from ZMK's
-  `peripheral_slot_index_for_conn()`, declared in `src/hit.c` since ZMK has
-  no header for it: a rename or a static there fails the link, loudly, a
-  changed signature silently (C links by name). A half notes a relayed
+  `config/pick_keys.dtsi` compiles the bindings). The hits and the layer's
+  states share the run queue with the palette: a lit half that vanishes
+  keeps its link for the supervision timeout, and what is relayed to it
+  meanwhile can fill the queue (`src/hit.c`'s header). The slot of a link
+  comes from ZMK's `peripheral_slot_index_for_conn()`, declared in
+  `src/relay.c` since ZMK has no header for it: a rename or a static there
+  fails the link, loudly, a changed signature silently (C links by name).
+  Bit 7 of `LANTERN_EFFECT_LIST` is no effect's: canon t-6ttk's trial of
+  an effect that never reached main had it (2026-10-27), and a device that
+  ran it may hold it in its settings. A half notes a relayed
   press from the Bluetooth receive queue (`lantern_keys_hit()`:
   `src/keys.c`'s hit ring advances by compare-and-set, so any of ZMK's
   cooperative threads may note; `keys.h` lists the hit among the callers)
@@ -568,10 +626,17 @@ how to build. Usage: [README.md](README.md). English only.
   (2026-10-27, canon's pinned images of 3b6c21e on the dongle and both
   halves, canon t-rgp5): `effect stain FF0000` dyed red, `effect stain`
   returned the palette's colours, and the stored pick survived the flash
-  from the image before the colour. Not on hardware: the key bindings
+  from the image before the colour. The layer keys and the layer
+  (2026-10-28, canon's trial images of 959f194 on the dongle and both
+  halves, `CONFIG_LANTERN_LAYER_KEYS=y` on the halves, the pick
+  `layer-keys` alone, canon t-6ttk): holding a layer lit its keys in its
+  colour, the user's OK on sight; the state went from the relay's queue
+  (`src/relay.c`). Not on hardware: the key bindings
   `&effect` and `&effect_next`, the rail-less rule, the slot default and
   the physical layout's places (the Corne check build and the host
-  harness only, canon t-41g7; no such keyboard at hand).
+  harness only, canon t-41g7; no such keyboard at hand); the hit sent from
+  the relay's queue (the hit's own queue up to 72df855; the layer keys'
+  trial picked no effect that draws a hit).
 
 ## Commits, pull requests, fleet files
 
