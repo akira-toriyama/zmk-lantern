@@ -191,8 +191,9 @@ how to build. Usage: [README.md](README.md). English only.
   `relay.c.obj` from the hit and the layer, a peripheral neither (the
   check builds of 2026-10-28: all five targets, and the Imprint halves with
   `--kconfig CONFIG_LANTERN_LAYER_KEYS=y`, whose sorted `.config` against
-  the stock one adds those, and on the right half, a peripheral without the
-  effect-next node, `CONFIG_LANTERN_EFFECT_COLOUR=0` too);
+  the stock one adds those, and on the right half, a peripheral, where the
+  effect-next node builds no driver (`CONFIG_LANTERN_EFFECT_NEXT` is a
+  central's), `CONFIG_LANTERN_EFFECT_COLOUR=0` too);
   `CONFIG_LANTERN_INTRO_STAR_WAVES=y` adds `CONFIG_LANTERN_FRAMES=y`,
   `CONFIG_LANTERN_GEOMETRY=y` and `CONFIG_LANTERN_INTRO_DEFAULT_STAR_WAVES=y`
   (the choice `LANTERN_INTRO_DEFAULT` with no line of its own, in place of

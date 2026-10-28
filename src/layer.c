@@ -63,12 +63,16 @@
  *   zmk_layer_state_changed (for a real change only, keymap.c's
  *   set_layer_state()), notes the layers it heard and only schedules the
  *   relay's work, which takes the layers once, computes the state from them
- *   and sends it. Nothing cuts a wait short, and nothing sends a layer no
- *   longer held: a run sends only what it computed from the layers the
- *   listener last heard, with no wait pending and no other run queued after
- *   its own read (Opus reviews 2026-10-28, three rounds: a run's look for a
- *   pending wait before its read, and then a release between its read and
- *   its look, each sent a layer outside its settle). Anything else, a change
+ *   and sends it. Nothing sends a layer outside its settle: a run sends only
+ *   what it computed from the layers the listener last heard, with no wait
+ *   pending and no other run queued after its own read (Opus reviews
+ *   2026-10-28, three rounds: a run's look for a pending wait before its
+ *   read, and then a release between its read and its look, each sent a
+ *   layer outside its settle). A release that comes after the look (the run
+ *   may still be sending, a put into ZMK's run queue waiting up to 100 ms)
+ *   lets that run send the layer just released, held through its settle,
+ *   and the run the release queued clears it right behind, in the same
+ *   queue (the final review's probe, 2026-10-28). Anything else, a change
  *   the listener has yet to hear (it may run behind another subscriber that
  *   blocks, as canon's vkey listener can on USB), a wait armed or a run
  *   queued since the read, leaves the sending to the run that follows, which
