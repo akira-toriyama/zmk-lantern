@@ -366,9 +366,13 @@ how to build. Usage: [README.md](README.md). English only.
   pairs, which only the central reads (asserted there, optional on a half),
   and sends it from the relay's queue to the halves at latency 0, when it
   changes, a layer coming into view after a settle of 60 ms that nothing
-  cuts short (Opus reviews 2026-10-28: a run that, having read the state,
-  finds the settle pending sends nothing, and a half's latency-0 resend
-  waits for it), once a second after boot, and when a half's link comes to
+  cuts short (Opus reviews 2026-10-28, three rounds: a run reads the layers
+  once and sends only if the listener has heard them, no settle is pending
+  and no run is queued since its read, so neither a settle armed nor a
+  release made around the read sends a layer outside its settle, whatever
+  the order of `zmk_layer_state_changed`'s subscribers, canon's vkey
+  listener among them, which can block; a half's latency-0 resend waits for
+  a pending settle), once a second after boot, and when a half's link comes to
   latency 0 (Zephyr's `le_param_updated` on the central); a half drops it
   when its link or its USB power goes (ZMK's USB event, which the half's
   drop of what arrives meanwhile follows too) and takes none on battery. On

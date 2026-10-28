@@ -59,17 +59,24 @@
  *   brought it, each change meanwhile restarting the wait, so a layer that a
  *   hold-tap or a macro raises for a short tap only does not flash (canon
  *   t-6ttk's research: 60 ms); a change that leaves no layer in view clears
- *   at once. Nothing cuts a wait short: a run of the work that finds a wait
- *   pending once it has read the state (a change came after the run was
- *   queued, or while it ran: Zephyr's reschedule leaves a queued run queued,
- *   kernel/work.c) sends nothing and leaves the state to the wait's own run,
- *   and a half that comes to latency 0 meanwhile is sent the state then (Opus
- *   reviews 2026-10-28). The listener runs on the
- *   system work queue, where ZMK raises zmk_layer_state_changed (for a real
- *   change only, keymap.c's set_layer_state()), and only schedules the
- *   relay's work, which reads the layer state and the keymap when it runs,
- *   and sends. The state is computed once a second after boot too, for a
- *   central's own LEDs when the property names the default layer.
+ *   at once. The listener runs on the system work queue, where ZMK raises
+ *   zmk_layer_state_changed (for a real change only, keymap.c's
+ *   set_layer_state()), notes the layers it heard and only schedules the
+ *   relay's work, which takes the layers once, computes the state from them
+ *   and sends it. Nothing cuts a wait short, and nothing sends a layer no
+ *   longer held: a run sends only what it computed from the layers the
+ *   listener last heard, with no wait pending and no other run queued after
+ *   its own read (Opus reviews 2026-10-28, three rounds: a run's look for a
+ *   pending wait before its read, and then a release between its read and
+ *   its look, each sent a layer outside its settle). Anything else, a change
+ *   the listener has yet to hear (it may run behind another subscriber that
+ *   blocks, as canon's vkey listener can on USB), a wait armed or a run
+ *   queued since the read, leaves the sending to the run that follows, which
+ *   ZMK's event and Zephyr's work guarantee (Zephyr's reschedule leaves a
+ *   queued run queued, kernel/work.c); a half that comes to latency 0
+ *   meanwhile is sent the state then. The state is computed once a second
+ *   after boot too, for a central's own LEDs when the property names the
+ *   default layer.
  * - To whom: the halves the relay calls lit (src/relay.c), each sent the
  *   state when it differs from the last it was sent. A half that was not
  *   lit meanwhile (on battery, away) is sent the state of the moment when
@@ -293,11 +300,15 @@ static bool same_binding(const struct zmk_behavior_binding *a,
            a->param2 == b->param2;
 }
 
-/* The pair of the layer that shows (the header), its index in shown[], or -1:
- * the highest active layer the property names, down to the default layer.
- * The layer state is a word ZMK writes on the system work queue; the relay's
- * queue reads it as it stands. */
-static int shown_pair(void) {
+/* The layers the listener last heard (the header), a bit a layer id as ZMK
+ * keeps them (zmk_keymap_layer_state()): the system work queue writes it, the
+ * relay's queue compares its own read with it. */
+static atomic_t heard;
+
+/* The pair of the layer that shows among layers (the header), its index in
+ * shown[], or -1: the highest active layer the property names, down to the
+ * default layer, which is active whatever its bit, as in ZMK's keymap.c. */
+static int shown_pair(zmk_keymap_layers_state_t layers) {
     zmk_keymap_layer_id_t base = zmk_keymap_layer_default();
 
     for (int index = ZMK_KEYMAP_LAYERS_LEN - 1; index >= 0; index--) {
@@ -306,7 +317,7 @@ static int shown_pair(void) {
         if (layer == ZMK_KEYMAP_LAYER_ID_INVAL) {
             continue;
         }
-        if (zmk_keymap_layer_active(layer)) {
+        if (layer == base || (layers & BIT(layer)) != 0) {
             for (size_t p = 0; p < ARRAY_SIZE(shown); p += 2) {
                 if (shown[p] == layer) {
                     return (int)p;
@@ -326,10 +337,10 @@ struct state {
     uint32_t w[LANTERN_LAYER_WORDS];
 };
 
-/* The relay's queue: the state of the moment (the header), the keys of the
- * layer that shows and its slot in every chunk, or zeros. */
-static void state_now(struct state *s) {
-    int p = shown_pair();
+/* The relay's queue: the state of layers (the header), the keys of the layer
+ * that shows and its slot in every chunk, or zeros. */
+static void state_of(struct state *s, zmk_keymap_layers_state_t layers) {
+    int p = shown_pair(layers);
 
     memset(s, 0, sizeof(*s));
     if (p < 0) {
@@ -401,18 +412,20 @@ static int send_to(uint8_t s, const struct state *now) {
 }
 
 /* The relay's queue only: the state of the moment to every lit half that
- * needs it (the header). A wait pending leaves it to the wait's run: the
- * state is read before the wait is looked for, since ZMK writes a layer and
- * runs the listener that arms its wait in one cooperative step, so a state
- * that shows a new layer always finds that wait (Opus review 2026-10-28: the
- * other order sent a layer read just after the look); a forced half's bit
- * stays for that run. */
+ * needs it (the header). The layers are read once and the state computed
+ * from them; the run then sends only if the listener has heard those layers
+ * and no wait is pending and no run queued since, else it leaves the state to
+ * the run that follows (the header), a forced half's bit kept for it. A
+ * change heard after the read leaves the wait or the queued run behind, and a
+ * change not yet heard differs from what was heard. */
 static void send_state(struct k_work *work) {
     ARG_UNUSED(work);
+    zmk_keymap_layers_state_t layers = zmk_keymap_layer_state();
     struct state now;
 
-    state_now(&now);
-    if (k_work_delayable_busy_get(&state_work) & K_WORK_DELAYED) {
+    state_of(&now, layers);
+    if (layers != (zmk_keymap_layers_state_t)atomic_get(&heard) ||
+        (k_work_delayable_busy_get(&state_work) & (K_WORK_DELAYED | K_WORK_QUEUED)) != 0) {
         return;
     }
     uint32_t lit = lantern_relay_lit();
@@ -443,15 +456,18 @@ static void send_state(struct k_work *work) {
 #endif
 }
 
-/* System work queue, where ZMK raises the layers' changes (the header): a
- * layer in view waits SETTLE_MS from this change; none in view goes at once,
- * the wait cancelled. */
+/* System work queue, where ZMK raises the layers' changes (the header): the
+ * layers heard, then a layer in view waits SETTLE_MS from this change; none
+ * in view goes at once, the wait cancelled. */
 static int layer_listener(const zmk_event_t *eh) {
     if (as_zmk_layer_state_changed(eh) == NULL) {
         return ZMK_EV_EVENT_BUBBLE;
     }
+    zmk_keymap_layers_state_t layers = zmk_keymap_layer_state();
+
+    atomic_set(&heard, (atomic_val_t)layers);
     k_work_reschedule_for_queue(lantern_relay_queue(), &state_work,
-                                shown_pair() < 0 ? K_NO_WAIT : K_MSEC(SETTLE_MS));
+                                shown_pair(layers) < 0 ? K_NO_WAIT : K_MSEC(SETTLE_MS));
     return ZMK_EV_EVENT_BUBBLE;
 }
 
@@ -482,9 +498,10 @@ BT_CONN_CB_DEFINE(lantern_layer_links) = {
  * fills the keymap's position map and its layers' order at APPLICATION too
  * (zmk_physical_layouts_init(), keymap_init(), at this file's priority, the
  * link deciding the order; after this file's in canon's images), and an init
- * linked between that waited (on flash, on the controller) would let the
- * relay's queue run the work before them. None does today (Opus review
- * 2026-10-28; Bluetooth's waits at priority 50, before this file's 90). */
+ * linked between that waited past BOOT_MS (on flash, on the controller) would
+ * let the relay's queue run the work before them. None does today (Opus
+ * review 2026-10-28; Bluetooth's waits at priority 50, before this file's
+ * 90). */
 #define BOOT_MS 1000
 
 static int layer_init(void) {
