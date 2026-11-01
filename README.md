@@ -8,8 +8,9 @@ hands the keyboard over USB, and draws an effect from every key you press: a
 ring, a disc, a stain, a ring crossing both halves, beams, water or a dart,
 in the palette's colours or in one colour of the host's choosing; or, while
 you hold a layer, lights the keys that layer gives a meaning, in its colour.
-On a split keyboard each half lights for itself, the central relays the key
-presses, the held layer and the host's choices to the halves, and a half
+On a split keyboard each half lights from its own USB port, the central
+relays the key presses, the held layer and the host's choices to the halves,
+a half gone dark for idle lights again at the other half's key, and a half
 that was away catches up when it
 is back; the host's channel is the split central's USB port, so a keyboard
 that is not a split has the conf's defaults and a key's pick, without a
@@ -268,20 +269,26 @@ lights what is at hand. The sibling module
 | USB powers the half: a host, awake or asleep, or a charger | on | lit: the palette's picture |
 | the half runs on battery | off | black |
 | USB powers the half and its last key is `CONFIG_LANTERN_COUNTDOWN_STAGE_MS` (10 s) or more ago (`CONFIG_LANTERN_COUNTDOWN`) | on | lit: the whole half in the palette's next colour, a new picture every stage, the bands again after the last colour |
-| USB powers the half, but ZMK's activity state is idle: `CONFIG_ZMK_IDLE_TIMEOUT` ms (the consumer's line) without a key, sensor or pointing input on this half | off | black, until the next input |
+| USB powers the half, but ZMK's activity state is idle: `CONFIG_ZMK_IDLE_TIMEOUT` ms (the consumer's line) without a key, sensor or pointing input on this half, and as long without a key press of the other half (`CONFIG_LANTERN_WAKE_ON_HIT`, on by default with the hit) | off | black, until the next input of either half |
 | the boot light: from boot and from each arrival of USB power, for the picked intro's length (the bands a second, the star waves ten) | on | the intro, cable or not |
 
-- Each half decides for itself, from its own USB port and its own activity;
-  nothing crosses the split. Typing on one half alone leaves the other to go
-  dark.
+- Each half decides for itself, from its own USB port and its own activity,
+  and the other half's key presses count as activity where the central
+  relays them (`CONFIG_LANTERN_WAKE_ON_HIT`): typing on one half alone keeps
+  the other lit, both go dark together the timeout after the last key on
+  either, and a half dark for idle lights `settle-ms` after the other half's
+  press (that press itself draws no effect on it, as a half's own waking
+  press does not; the next does). The relay reaches a half on USB only, so
+  on battery nothing crosses the split. With the wake off (`=n`), typing on
+  one half alone leaves the other to go dark.
 - Plugging in turns the rail on (with one) and, `settle-ms` later, plays the
   intro and then writes the picture; unplugging writes a black frame and
   drops the rail 100 ms after. A reset, a suspend (the host asleep) or a
   resume on the cable changes nothing. Idle and the next input switch the
   LEDs the same way; the boot light is never cut short.
 - A cable plugged into an idle half plays the intro and goes dark again until
-  its next key: USB is no activity to ZMK, and lighting on it for longer would
-  leave the LEDs on with no idle event to follow.
+  its next key or the other half's: USB is no activity to ZMK, and lighting
+  on it for longer would leave the LEDs on with no idle event to follow.
 - The picture ([src/keys.c](src/keys.c)): each LED shows its key's colour in
   the picture, by default (the bands) the palette slot the `lantern,keys`
   node assigns to the key under it, so the palette's colours fall on the
@@ -441,7 +448,9 @@ lights what is at hand. The sibling module
   colour shows dimmer than one of few. A pick's colour paints every layer
   in it, so layers told apart by colour alone then look alike. A layer of
   one half's keys lights that half alone, and only while that half is lit:
-  a half gone dark for idle shows it from its own next input.
+  a half gone dark for idle shows it from its own next input, or from the
+  other half's press that raises the layer, which wakes it
+  (`CONFIG_LANTERN_WAKE_ON_HIT`).
 - The pick's colour: with one, every picked effect draws in that one colour
   in place of its own source above (the stain dyes in it too); the picture
   keeps the palette's colours.
@@ -500,9 +509,11 @@ half as one invocation of the node (param1 the key position,
 ([src/relay.c](src/relay.c)), and only to a half whose
 link runs at latency 0, the sign that USB powers it and its LEDs may be lit; a
 half on battery is dark and gets nothing. A half notes a relayed press as a
-hit for its effects while its LEDs are lit, as one of its own keys, and its
-countdown's clock ignores it (a stock half as the central counts the other
-half's keys through its own listener, as ZMK's idle does there). The crossing
+hit for its effects while its LEDs are lit, as one of its own keys, its
+countdown's clock ignores it, and dark for idle it lights at it, the wake
+(`CONFIG_LANTERN_WAKE_ON_HIT`, on by default; a stock half as the central
+needs none, counting the other half's keys through its own listener, as
+ZMK's idle does there). The crossing
 ring draws it from the other half's key; the beams, the thin ring, the
 disc, the water and the dart do too, in their own colours (the beams' row
 comes in across the split, the water's waves low, the dart's bar on its
@@ -661,8 +672,11 @@ attached; publishing the draft by hand creates the tag.
 Log lines (a `--logging` image, through any serial reader at 115200): `start:
 usb powered, boot light on` (or `none`), `lit: boot light 10000 ms` (the
 picked intro's length), `lit: usb powered`, `boot light: usb powered` when
-power arrives, `dark: on battery`, `dark: idle`, and the countdown's `stage
-N` at every move; the palette's: `slots 0-1 RRGGBB RRGGBB stored` (or
+power arrives, `dark: on battery`, `dark: idle`, the wake's `other half: in
+use` at the first relayed press after boot or after an `other half: idle`,
+which comes the idle timeout after the last one (a `lit: usb powered` right
+after the first is a half woken), and the countdown's `stage N` at every
+move; the palette's: `slots 0-1 RRGGBB RRGGBB stored` (or
 `unchanged`) on every device, and on the central `N colour(s) from <port>`
 and `resent to half N`; the picks': `effect: 0000000X rrggbb stored` (or
 `unchanged`; `intro: 0000000X stored` without a colour) on every device, and
