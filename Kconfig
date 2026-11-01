@@ -254,7 +254,8 @@ config LANTERN_COUNTDOWN
       cleared slot is slot 0's colour; colours that paint alike at
       LANTERN_PICTURE_BRIGHTNESS count once), then the bands again, until
       LANTERN_OFF_WHEN_IDLE blanks the LEDs (ZMK's idle, or the wake's end,
-      LANTERN_WAKE_ON_HIT). A key brings the
+      LANTERN_WAKE_ON_HIT: a half the other half's keys keep lit cycles the
+      pictures on, its clock being its own keys). A key brings the
       bands back and restarts the clock; a cable plugged in lights the stage
       the keys say (src/keys.c). A sensor or pointing input counts for ZMK's
       idle and not for this clock. One colour: the bands until the dark.
