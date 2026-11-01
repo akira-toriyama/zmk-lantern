@@ -291,7 +291,7 @@ how to build. Usage: [README.md](README.md). English only.
   crosses to the painter as one atomic), so the light, the blank and the
   boot light are system work queue calls, the refresh any thread's.
 - **The idle timeout is ZMK's `CONFIG_ZMK_IDLE_TIMEOUT`, set by the consumer,
-  and the dark is ZMK's idle state**: it already counts a half's keys,
+  and the dark is ZMK's idle state, or the wake's end (below)**: it already counts a half's keys,
   sensors and pointing input. The countdown (`CONFIG_LANTERN_COUNTDOWN`)
   changes the picture every `CONFIG_LANTERN_COUNTDOWN_STAGE_MS` (10 s) from
   a clock of its own, the half's key positions
@@ -305,7 +305,8 @@ how to build. Usage: [README.md](README.md). English only.
   colour held until the dark; the user chose the ten-second cycle on
   hardware (t-x82q). A cable plugged into an idle half plays the boot
   light's intro and goes dark at its end, a timed light that needs no idle
-  event, and lights nothing else until its next key, by design (the source
+  event, and lights nothing else until its next key or the other half's (the
+  wake), by design (the source
   says why). **The one input of the rule that is the module's own is the
   wake** (`CONFIG_LANTERN_WAKE_ON_HIT`, canon t-6ttk, 2026-10-28; the
   research of 2026-10-20 had deferred it, the user chose it): a key press
@@ -313,17 +314,17 @@ how to build. Usage: [README.md](README.md). English only.
   ZMK on a peripheral (the command handler raises no event, and a fake
   position or sensor event would go to the central as a key), so a half
   dark for idle never lit at the other half's keys, and an effect that
-  crosses the split stopped at the dark half after five minutes without
+  crosses the split stopped at the dark half after the idle timeout (canon's five minutes) without
   its own key; the rule now keeps the half in use for the idle timeout from
   the last relayed press, on a clock of its own (`src/on_usb_power.c`: one
   atomic the hit handler writes from the Bluetooth receive queue, one
   delayable item on the system work queue that re-reads it at each run, so
   no press is lost to a reschedule), ZMK's activity left IDLE meanwhile
   (its battery sampling stays paused). The waking press itself, own or
-  relayed, draws no effect (the light follows the rail's settle; `src/keys.c`
-  drops a press while dark): the next does. Off under `CONFIG_ZMK_SLEEP`
+  relayed, draws no effect (`src/keys.c` drops a press while dark, and the
+  light follows, after the rail's settle where there is one): the next does. Off under `CONFIG_ZMK_SLEEP`
   (Kconfig), where ZMK powers the SoC off in the work item that raises
-  SLEEP and a rail the wake kept on would stay on in System OFF; Cyboard's
+  SLEEP and a rail the wake kept on could stay on in System OFF; Cyboard's
   stock Imprint halves have sleep on, so the module's stock Imprint check
   build has no wake, the Corne's right half and canon's halves build it.
 - A target without a `lantern,keys` node builds none of the painting
@@ -665,7 +666,7 @@ how to build. Usage: [README.md](README.md). English only.
   trial picked no effect that draws a hit); the wake
   (`CONFIG_LANTERN_WAKE_ON_HIT`: the host harness's rail scenes and a host
   model of ZMK's activity, event manager and peripheral command handler
-  over the real module files, 2026-10-28; the symptom it answers, the
+  over the real module files, 2026-10-28 and 2026-11-01; the symptom it answers, the
   crossing ring not reaching a half left untouched for minutes, is the
   user's report of that day, and the cause was not read from a log).
 

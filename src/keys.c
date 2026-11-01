@@ -58,8 +58,9 @@
  *   canon's sender fills its five slots from fewer colours by repeating
  *   them, and a picture nobody could tell from the last would only be a
  *   skipped beat). Stage k, from k x CONFIG_LANTERN_COUNTDOWN_STAGE_MS after
- *   the last key, shows picture k mod N, so the pictures cycle until ZMK
- *   turns idle and the rail rule blanks the LEDs; one shade is the bands
+ *   the last key, shows picture k mod N, so the pictures cycle until the
+ *   rail rule blanks the LEDs (ZMK's idle, or the wake's end,
+ *   src/on_usb_power.c); one shade is the bands
  *   alone. Up to 750f413 a stage was CONFIG_ZMK_IDLE_TIMEOUT / N and the last
  *   shade held until the dark, so that the colour read how far the dark was;
  *   on hardware a minute a colour read as still, and the user chose a ten
@@ -71,9 +72,11 @@
  *   clock, so a cable plugged into a half that typed a while ago lights it
  *   into the stage its keys say (Opus review, 2026-10-20); only a clock
  *   already past the idle timeout restarts at a light, since then something
- *   this clock does not count woke ZMK, a sensor or pointing input (canon
- *   t-gsm2: the Imprint's trackballs are unused), and ZMK's clock restarted
- *   too. A key brings the bands back and restarts the clock.
+ *   this clock does not count woke the half: a sensor or pointing input
+ *   (canon t-gsm2: the Imprint's trackballs are unused), which restarts
+ *   ZMK's clock too, or the other half's press (the wake,
+ *   src/on_usb_power.c), which does not. A key brings the bands back and
+ *   restarts the clock.
  * - Threads: the frame is composed and written on ZMK's low priority work
  *   queue (zmk_workqueue_lowprio_work_q(), the one rgb_underglow.c used; the
  *   Kconfig selects it). led_strip_update_rgb() blocks for the SPI transfer

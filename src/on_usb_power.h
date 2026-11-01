@@ -14,7 +14,8 @@
 #include <zephyr/sys/util.h>
 
 /* A key press of another half, relayed by the split central: the half is in
- * use for CONFIG_ZMK_IDLE_TIMEOUT ms from now, as from its own input (the
+ * use for CONFIG_ZMK_IDLE_TIMEOUT ms from now, as from its own input, for
+ * the LEDs only, ZMK's activity untouched (the
  * wake, src/on_usb_power.c). Any thread; stores the time and submits work.
  * Without the wake (CONFIG_LANTERN_WAKE_ON_HIT) this compiles to nothing. */
 #if IS_ENABLED(CONFIG_LANTERN_WAKE_ON_HIT)

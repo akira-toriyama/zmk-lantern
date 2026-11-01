@@ -99,7 +99,7 @@
  *   CONFIG_ZMK_SLEEP=y (Kconfig): ZMK's idle check raises SLEEP and powers
  *   the SoC off in one work item once its sleep timeout passes on battery,
  *   before a step queued by the unplug runs, and a half the wake had kept lit
- *   past ZMK's own idle would take the rail on into System OFF (the ext_power
+ *   past ZMK's sleep timeout could take the rail on into System OFF (the ext_power
  *   driver has a PM hook for that, this rail has none; Opus review,
  *   2026-10-28). The central's own LEDs need no wake: ZMK counts the other
  *   half's keys there as its own.

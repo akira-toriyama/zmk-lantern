@@ -10,7 +10,8 @@ in the palette's colours or in one colour of the host's choosing; or, while
 you hold a layer, lights the keys that layer gives a meaning, in its colour.
 On a split keyboard each half lights from its own USB port, the central
 relays the key presses, the held layer and the host's choices to the halves,
-a half gone dark for idle lights again at the other half's key, and a half
+a half gone dark for idle lights again at the other half's key (where ZMK's
+sleep is off), and a half
 that was away catches up when it
 is back; the host's channel is the split central's USB port, so a keyboard
 that is not a split has the conf's defaults and a key's pick, without a
@@ -269,18 +270,20 @@ lights what is at hand. The sibling module
 | USB powers the half: a host, awake or asleep, or a charger | on | lit: the palette's picture |
 | the half runs on battery | off | black |
 | USB powers the half and its last key is `CONFIG_LANTERN_COUNTDOWN_STAGE_MS` (10 s) or more ago (`CONFIG_LANTERN_COUNTDOWN`) | on | lit: the whole half in the palette's next colour, a new picture every stage, the bands again after the last colour |
-| USB powers the half, but ZMK's activity state is idle: `CONFIG_ZMK_IDLE_TIMEOUT` ms (the consumer's line) without a key, sensor or pointing input on this half, and as long without a key press of the other half (`CONFIG_LANTERN_WAKE_ON_HIT`, on by default with the hit) | off | black, until the next input of either half |
+| USB powers the half, but ZMK's activity state is idle (`CONFIG_ZMK_IDLE_TIMEOUT` ms, the consumer's line, without a key, sensor or pointing input on this half), and no key press of the other half has come for as long (`CONFIG_LANTERN_WAKE_ON_HIT`, on by default with the hit where `CONFIG_ZMK_SLEEP` is off) | off | black, until the next input of either half |
 | the boot light: from boot and from each arrival of USB power, for the picked intro's length (the bands a second, the star waves ten) | on | the intro, cable or not |
 
 - Each half decides for itself, from its own USB port and its own activity,
-  and the other half's key presses count as activity where the central
-  relays them (`CONFIG_LANTERN_WAKE_ON_HIT`): typing on one half alone keeps
-  the other lit, both go dark together the timeout after the last key on
-  either, and a half dark for idle lights `settle-ms` after the other half's
-  press (that press itself draws no effect on it, as a half's own waking
-  press does not; the next does). The relay reaches a half on USB only, so
-  on battery nothing crosses the split. With the wake off (`=n`), typing on
-  one half alone leaves the other to go dark.
+  and the other half's key presses, where the central relays them, keep it
+  in use too (`CONFIG_LANTERN_WAKE_ON_HIT`: the LEDs only, ZMK's activity
+  stays idle): typing on one half alone keeps the other lit, both go dark
+  within about a second of each other the timeout after the last key on
+  either, and a half dark for idle lights about `settle-ms` after the other
+  half's press (that press itself draws no effect on it, as a half's own
+  waking press does not; the next does). The relay reaches a half on USB
+  only, so on battery no press crosses the split. The wake is off where
+  `CONFIG_ZMK_SLEEP=y` (ZMK could power the half off with the rail on) and
+  with `=n`: typing on one half alone then leaves the other to go dark.
 - Plugging in turns the rail on (with one) and, `settle-ms` later, plays the
   intro and then writes the picture; unplugging writes a black frame and
   drops the rail 100 ms after. A reset, a suspend (the host asleep) or a
@@ -334,8 +337,8 @@ lights what is at hand. The sibling module
   `CONFIG_LANTERN_COUNTDOWN_STAGE_MS` (default 10000): the bands, then the
   whole half in each colour of the palette in turn (a slot the host left
   black is slot 0's colour; colours that paint alike at the picture's
-  brightness count once), then the bands again, until ZMK turns idle and the
-  LEDs go dark. A key brings the bands back and restarts the clock; a cable
+  brightness count once), then the bands again, until the idle rule blanks
+  the LEDs (ZMK's idle, or the wake's end). A key brings the bands back and restarts the clock; a cable
   plugged into a half that typed a while ago lights the stage its keys say.
   The clock is the half's own keys: a sensor or pointing input counts for
   ZMK's idle, not for the stages. One colour: the bands until the dark.
