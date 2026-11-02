@@ -245,9 +245,11 @@ choice LANTERN_INTRO_DEFAULT
       One of the intros built into the image (each member depends on its
       intro): what the boot light plays before the host's first pick
       (src/intro.c) and whenever the stored pick names no intro this image
-      builds, and the only pick a consumer without a host has. Without a
-      line: the star waves when they are built (a conf that asks for the
-      show wants to see it), else the bands. canon's halves write the line.
+      builds, and the only pick a consumer without a host has unless a key
+      of the central's keymap picks one (`&intro <mask> 0`, LANTERN_INTRO).
+      Without a line: the star waves when they are built (a conf that asks
+      for the show wants to see it), else the bands. canon's halves write
+      the line.
 
 config LANTERN_INTRO_DEFAULT_BANDS
     bool "The bands"
@@ -404,9 +406,10 @@ config LANTERN_NO_PICTURE
       Every LED black while the LEDs are lit, so that only the effects
       show, over black keys (and the stain's dye, which stays at the
       picture's brightness as over any picture). The boot light shows the
-      picked intro, by default the bands (LANTERN_INTRO_BANDS), so that a
-      half still shows it has power; on USB the keys turn black when it
-      ends. With the
+      picked intro, without a pick the choice LANTERN_INTRO_DEFAULT's (the
+      star waves where they are built, else the bands, LANTERN_INTRO_BANDS),
+      so that a half still shows it has power; on USB the keys turn black
+      when it ends. With the
       countdown on, its first picture is the black one and the others the
       whole half in a colour, as with the bands, from
       LANTERN_COUNTDOWN_STAGE_MS after the last key; canon's product images
@@ -496,8 +499,10 @@ choice LANTERN_EFFECT_DEFAULT
       One of the effects built into the image (each member depends on its
       effect): what a half shows before the host's first pick (src/effect.c)
       and whenever the stored pick names no effect this image builds, and
-      the only pick a consumer without a host has. canon's is the crossing
-      ring (t-5hqx). Without a line: the stain when it is built (it builds
+      the only pick a consumer without a host has unless a key of the
+      central's keymap picks one (`&effect <mask> <colour>`, LANTERN_EFFECT,
+      or `&effect_next`, LANTERN_EFFECT_NEXT). canon's is the crossing ring
+      (t-5hqx). Without a line: the stain when it is built (it builds
       the thin ring too, and a conf that asks for the stain wants the dye;
       Opus review 2026-10-26), else the first built effect in this order. A
       conf that builds several effects for a keyboard without a host writes
@@ -609,9 +614,10 @@ config LANTERN_TEMPO_DEFAULT
     help
       What the tempo does before the host's first pick (src/tempo.c) and
       whenever the stored pick names neither state, and the only pick a
-      consumer without a host has: y runs it, n leaves the effects at their
-      own speed until the host says otherwise. Default y: a conf that builds
-      the tempo wants to see it, as the intros' default.
+      consumer without a host has unless a key of the central's keymap picks
+      one (`&tempo <mask> 0`, LANTERN_TEMPO_PICK): y runs it, n leaves the
+      effects at their own speed until the host says otherwise. Default y: a
+      conf that builds the tempo wants to see it, as the intros' default.
 
 config LANTERN_TEMPO_PICK
     bool "Take the pick of the tempo from the split central's host, and keep it across boots"
@@ -870,7 +876,7 @@ config LANTERN_LAYER_KEYS
       Default n, as the thin ring.
 
 config LANTERN_HIT
-    bool "Carry each half's key presses to the other half through the split central, for the effects that cross the split"
+    bool "Carry each half's key presses to the other half through the split central, for the effects that cross the split, the tempo and the wake"
     default y
     depends on DT_HAS_LANTERN_BEHAVIOR_HIT_ENABLED
     depends on ZMK_SPLIT_BLE
@@ -887,8 +893,9 @@ config LANTERN_HIT
       water's waves come in low, from a thumb higher, the dart's bar on its
       way; the heatmap warms nothing from it), the
       stain dyes with it, and it counts in the press count the thin ring's
-      colours follow, whichever of them the pick draws; its countdown's
-      clock ignores it, and a half dark for idle lights at it
+      colours follow, whichever of them the pick draws, and in the tempo's
+      count (LANTERN_TEMPO); its countdown's clock ignores it, and a half
+      dark for idle lights at it
       (LANTERN_WAKE_ON_HIT, on by default on a peripheral with the idle rule
       and without ZMK_SLEEP). The central sends
       only to a half whose link runs at peripheral latency 0, which a half

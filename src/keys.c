@@ -225,7 +225,7 @@
  *   and the beams do, for their colours).
  * - The gradient (CONFIG_LANTERN_GRADIENT, canon t-skdt): ramp() puts each
  *   key on one line through the shades in slot order by its x on the whole
- *   board (lantern_board(), from the coords): the leftmost key at shade 0,
+ *   board (lantern_board(), from the keys' places): the leftmost key at shade 0,
  *   the rightmost at the
  *   last, and an LED between two shades shows them mixed in proportion; one
  *   on a shade's place shows that shade exactly. Both shades are taken at
@@ -375,7 +375,9 @@ BUILD_ASSERT(HI_LEVEL > LEVEL, "CONFIG_LANTERN_BRIGHTNESS 100 leaves the frame's
  * with the crossing ring, eight with the disc, and fewer on a larger board,
  * whose lives are longer (frame.h: lantern_life()); past it the oldest
  * press's effect goes in one frame. A larger ring costs RAM and, through
- * live[HITS] in compose(), the frame thread's stack (a struct hit a slot).
+ * live[HITS] in compose(), the frame thread's stack (a struct hit a slot,
+ * and with the heatmap a byte more a slot, its fresh[] in a frame under
+ * compose()).
  * Sixteen is the product's (canon t-gwsw, 2026-11-02: the trial's eight was
  * raised after the review above, and nothing since asked for more); frame.h
  * holds the number, LANTERN_HITS, for the entries handed the live hits. */

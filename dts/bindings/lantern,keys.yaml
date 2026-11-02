@@ -42,8 +42,8 @@ properties:
       One entry per key position, in position order (the whole keymap, both
       halves of a split): the palette slot, 0 to 5, the key's LED shows in
       the bands (CONFIG_LANTERN_BANDS, the default picture, and the bands
-      intro, CONFIG_LANTERN_INTRO_BANDS, the boot light's default), and the
-      colour of the crossing ring and the beams from that key. The length
+      intro, CONFIG_LANTERN_INTRO_BANDS), and the colour of the crossing ring
+      and the beams from that key. The length
       is the keymap's (ZMK_KEYMAP_LEN, asserted), so a table written in the
       keymap's shape reads as the bands. Without it every key is slot 0:
       the bands one colour, the palette's first.

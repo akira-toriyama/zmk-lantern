@@ -341,9 +341,10 @@ lights what is at hand. The sibling module
   every light. Each half throws for itself.
 - The no picture (`CONFIG_LANTERN_NO_PICTURE`): every key black while the
   LEDs are lit, so that only the effects light, over black keys (the stain's
-  dye stays, as over any picture). The boot light shows the picked intro, by
-  default the bands, so that a half still shows it has power; on the cable
-  the keys turn black when it ends. With the countdown on, its first picture
+  dye stays, as over any picture). The boot light shows the picked intro,
+  without a pick the default one (the star waves when built, else the
+  bands), so that a half still shows it has power; on the cable the keys
+  turn black when it ends. With the countdown on, its first picture
   is the black one and the others the whole half in a colour.
 - The countdown (`CONFIG_LANTERN_COUNTDOWN`, on by default with the idle
   rule): from the half's last key, the picture changes every
@@ -644,7 +645,8 @@ effect); it plays the picked intro when it has it, else the one
 `CONFIG_LANTERN_INTRO_DEFAULT_STAR_WAVES`; without a line the star waves when
 built, else the bands); it runs the tempo as picked, and with no pick
 stored as `CONFIG_LANTERN_TEMPO_DEFAULT` says (y): the only picks a keyboard
-without a host has.
+without a host has, unless a key of its central's keymap picks (Without a
+host, below).
 
 - The host writes a text line on the central's USB CDC ACM port: `effect
   <name> [<name> ...] [RRGGBB]` picks these effects on every half and the

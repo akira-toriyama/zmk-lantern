@@ -140,8 +140,8 @@ BUILD_ASSERT(CORE_SWELL < CORE_FROM && CORE_FROM < CORE_FULL && CORE_FULL <= DEP
 
 static atomic_t intro_seed; /* the glitter's seed, k_cycle_get_32() at the start */
 
-/* The frame's thread: each LED's depth, measured from the coords at the
- * intro's first frame. */
+/* The frame's thread: each LED's depth, measured from the keys' places at
+ * the intro's first frame. */
 static bool depth_measured;
 static uint16_t depth[LED_COUNT];
 

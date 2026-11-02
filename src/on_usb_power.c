@@ -114,8 +114,8 @@
  *   pauses its sampling while idle, and the PMW3610 driver's idle sleeper,
  *   which does nothing without its force-awake property (zmk.map,
  *   2026-10-19; the sleeper read 2026-10-28). The countdown
- *   (src/keys.c) cuts the same timeout into stages for the picture, from its
- *   own clock of the half's keys; the dark stays this rule's.
+ *   (src/keys.c) changes the picture every CONFIG_LANTERN_COUNTDOWN_STAGE_MS
+ *   from its own clock of the half's keys; the dark stays this rule's.
  * - The frames: lantern_keys_light(), lantern_keys_blank() and
  *   lantern_keys_boot_light() take no lock and block on nothing; each queues
  *   at most one frame on ZMK's low priority work queue (src/keys.c).

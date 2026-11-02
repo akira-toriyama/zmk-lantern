@@ -456,15 +456,16 @@ how to build. Usage: [README.md](README.md). English only.
   a power loss never leaves a mask with another pick's colour; the mask
   alone, from an image before the colour, reads as colour 0), the intro's is
   0. A key of the central's
-  keymap may bind `&effect <mask> <colour>` (ZMK runs the keymap on the
-  central and carries a GLOBAL behavior to every half before running it
-  there, `app/src/behavior.c`) and `&effect_next` (`src/effect_next.c`,
+  keymap may bind `&effect <mask> <colour>`, `&intro <mask> 0` and
+  `&tempo <mask> 0` (ZMK runs the keymap on the central and carries a
+  GLOBAL behavior to every half before running it there,
+  `app/src/behavior.c`) and `&effect_next` (`src/effect_next.c`,
   `BEHAVIOR_LOCALITY_CENTRAL`: never carried over the split, so its node's
   name is free of the 8 characters; it computes the next bit of the stored
   pick over the effects this central builds, or the whole table where it
   builds none, and sends it through `lantern_effect_send()`); canon's keymap
-  binds neither, and neither is verified on hardware (the check build's
-  `config/pick_keys.dtsi` compiles the bindings). The hits and the layer's
+  binds none of them, and none is verified on hardware (the check build's
+  `config/pick_keys.dtsi` compiles the four bindings). The hits and the layer's
   states share the run queue with the palette: a lit half that vanishes
   keeps its link for the supervision timeout, and what is relayed to it
   meanwhile can fill the queue (`src/hit.c`'s header). The slot of a link
@@ -715,7 +716,8 @@ how to build. Usage: [README.md](README.md). English only.
   user's OK on sight. Not on
   hardware: the conf's colours (`CONFIG_LANTERN_COLOUR_0` to `_5`; the host
   harness and the Corne check build, canon t-gwsw: canon's host hands a
-  palette every morning), the key bindings `&effect` and `&effect_next`, the rail-less
+  palette every morning), the key bindings `&effect`, `&effect_next`, `&intro`
+  and `&tempo`, the rail-less
   rule, the slot default and the physical layout's places (the Corne
   check build and the host harness only, canon t-41g7; no such keyboard
   at hand).
