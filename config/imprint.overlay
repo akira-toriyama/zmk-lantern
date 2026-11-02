@@ -30,6 +30,7 @@
 #include "layer.dtsi"
 #include "effect.dtsi"
 #include "intro.dtsi"
+#include "tempo.dtsi"
 #include "effect_next.dtsi"
 #include "pick_keys.dtsi"
 

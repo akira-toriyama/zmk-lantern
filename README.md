@@ -6,7 +6,8 @@ battery and after the idle timeout, plays an intro at boot and whenever a
 cable is plugged in, paints the keys from a palette of six colours the host
 hands the keyboard over USB, and draws an effect from every key you press: a
 ring, a disc, a stain, a ring crossing both halves, beams, water, a dart or
-a heatmap, in the palette's colours or in one colour of the host's choosing; or, while
+a heatmap, in the palette's colours or in one colour of the host's choosing,
+faster the faster you type when the host says so; or, while
 you hold a layer, lights the keys that layer gives a meaning, in its colour.
 On a split keyboard each half lights from its own USB port, the central
 relays the key presses, the held layer and the host's choices to the halves,
@@ -245,10 +246,11 @@ lights what is at hand. The sibling module
   central's conf needs `CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING=y`
   (a half's battery report is what tells the central the half is back, and
   the palette and the picks are resent to it then) and a run queue that
-  holds a whole palette and both picks for every half at once, five
-  invocations each: `CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE=10` for
-  two halves (ZMK's default is 5, enough for one; both asserted at build
-  time). A device without a `lantern,keys` node, such as a dongle, keeps and
+  holds a whole palette and every pick for every half at once, six
+  invocations each with all three picks:
+  `CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE=12` for two halves, 6
+  for one peripheral (ZMK's default is 5, one short even then; both asserted
+  at build time). A device without a `lantern,keys` node, such as a dongle, keeps and
   forwards the palette and the picks without painting anything. On a split
   peripheral `CONFIG_LANTERN_USB_LATENCY` is on by default with the rule:
   while USB powers the half it asks the central for peripheral latency 0, so
@@ -474,6 +476,20 @@ lights what is at hand. The sibling module
 - The pick's colour: with one, every picked effect draws in that one colour
   in place of its own source above (the stain dyes in it too); the picture
   keeps the palette's colours.
+- The tempo (`CONFIG_LANTERN_TEMPO`; the pick's `tempo on` and `tempo off`):
+  the effects whose shape grows with a press's age (the thin ring, the disc,
+  the stain's ring, the crossing ring, the beams, the water, the dart) run
+  faster the faster you type, up to twice their speed at eight presses a
+  second over the last two seconds, both halves' presses where the hit
+  carries them, and back to their own speed within a couple of seconds of
+  the typing slowing; the speed changes smoothly (a time constant of about a
+  quarter second), never by a step, and a ring in flight bends its speed
+  without jumping. The heatmap and the layer keys keep their own time, and
+  an effect's life is unchanged, so a ring has left the board before its
+  press goes. Whether it runs is the pick of the tempo (The picks, below),
+  and without one `CONFIG_LANTERN_TEMPO_DEFAULT` (y: it runs). About 270
+  bytes of RAM. rgblight's Velocikey (QMK) and zmk-advanced-underglow-effects-vfx's
+  opacity source, from their idea (nothing copied).
 - The intros: what the boot light plays, the two below. The conf builds the
   ones it wants into the image (`CONFIG_LANTERN_INTRO_BANDS`, on by default;
   `CONFIG_LANTERN_INTRO_STAR_WAVES`), and the pick says which plays (The
@@ -588,16 +604,18 @@ than six colours clears the rest to `0x000000`, which the LEDs show as slot
 
 ## The picks
 
-Two values the host chooses (or a key of the central's keymap: Without a
+Three values the host chooses (or a key of the central's keymap: Without a
 host, below), which the central and every half keep in their settings and
 the central resends to a half that is back, one mechanism
 ([src/pick.c](src/pick.c)) with an instance each: the pick of the effects,
 which of the effects built into a half's image draw and in which colour
 (`lantern/effect/mask`: the mask, then the colour; [src/effect.c](src/effect.c)),
-so that the effect changes without a flash, and the pick of the intro, which
+so that the effect changes without a flash; the pick of the intro, which
 of the intros built in the boot light plays (`lantern/intro/mask`,
-[src/intro.c](src/intro.c)). The image carries every effect and intro the
-conf builds; a half draws the picked effects it has, every one of them over
+[src/intro.c](src/intro.c)); and the pick of the tempo, whether the effects
+run faster the faster you type (`lantern/tempo/mask`, on or off;
+[src/tempo.c](src/tempo.c)). The image carries every effect and intro the
+conf builds, and the tempo when it does; a half draws the picked effects it has, every one of them over
 the last when the pick names several, and with no pick stored, or none of its
 effects built, the one the Kconfig choice `LANTERN_EFFECT_DEFAULT` names
 (`CONFIG_LANTERN_EFFECT_DEFAULT_CROSS_RING` and so on, one member per built
@@ -605,7 +623,9 @@ effect; without a line the stain when it is built, else the first built
 effect); it plays the picked intro when it has it, else the one
 `LANTERN_INTRO_DEFAULT` names (`CONFIG_LANTERN_INTRO_DEFAULT_BANDS`,
 `CONFIG_LANTERN_INTRO_DEFAULT_STAR_WAVES`; without a line the star waves when
-built, else the bands): the only picks a keyboard without a host has.
+built, else the bands); it runs the tempo as picked, and with no pick
+stored as `CONFIG_LANTERN_TEMPO_DEFAULT` says (y): the only picks a keyboard
+without a host has.
 
 - The host writes a text line on the central's USB CDC ACM port: `effect
   <name> [<name> ...] [RRGGBB]` picks these effects on every half and the
@@ -615,27 +635,33 @@ built, else the bands): the only picks a keyboard without a host has.
   without, answered with `effect ok`, the pick's names in the table's order
   and the colour when set; `intro <name>` picks the intro the same way, one
   name (two get `intro error: one intro at a time`), answered with `intro
-  ok` and the name; `effect` or `effect?`, `intro` or `intro?` are answered
-  with the names (and the colour), or `effect none` / `intro none` before
-  any; a name not in the word's table gets `effect error: no such effect`
-  (or the intro's) and changes nothing ([src/port.c](src/port.c) is the
-  grammar). The names, and the bit each carries on the wire: the effects'
+  ok` and the name; `tempo on` or `tempo off` picks the tempo (both at once
+  get `tempo error: on or off, not both`), answered with `tempo ok` and the
+  state; `effect` or `effect?`, `intro` or `intro?`, `tempo` or `tempo?`
+  are answered with the names (and the colour), or `effect none` / `intro
+  none` / `tempo none` before any; a name not in the word's table gets
+  `effect error: no such effect` (or the intro's, or `tempo error: no such
+  state`) and changes nothing ([src/port.c](src/port.c) is the grammar).
+  The names, and the bit each carries on the wire: the effects'
   `thin-ring`, `disc`, `stain`, `cross-ring`, `beams`, `water`, `dart`,
   `heatmap`, `layer-keys` ([src/effect.h](src/effect.h)'s table; bits 7
   and 9 are no effect's), the intros' `bands`, `star-waves`
-  ([src/intro.h](src/intro.h)'s). The central's code invokes the
-  `lantern,behavior-effect` or `lantern,behavior-intro` node, which ZMK's
+  ([src/intro.h](src/intro.h)'s), the tempo's `on` (bit 0) and `off` (bit
+  1; [src/tempo.h](src/tempo.h): two bits, since an empty mask is no pick).
+  The central's code invokes the `lantern,behavior-effect`,
+  `lantern,behavior-intro` or `lantern,behavior-tempo` node, which ZMK's
   split transport carries to every half by the node's name; a key of the
-  central's keymap may invoke the effect's the same way (Without a host,
+  central's keymap may invoke any of them the same way (Without a host,
   below).
-- A half that was away when the host wrote gets both picks with the palette,
+- A half that was away when the host wrote gets every pick with the palette,
   a second after each of its battery reports; a half writes its flash only
   when a pick changed. A change of the effects' pick clears the effects' state
   (a ring half-way out, the stain's dye), so the new effect starts clean; a
-  change of the intro's shows at the next boot light. A device stores the
+  change of the intro's shows at the next boot light, of the tempo's at the
+  next frame. A device stores the
   host's bits as sent, the ones its image lacks included, so the reply names
-  the pick as made (with the names this image knows; `effect none` or `intro
-  none` when it knows none of the stored bits) and an image with more effects
+  the pick as made (with the names this image knows; `effect none`, `intro
+  none` or `tempo none` when it knows none of the stored bits) and an image with more effects
   or intros shows it. The colour is measured in the host harness (every
   effect in one colour, and the frames without one unchanged to the byte);
   what ran on hardware is in canon's CLAUDE.md (Invariants, the effect
@@ -648,7 +674,8 @@ keymap. The conf: `CONFIG_LANTERN_EFFECT_DEFAULT_<EFFECT>=y` names the effect
 drawn while no pick is stored (one of the built; without the line the stain
 when built, else the first built), `CONFIG_LANTERN_EFFECT_COLOUR=0xRRGGBB` its
 colour (default 0, the palette's colours), `CONFIG_LANTERN_INTRO_DEFAULT_<INTRO>=y`
-the intro. The keymap, on the central: `&effect <mask> <colour>` on a key picks
+the intro, `CONFIG_LANTERN_TEMPO_DEFAULT` (y) whether the tempo runs. The
+keymap, on the central: `&effect <mask> <colour>` on a key picks
 on press, the mask a sum of the effects' bits in [src/effect.h](src/effect.h)'s
 order (`thin-ring` 1, `disc` 2, `stain` 4, `cross-ring` 8, `beams` 16, `water`
 32, `dart` 64, `heatmap` 1024, `layer-keys` 256; several draw together) and the colour
@@ -665,9 +692,11 @@ the central builds effects (a dongle builds none: the table's first) and
 keeps `CONFIG_LANTERN_EFFECT_COLOUR` as read on the central, so a dongle's
 conf sets it to the halves' value (it cannot read theirs). Both store the
 pick as the host's line does, on the central and every half, and a stored
-pick outlives a boot. The two bindings compile in this repository's check
+pick outlives a boot; `&tempo 1 0` turns the tempo on and `&tempo 2 0` off
+the same way (the node `lantern,behavior-tempo`, named `tempo`). The three
+bindings compile in this repository's check
 build ([config/pick_keys.dtsi](config/pick_keys.dtsi)) and are unverified on
-hardware: canon's keymap binds neither, its host picks.
+hardware: canon's keymap binds none, its host picks.
 
 ## Building this repository
 

@@ -46,6 +46,11 @@
  *   stain's bit, the stain being the ring that dyes, so that the ring is
  *   drawn once and first whichever of the two is picked; the stain's entry
  *   keeps the dye).
+ * - The tempo (CONFIG_LANTERN_TEMPO): an entry that says so (tempo) is handed
+ *   each hit's age on the tempo's clock, which runs up to twice as fast as
+ *   the engine's the faster the user types (src/keys.c says how); the hit's
+ *   life is still judged on the engine's clock, so such an entry skips a hit
+ *   whose tempo age has reached its life, as every entry skips one past it.
  * - The intros' table: one entry a file under src/intros/, named by its line
  *   in LANTERN_INTRO_LIST (src/intro.h), from which src/keys.c builds the
  *   table of the intros this image builds, in the list's order. While the
@@ -249,7 +254,9 @@ static inline uint32_t apart(uint16_t a, uint16_t b) { return a > b ? a - b : b 
 struct hit {
     uint8_t key;  /* a key position */
     uint8_t seq;  /* the press's number, mod LANTERN_HIT_SEQ_CYCLE */
-    uint16_t age; /* ms since the press, below the picked effects' life */
+    uint16_t age; /* ms since the press, below the picked effects' life; to an
+                   * entry on the tempo (the header) the tempo's ms, up to
+                   * twice that, so it skips a hit at or past its own life */
 };
 
 /* The most an effect lives after a press: the engine keeps a hit's age in
@@ -276,6 +283,12 @@ struct lantern_effect_entry {
     /* How long after a press it still draws (lantern_life()): read every
      * frame, so an entry keeps what the board gave it. */
     uint32_t (*life)(void);
+    /* Its hits' ages run on the tempo (CONFIG_LANTERN_TEMPO, the header): the
+     * engine hands it each hit's age as the tempo's clock counts it, faster
+     * the faster the user types, as an effect whose shape grows with the age
+     * wants; false for one that keeps a clock of its own (the heatmap) or
+     * draws no press (the layer keys), which read the age as it is. */
+    bool tempo;
     /* Its lasting state into the picture px, before any effect draws, which
      * the cap then counts as picture (the stain's dye); NULL for none. */
     void (*picture)(struct led_rgb px[], const struct shades *sh);

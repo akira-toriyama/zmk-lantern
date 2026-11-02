@@ -6,12 +6,11 @@
  * A pick (src/pick.c): a value the split central's host chooses, a mask of
  * bits and, where the instance has one, an argument (the effects' colour),
  * kept by the central and every half in their settings across boots and
- * resent by the central to a half that is back. Two instances: the pick of
- * the effects (src/effect.c) and the pick of the intro (src/intro.c), each
- * with a behavior node, a settings key and a word on the port (src/port.c) of
- * its own; the
- * mechanism is this file's and src/pick.c's, and only the two instances
- * include it. Layer contract: an instance owns the Zephyr and ZMK registrations
+ * resent by the central to a half that is back. Three instances: the pick of
+ * the effects (src/effect.c), the pick of the intro (src/intro.c) and the
+ * pick of the tempo (src/tempo.c), each with a behavior node, a settings key
+ * and a word on the port (src/port.c) of its own; the mechanism is this
+ * file's and src/pick.c's, and only the instances include it. Layer contract: an instance owns the Zephyr and ZMK registrations
  * (the behavior, the settings handler, the battery listener, the init), each a
  * wrapper handing its struct lantern_pick here, and says in the struct what is
  * its own; src/pick.c stores, saves, sends and resends, and never knows what
@@ -42,7 +41,7 @@ struct lantern_pick {
     const char *behavior;  /* the node's device name (DEVICE_DT_NAME), for the central's sends */
     uint32_t all;          /* every bit the instance's table knows */
     uint32_t arg_max;      /* the largest argument (the effects' colour, 0xFFFFFF); 0 = the instance has none */
-    bool one;              /* a pick is exactly one bit (the intro), else one or more (the effects) */
+    bool one;              /* a pick is exactly one bit (the intro, the tempo), else one or more (the effects) */
     void (*changed)(void); /* after a stored pick or argument changed, or the first arrived; NULL for none */
 
     atomic_t mask;   /* the host's bits as sent */

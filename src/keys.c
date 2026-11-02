@@ -160,6 +160,38 @@
  *   alike. Integers only, for the effects and the intros alike: the low
  *   priority queue's 768-byte stack is shared with ZMK's battery sampling,
  *   and a thread that once uses the FPU keeps a larger context from then on.
+ * - The tempo (CONFIG_LANTERN_TEMPO, canon t-6ttk): the effects run faster
+ *   the faster the user types. The engine keeps the times of the last
+ *   TEMPO_FULL presses (the beats: both halves' where the hit relays them,
+ *   as the ring's), and each frame counts those within TEMPO_WINDOW_MS: the
+ *   tempo is 1 + count / TEMPO_FULL, at most 2 (the survey's rate over the
+ *   last two seconds against eight presses a second), eased toward over the
+ *   frames (a TEMPO_SMOOTH-th of the way each, a time constant of about a
+ *   quarter second at FRAME_MS) so that a press, or a beat leaving the
+ *   window, changes no ring's speed by a step. Each hit's age on the tempo
+ *   advances by the tempo times the frame's period (tempo_count, one a slot
+ *   of the ring, restarted when the slot takes a new press, at its real age
+ *   so far times the tempo), so a change of tempo bends a ring's speed from
+ *   then on and never jumps its radius, as scaling the real age would. An
+ *   entry that says so (frame.h: tempo) is handed the tempo's ages, the
+ *   others the real ones (the heatmap keeps its own clock and counts
+ *   presses by number; the layer keys draw no press). A hit lives its real
+ *   life in the ring, so a frame keeps moving as long as without the tempo,
+ *   and an entry on the tempo skips a hit whose tempo age has reached its
+ *   life, as it skips any past its life. The first frame after a rest (no
+ *   live hit at the last frame, or longer than the window since it) takes
+ *   the count's tempo as it stands, without the easing; the blank drops the
+ *   beats with the hits and its frame puts the tempo at rest; a change of
+ *   the effects' pick keeps the beats (the typing goes on). Whether the
+ *   tempo runs is the pick of the tempo (src/tempo.c: on, off, or without
+ *   one CONFIG_LANTERN_TEMPO_DEFAULT), read at every frame that reads the
+ *   hits: off, the beats are still noted and every entry is handed the real
+ *   ages, and the tempo rests, so a pick of on starts from the count. The
+ *   beats are read as the hits are, the clock after each, so a
+ *   press noted meanwhile is never cleared as stale; a beat keeps the whole
+ *   32-bit clock, since the frames stop under the window and leave beats
+ *   unread for as long as the half is lit (beats, below). About 270 bytes
+ *   of RAM, nothing on the frame's stack.
  * - The effects' table (src/frame.h says what an entry is): one entry a file
  *   under src/effects/, built from LANTERN_EFFECT_LIST (src/effect.h) in its
  *   order, those the image builds. The frame paints the picture, lets each
@@ -281,6 +313,7 @@
 #include "intro.h"
 #include "keys.h"
 #include "palette.h"
+#include "tempo.h"
 
 LOG_MODULE_REGISTER(lantern_keys, LOG_LEVEL_INF);
 
@@ -356,6 +389,18 @@ BUILD_ASSERT(!IS_ENABLED(CONFIG_LANTERN_STAIN) || IS_ENABLED(CONFIG_LANTERN_THIN
 BUILD_ASSERT(LANTERN_EFFECT_LIFE_MAX_MS <= UINT16_MAX, "a hit's age is kept in 16 bits");
 BUILD_ASSERT(LANTERN_EFFECT_LIFE_MAX_MS < HIT_TIME / 2,
              "a hit's age must be told from a wrapped time");
+#if IS_ENABLED(CONFIG_LANTERN_TEMPO)
+/* The tempo (the header): the presses it counts and the window it counts
+ * them in, its top in 256ths of the engine's clock, reached at TEMPO_FULL
+ * presses in the window, and the easing, a TEMPO_SMOOTH-th of the way to the
+ * count's tempo each frame. */
+#define TEMPO_FULL 16
+#define TEMPO_WINDOW_MS 2000
+#define TEMPO_TOP 512
+#define TEMPO_SMOOTH 8
+BUILD_ASSERT(LANTERN_EFFECT_LIFE_MAX_MS * TEMPO_TOP / 256 <= UINT16_MAX,
+             "a hit's age on the tempo is kept in 16 bits");
+#endif
 /* The pick (the header): what this image draws, and what it draws without
  * one. The Kconfig choice names one built effect; the stain's bit draws the
  * thin ring too, which its Kconfig selects. */
@@ -711,12 +756,130 @@ static uint32_t take_next(atomic_t *counter, uint32_t cycle) {
     return (uint32_t)v;
 }
 
+#if IS_ENABLED(CONFIG_LANTERN_TEMPO)
+
+/* The beats (the header): the last TEMPO_FULL presses' times, the whole of
+ * k_uptime_get_32() in ms (a 0 stored as 1), not a hit's 18 bits: the frames
+ * stop at the last hit's life, under the window, so a beat can sit here unread
+ * for as long as the half stays lit, and 18 bits would bring it back into the
+ * window every 262 s (Opus review, 2026-11-02); 32 wrap in 49.7 days. 0 is
+ * none. Written from any thread as the ring is; the frame clears one past the
+ * window. */
+static atomic_t beats[TEMPO_FULL];
+static atomic_t beat_next;
+
+/* The frame's thread: the tempo in 256ths of the engine's clock, the clock at
+ * the last frame that ran it and whether that frame had a live hit; the ring's
+ * value each slot's count follows and the count, the slot's hit's age on the
+ * tempo in 256ths of a ms; and this frame's live hits' ages both ways. */
+static uint32_t tempo_f = 256;
+static uint32_t tempo_at;
+static bool tempo_running;
+static atomic_val_t tempo_seen[HITS];
+static uint32_t tempo_count[HITS];
+static uint16_t real_ages[HITS], tempo_ages[HITS];
+
+/* Any thread. A full ring drops the oldest. */
+static void beat_note(void) {
+    uint32_t now = k_uptime_get_32();
+
+    atomic_set(&beats[take_next(&beat_next, TEMPO_FULL)], (atomic_val_t)(now == 0 ? 1 : now));
+}
+
+/* Any thread. */
+static void beats_clear(void) {
+    for (size_t j = 0; j < TEMPO_FULL; j++) {
+        atomic_set(&beats[j], 0);
+    }
+}
+
+/* The frame's thread: the beats within the window, the clock read after each
+ * as hits_read() reads it (the header); one past the window is cleared, unless
+ * a newer press took its place meanwhile. */
+static uint32_t beats_count(void) {
+    uint32_t count = 0;
+
+    for (size_t j = 0; j < TEMPO_FULL; j++) {
+        atomic_val_t v = atomic_get(&beats[j]);
+        if (v == 0) {
+            continue;
+        }
+        if (k_uptime_get_32() - (uint32_t)v < TEMPO_WINDOW_MS) {
+            count++;
+        } else {
+            (void)atomic_cas(&beats[j], v, 0);
+        }
+    }
+    return count;
+}
+
+/* The frame's thread, before the ring is read: this frame's tempo, eased from
+ * the last frame's toward the count's, or the count's as it stands after a
+ * rest (the header), when every slot's count restarts too (a hit still live
+ * across a stall of frames longer than the window, a life past it, would
+ * otherwise keep a count the stall never advanced); returns the ms since the
+ * last frame that ran it, 0 after a rest. */
+static uint32_t tempo_step(uint32_t now) {
+    /* at most TEMPO_FULL beats exist */
+    uint32_t target = 256 + (TEMPO_TOP - 256) * beats_count() / TEMPO_FULL;
+    uint32_t dt = now - tempo_at;
+
+    tempo_at = now;
+    if (!tempo_running || dt > TEMPO_WINDOW_MS) {
+        tempo_f = target;
+        memset(tempo_seen, 0, sizeof(tempo_seen));
+        return 0;
+    }
+    if (target > tempo_f) {
+        tempo_f += (target - tempo_f + TEMPO_SMOOTH - 1) / TEMPO_SMOOTH;
+    } else if (target < tempo_f) {
+        tempo_f -= (tempo_f - target + TEMPO_SMOOTH - 1) / TEMPO_SMOOTH;
+    }
+    return dt;
+}
+
+/* The frame's thread: slot j holds v, a hit age ms old, and this frame is dt
+ * ms after the last that ran the tempo; the hit's age on the tempo. */
+static uint16_t tempo_age(size_t j, atomic_val_t v, uint32_t age, uint32_t dt) {
+    if (tempo_seen[j] != v) {
+        tempo_seen[j] = v;
+        tempo_count[j] = age * tempo_f;
+    } else {
+        tempo_count[j] += dt * tempo_f;
+    }
+    return (uint16_t)MIN(tempo_count[j] >> 8, UINT16_MAX);
+}
+
+/* Whether the tempo runs (the header): the pick's state, or the Kconfig
+ * default without a pick or with neither state in it. */
+static bool tempo_picked(void) {
+    uint32_t pick;
+
+    if (lantern_tempo_get(&pick, NULL) && (pick & LANTERN_TEMPO_ALL) != 0) {
+        return (pick & LANTERN_TEMPO_ON) != 0;
+    }
+    return IS_ENABLED(CONFIG_LANTERN_TEMPO_DEFAULT);
+}
+
+/* The frame's thread: the live hits' ages on the tempo (on) or the engine's
+ * clock (off), for the entry about to draw (compose()). */
+static void ages_set(struct hit live[], size_t n, bool on) {
+    for (size_t h = 0; h < n; h++) {
+        live[h].age = on ? tempo_ages[h] : real_ages[h];
+    }
+}
+
+#endif /* IS_ENABLED(CONFIG_LANTERN_TEMPO) */
+
 /* Any thread. A full ring drops the oldest. */
 static void hit_note(uint32_t position) {
     uint32_t seq = take_next(&hit_seq, HIT_SEQ_CYCLE);
     uint32_t v = ((position + 1) << 24) | (seq << HIT_SEQ_SHIFT) | (k_uptime_get_32() & HIT_TIME);
 
     atomic_set(&hits[take_next(&hit_next, HITS)], (atomic_val_t)v);
+#if IS_ENABLED(CONFIG_LANTERN_TEMPO)
+    beat_note();
+#endif
 }
 
 /* Any thread. */
@@ -737,10 +900,17 @@ static void hits_clear(void) {
  * its age would wrap to an expired one. */
 static size_t hits_read(struct hit live[HITS], uint32_t life) {
     size_t n = 0;
+#if IS_ENABLED(CONFIG_LANTERN_TEMPO)
+    bool tempo = tempo_picked();
+    uint32_t dt = tempo ? tempo_step(k_uptime_get_32()) : 0;
+#endif
 
     for (size_t j = 0; j < HITS; j++) {
         atomic_val_t v = atomic_get(&hits[j]);
         if (v == 0) {
+#if IS_ENABLED(CONFIG_LANTERN_TEMPO)
+            tempo_seen[j] = 0;
+#endif
             continue;
         }
         uint32_t now = k_uptime_get_32() & HIT_TIME;
@@ -749,10 +919,17 @@ static size_t hits_read(struct hit live[HITS], uint32_t life) {
             (void)atomic_cas(&hits[j], v, 0);
             continue;
         }
+#if IS_ENABLED(CONFIG_LANTERN_TEMPO)
+        real_ages[n] = (uint16_t)age;
+        tempo_ages[n] = tempo ? tempo_age(j, v, age, dt) : (uint16_t)age;
+#endif
         live[n++] = (struct hit){.key = (uint8_t)(((uint32_t)v >> 24) - 1),
                                  .seq = (uint8_t)(((uint32_t)v >> HIT_SEQ_SHIFT) & HIT_SEQ_MASK),
                                  .age = (uint16_t)age};
     }
+#if IS_ENABLED(CONFIG_LANTERN_TEMPO)
+    tempo_running = tempo && n > 0;
+#endif
     return n;
 }
 
@@ -950,6 +1127,9 @@ static bool compose(size_t at) {
     memcpy(picture, pixels, sizeof(pixels));
     for (size_t e = 0; e < ARRAY_SIZE(effects); e++) {
         if ((row_bits(e) & fx) && effects[e].entry->draw != NULL) {
+#if IS_ENABLED(CONFIG_LANTERN_TEMPO)
+            ages_set(live, n, effects[e].entry->tempo);
+#endif
             effects[e].entry->draw(pixels, esh, live, n, fx);
         }
     }
@@ -980,6 +1160,10 @@ static void paint(struct k_work *work) {
         memset(pixels, 0, sizeof(pixels));
 #if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
         effects_clear();
+#endif
+#if IS_ENABLED(CONFIG_LANTERN_TEMPO)
+        /* the blank's frame: the next lit one starts from rest (the header) */
+        tempo_running = false;
 #endif
     }
     int rc = led_strip_update_rgb(strip, pixels, LED_COUNT);
@@ -1159,6 +1343,9 @@ void lantern_keys_blank(void) {
     countdown_stop();
 #if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
     hits_clear();
+#endif
+#if IS_ENABLED(CONFIG_LANTERN_TEMPO)
+    beats_clear();
 #endif
     submit();
 }

@@ -109,5 +109,6 @@ static void beams_draw(struct led_rgb px[], const struct shades *sh, const struc
 
 const struct lantern_effect_entry lantern_effect_beams = {
     .life = beams_life,
+    .tempo = true,
     .draw = beams_draw,
 };

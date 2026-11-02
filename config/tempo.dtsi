@@ -1,0 +1,15 @@
+// The tempo behavior's node (src/tempo.c), the same on every device of the
+// split, as the palette's (config/palette.dtsi says why one name): the host's
+// pick of whether the tempo runs, carried by the central to both halves
+// through it. A consumer with a keymap of its own puts it among the keymap's
+// behaviors (canon: config/imprint_behaviors.dtsi); this check build includes
+// this file from every overlay.
+
+/ {
+    behaviors {
+        tempo: tempo {
+            compatible = "lantern,behavior-tempo";
+            #binding-cells = <2>;
+        };
+    };
+};

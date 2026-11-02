@@ -133,5 +133,6 @@ static void water_draw(struct led_rgb px[], const struct shades *sh, const struc
 
 const struct lantern_effect_entry lantern_effect_water = {
     .life = water_life,
+    .tempo = true,
     .draw = water_draw,
 };

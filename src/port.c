@@ -5,10 +5,11 @@
  *
  * The host's entry: a text line on any USB CDC ACM port of the split central
  * (canon's Imprint Dongle has one, its board's; canon's scripts/dongle.py
- * palette, effect and intro write it). Lines, ASCII, ended by LF or CR, each a
- * word and its arguments; the word picks the file that answers (the palette,
- * src/palette.c; the pick of the effects, src/effect.c; the pick of the intro,
- * src/intro.c), and this file only reads lines, parses them and replies:
+ * palette, effect, intro and tempo write it). Lines, ASCII, ended by LF or
+ * CR, each a word and its arguments; the word picks the file that answers
+ * (the palette, src/palette.c; the pick of the effects, src/effect.c; the pick
+ * of the intro, src/intro.c; the pick of the tempo, src/tempo.c), and this
+ * file only reads lines, parses them and replies:
  *
  *   palette RRGGBB [RRGGBB ...]   set slots 0.. (one to LANTERN_PALETTE_SLOTS,
  *                                 six, colours; the rest are cleared to 000000)
@@ -37,7 +38,14 @@
  *   intro  or  intro?             ask
  *     -> intro <name>   or   intro none   (as the effect's)
  *
- * The two picks share one grammar (a word, then names from the word's table,
+ *   tempo on  or  tempo off       pick whether the tempo runs (src/tempo.h's
+ *                                 names; one at a time)
+ *     -> tempo ok on   or   tempo ok off
+ *     -> tempo error: <reason>
+ *   tempo  or  tempo?             ask
+ *     -> tempo on   or   tempo off   or   tempo none   (as the effect's)
+ *
+ * The three picks share one grammar (a word, then names from the word's table,
  * then the argument where the word takes one, the effects' colour) over one
  * mechanism (src/pick.c): a pick word is a table, its instance's get and send,
  * whether it takes a colour, and its error reasons, static strings (the parse
@@ -69,7 +77,8 @@
  *   (CONFIG_USB_WORKQUEUE_STACK_SIZE): the callback only collects bytes into
  *   a line and hands a complete line, through a message queue of two, to a
  *   work item on the system work queue, where the parse, the invocation
- *   (lantern_palette_send(), lantern_effect_send(), lantern_intro_send(): the
+ *   (lantern_palette_send(), lantern_effect_send(), lantern_intro_send(),
+ *   lantern_tempo_send(): the
  *   behavior, the halves' commands, the store) and the reply run. The USB work queue is cooperative
  *   at -1, so a reply from there would also be written whole, but the
  *   behavior path's frames (ZMK's split central down to the queue's wait) do
@@ -107,6 +116,7 @@
 #include "effect.h"
 #include "intro.h"
 #include "palette.h"
+#include "tempo.h"
 
 LOG_MODULE_REGISTER(lantern_port, LOG_LEVEL_INF);
 
@@ -278,10 +288,11 @@ static void handle_palette(const struct device *dev, const char *s) {
 
 #endif /* IS_ENABLED(CONFIG_LANTERN_PALETTE) */
 
-#if IS_ENABLED(CONFIG_LANTERN_EFFECT) || IS_ENABLED(CONFIG_LANTERN_INTRO)
+#if IS_ENABLED(CONFIG_LANTERN_EFFECT) || IS_ENABLED(CONFIG_LANTERN_INTRO) ||                       \
+    IS_ENABLED(CONFIG_LANTERN_TEMPO_PICK)
 
 /* A pick's word (the header): its table, in the table's order, and its
- * instance's get and send (src/effect.h, src/intro.h). */
+ * instance's get and send (src/effect.h, src/intro.h, src/tempo.h). */
 struct named_bit {
     uint32_t bit;
     const char *name;
@@ -384,7 +395,7 @@ static void handle_pick(const struct device *dev, const struct pick_word *w, con
 
 #define NAMED_BIT_(sym, bit, name, ops) {BIT(bit), name},
 
-#endif /* IS_ENABLED(CONFIG_LANTERN_EFFECT) || IS_ENABLED(CONFIG_LANTERN_INTRO) */
+#endif /* IS_ENABLED(CONFIG_LANTERN_EFFECT) || IS_ENABLED(CONFIG_LANTERN_INTRO) || IS_ENABLED(CONFIG_LANTERN_TEMPO_PICK) */
 
 #if IS_ENABLED(CONFIG_LANTERN_EFFECT)
 
@@ -418,6 +429,22 @@ static const struct pick_word intro_word = {
 
 #endif /* IS_ENABLED(CONFIG_LANTERN_INTRO) */
 
+#if IS_ENABLED(CONFIG_LANTERN_TEMPO_PICK)
+
+static const struct named_bit tempo_names[] = {LANTERN_TEMPO_LIST(NAMED_BIT_)};
+static const struct pick_word tempo_word = {
+    .word = "tempo",
+    .names = tempo_names,
+    .count = ARRAY_SIZE(tempo_names),
+    .get = lantern_tempo_get,
+    .send = lantern_tempo_send,
+    .colour = false,
+    .unknown = "no such state (on or off)",
+    .several = "on or off, not both",
+};
+
+#endif /* IS_ENABLED(CONFIG_LANTERN_TEMPO_PICK) */
+
 static void handle(const struct line *l) {
     const char *s;
 #if IS_ENABLED(CONFIG_LANTERN_PALETTE)
@@ -438,6 +465,13 @@ static void handle(const struct line *l) {
     s = arguments(l->text, intro_word.word);
     if (s != NULL) {
         handle_pick(l->dev, &intro_word, s);
+        return;
+    }
+#endif
+#if IS_ENABLED(CONFIG_LANTERN_TEMPO_PICK)
+    s = arguments(l->text, tempo_word.word);
+    if (s != NULL) {
+        handle_pick(l->dev, &tempo_word, s);
         return;
     }
 #endif
