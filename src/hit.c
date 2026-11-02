@@ -5,8 +5,9 @@
  *
  * The hit: a key press carried from the device that pressed it to the other
  * halves through the split central, so that an effect can spread from the
- * other half's key too (canon t-6ttk: the crossing ring and the beams,
- * src/effects/). ZMK's
+ * other half's key too (canon t-6ttk: the crossing ring, the beams, the thin
+ * ring, the disc, the water and the dart, src/effects/), the tempo counts it
+ * (src/keys.c) and the wake lights a half dark for idle at it (below). ZMK's
  * halves know nothing of each other's keys: a half sends its key positions
  * to the central, where the keymap runs, and nothing comes back to a half
  * but what a behavior sends it.

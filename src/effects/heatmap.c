@@ -25,29 +25,30 @@
  *   presses the live hits bring and cooled by the time between two frames on
  *   the engine's clock (k_uptime_get_32(), read here after the engine read
  *   it for the ages, so the frame's time never runs ahead of a hit's). A
- *   press is counted once, by its number: the engine's ring (src/keys.c:
- *   HITS, the last sixteen presses of both halves) lists a hit at every frame
- *   while it lives, and the entry keeps the numbers that were live at the
- *   last frame (seen, a bit a number), so a live hit whose number was not is
- *   new, whatever order the ring lists it in and whether a frame's reading of
- *   the ring was overtaken by a press (a first version kept the newest
- *   counted number and took a hit behind it for counted: a press noted into a
- *   slot the frame had read already, with a newer one into a slot it had not,
- *   was never counted; Opus review, 2026-11-02). A number comes round after
- *   LANTERN_HIT_SEQ_CYCLE presses of both halves, so a press is mistaken for
- *   one seen at the last frame only after that many presses between two
- *   frames, which the ring's length rules out short of a stall of seconds.
- *   The frame replays the presses it finds new in the order of their times
- *   (now less the hit's age), cooling every key up to each press's time
- *   before it adds the press, then up to now, so that a late frame (a frame's
- *   period after the press at best, a stalled frame's delay at worst) warms
- *   and cools as the frames on time would have: the cooling is the key's, at
- *   one rate whatever its heat, so a press's heat is never cooled apart from
- *   the key's (a first version did, and two presses in one frame cooled
- *   twice). A press the ring drops before a frame runs, more than HITS of
- *   both halves' within one frame, is never seen: the frame counts the last
- *   HITS. The heat outlives the hit's place in the ring: a burst of typing
- *   drops the oldest hits, and their heat cools on as it should.
+ *   press is counted once, by its number: the engine's ring (src/frame.h:
+ *   LANTERN_HITS, the last sixteen presses of both halves) lists a hit at
+ *   every frame while it lives, and the entry keeps the numbers that were
+ *   live at the last frame (seen, a bit a number), so a live hit whose
+ *   number was not is new, whatever order the ring lists it in and whether a
+ *   frame's reading of the ring was overtaken by a press (a first version
+ *   kept the newest counted number and took a hit behind it for counted: a
+ *   press noted into a slot the frame had read already, with a newer one
+ *   into a slot it had not, was never counted; Opus review, 2026-11-02). A
+ *   number comes round after LANTERN_HIT_SEQ_CYCLE presses of both halves,
+ *   so a press is mistaken for one seen at the last frame only after that
+ *   many presses between two frames, which the ring's length rules out short
+ *   of a stall of seconds. The frame replays the presses it finds new in the
+ *   order of their times (now less the hit's age), cooling every key up to
+ *   each press's time before it adds the press, then up to now, so that a
+ *   late frame (a frame's period after the press at best, a stalled frame's
+ *   delay at worst) warms and cools as the frames on time would have: the
+ *   cooling is the key's, at one rate whatever its heat, so a press's heat is
+ *   never cooled apart from the key's (a first version did, and two presses
+ *   in one frame cooled twice). A press the ring drops before a frame runs,
+ *   more than LANTERN_HITS of both halves' within one frame, is never seen:
+ *   the frame counts the last LANTERN_HITS. The heat outlives the hit's place
+ *   in the ring: a burst of typing drops the oldest hits, and their heat
+ *   cools on as it should.
  * - The life is the cooling of the hottest key, HEAT_ONE at HEAT_COOL a
  *   second (HEATMAP_MS, which the assert below keeps at or past it): a hit
  *   keeps the frames moving until every key it could have warmed is cold,
@@ -94,9 +95,6 @@ BUILD_ASSERT((uint64_t)HEATMAP_MS * HEAT_COOL >= (uint64_t)HEAT_ONE * 1000,
              "HEATMAP_MS: a key could still be warm when its last hit's life ends");
 /* The numbers live at the last frame, a bit each (the header). */
 BUILD_ASSERT(LANTERN_HIT_SEQ_CYCLE <= 64, "LANTERN_HIT_SEQ_CYCLE: the press numbers outgrow seen");
-/* The presses one frame can find new: the ring's length (src/keys.c: HITS);
- * any past it wait for the next frame, still live and still unseen. */
-#define FRESH_MAX 16
 
 /* The frame's thread (the header): each LED's heat, the numbers of the hits
  * live at the last frame, the engine's clock at the last frame (the time the
@@ -169,8 +167,9 @@ static void heatmap_draw(struct led_rgb px[], const struct shades *sh, const str
     uint32_t now = k_uptime_get_32();
 
     /* the presses not yet counted, oldest first (an insertion sort of their
-     * indices), and the numbers live now */
-    uint8_t fresh[FRESH_MAX];
+     * indices; n is at most the ring's LANTERN_HITS), and the numbers live
+     * now */
+    uint8_t fresh[LANTERN_HITS];
     size_t m = 0;
     uint64_t live_now = 0;
 
@@ -178,7 +177,7 @@ static void heatmap_draw(struct led_rgb px[], const struct shades *sh, const str
         uint64_t bit = (uint64_t)1 << live[h].seq;
 
         live_now |= bit;
-        if ((seen & bit) != 0 || m == ARRAY_SIZE(fresh)) {
+        if ((seen & bit) != 0) {
             continue;
         }
         size_t j = m;

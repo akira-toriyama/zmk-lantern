@@ -2,8 +2,9 @@ name: Build
 
 # Builds every target in build.yaml through the local reusable
 # (.github/workflows/zmk-build.yml). The caller job is named `build` so the
-# status check reads `build / Build (<board>, <shield>)`, which the main
-# ruleset requires for both halves.
+# status check reads `build / Build (<board>, <shield>)`, the names the main
+# ruleset's required checks use; every target of build.yaml belongs among
+# them, a new one too.
 
 on:
   # Pull requests build once (pull_request); main builds once per push. The

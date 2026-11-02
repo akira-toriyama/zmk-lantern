@@ -15,10 +15,10 @@
  * little at most (2026-10-22), then asked the star's white head, the last of
  * them, away too (canon t-ky8x, 2026-10-27). Each half plays it alone,
  * mirrored: an LED's depth runs from 0 at the half's outermost key to
- * DEPTH_ONE at its innermost, by its key's distance (the coords, src/frame.h)
- * from the bottom of the board's middle, the point between the two thumb
- * clusters, so the show moves from the outer columns' top to the inner thumb
- * and, from the burst, back. The script, in order: the star, a head crossing
+ * DEPTH_ONE at its innermost, by its key's distance (the keys' places,
+ * src/frame.h) from the bottom of the board's middle, the point between the
+ * two thumb clusters, so the show moves from the outer columns' top to the
+ * inner thumb and, from the burst, back. The script, in order: the star, a head crossing
  * the half in STAR_MS, each key in the colour of its third of the depths (the
  * thirds the burst ends in, below), each key glittering for GLITTER_MS from
  * the head's passing, in sight once the head's light has left it, every beat
@@ -140,8 +140,8 @@ BUILD_ASSERT(CORE_SWELL < CORE_FROM && CORE_FROM < CORE_FULL && CORE_FULL <= DEP
 
 static atomic_t intro_seed; /* the glitter's seed, k_cycle_get_32() at the start */
 
-/* The frame's thread: each LED's depth, measured from the coords at the
- * intro's first frame. */
+/* The frame's thread: each LED's depth, measured from the keys' places at
+ * the intro's first frame. */
 static bool depth_measured;
 static uint16_t depth[LED_COUNT];
 

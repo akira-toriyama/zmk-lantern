@@ -62,7 +62,8 @@ config LANTERN_PICTURE_BRIGHTNESS
       so a dimmer picture can merge two close colours: one picture fewer in
       the countdown and one colour fewer in an effect's cycle. Default
       LANTERN_BRIGHTNESS; never above it (asserted: a still picture could
-      pass the cap). canon t-skdt tries half of it under the disc.
+      pass the cap). canon t-skdt tried half of it under the disc, then
+      chose no picture at all (LANTERN_NO_PICTURE).
 
 config LANTERN_COLOUR_0
     hex "The palette's first colour until the host hands a palette, 0xRRGGBB (all six 0: none, every key white)"
@@ -244,9 +245,11 @@ choice LANTERN_INTRO_DEFAULT
       One of the intros built into the image (each member depends on its
       intro): what the boot light plays before the host's first pick
       (src/intro.c) and whenever the stored pick names no intro this image
-      builds, and the only pick a consumer without a host has. Without a
-      line: the star waves when they are built (a conf that asks for the
-      show wants to see it), else the bands. canon's halves write the line.
+      builds, and the only pick a consumer without a host has unless a key
+      of the central's keymap picks one (`&intro <mask> 0`, LANTERN_INTRO).
+      Without a line: the star waves when they are built (a conf that asks
+      for the show wants to see it), else the bands. canon's halves write
+      the line.
 
 config LANTERN_INTRO_DEFAULT_BANDS
     bool "The bands"
@@ -342,8 +345,8 @@ choice LANTERN_PICTURE
     help
       What the LEDs show while lit, the countdown's first picture and the
       one the effects draw over (src/keys.c), or every key black
-      (LANTERN_NO_PICTURE). The bands by default; canon t-skdt tries the
-      others one image at a time.
+      (LANTERN_NO_PICTURE). The bands by default; canon t-skdt tried the
+      others one image at a time and chose the no picture.
 
 config LANTERN_BANDS
     bool "Each key in the slot the lantern,keys node's slots give it"
@@ -403,14 +406,16 @@ config LANTERN_NO_PICTURE
       Every LED black while the LEDs are lit, so that only the effects
       show, over black keys (and the stain's dye, which stays at the
       picture's brightness as over any picture). The boot light shows the
-      picked intro, by default the bands (LANTERN_INTRO_BANDS), so that a
-      half still shows it has power; on USB the keys turn black when it
-      ends. With the
+      picked intro, without a pick the choice LANTERN_INTRO_DEFAULT's (the
+      star waves where they are built, else the bands, LANTERN_INTRO_BANDS),
+      so that a half still shows it has power; on USB the keys turn black
+      when it ends. With the
       countdown on, its first picture is the black one and the others the
       whole half in a colour, as with the bands, from
       LANTERN_COUNTDOWN_STAGE_MS after the last key; canon's product images
       carry it with LANTERN_COUNTDOWN=n (t-skdt). The node keeps slots, which
-      the bands intro reads and the crossing ring for its colours.
+      the bands intro reads, and the crossing ring and the beams for their
+      colours.
 
 endchoice
 
@@ -439,9 +444,9 @@ config LANTERN_EFFECTS
       the moving frames and their cap (LANTERN_FRAMES), the table of the
       built effects (one file an effect under src/effects/, src/frame.h;
       each lives its design's time after a press, or on a larger board the
-      time its shape needs to cross it, measured from the lantern,keys
-      node's coords; the beams keep the design's fade, the heatmap its
-      cooling) and the pick of
+      time its shape needs to cross it, measured from the keys' places,
+      the lantern,keys node's coords or the physical layout's; the beams
+      keep the design's fade, the heatmap its cooling) and the pick of
       which of them draw (LANTERN_EFFECT,
       the choice LANTERN_EFFECT_DEFAULT). Each effect selects it; nothing
       to set.
@@ -494,8 +499,10 @@ choice LANTERN_EFFECT_DEFAULT
       One of the effects built into the image (each member depends on its
       effect): what a half shows before the host's first pick (src/effect.c)
       and whenever the stored pick names no effect this image builds, and
-      the only pick a consumer without a host has. canon's is the crossing
-      ring (t-5hqx). Without a line: the stain when it is built (it builds
+      the only pick a consumer without a host has unless a key of the
+      central's keymap picks one (`&effect <mask> <colour>`, LANTERN_EFFECT,
+      or `&effect_next`, LANTERN_EFFECT_NEXT). canon's is the crossing ring
+      (t-5hqx). Without a line: the stain when it is built (it builds
       the thin ring too, and a conf that asks for the stain wants the dye;
       Opus review 2026-10-26), else the first built effect in this order. A
       conf that builds several effects for a keyboard without a host writes
@@ -607,9 +614,10 @@ config LANTERN_TEMPO_DEFAULT
     help
       What the tempo does before the host's first pick (src/tempo.c) and
       whenever the stored pick names neither state, and the only pick a
-      consumer without a host has: y runs it, n leaves the effects at their
-      own speed until the host says otherwise. Default y: a conf that builds
-      the tempo wants to see it, as the intros' default.
+      consumer without a host has unless a key of the central's keymap picks
+      one (`&tempo <mask> 0`, LANTERN_TEMPO_PICK): y runs it, n leaves the
+      effects at their own speed until the host says otherwise. Default y: a
+      conf that builds the tempo wants to see it, as the intros' default.
 
 config LANTERN_TEMPO_PICK
     bool "Take the pick of the tempo from the split central's host, and keep it across boots"
@@ -868,7 +876,7 @@ config LANTERN_LAYER_KEYS
       Default n, as the thin ring.
 
 config LANTERN_HIT
-    bool "Carry each half's key presses to the other half through the split central, for the effects that cross the split"
+    bool "Carry each half's key presses to the other half through the split central, for the effects that cross the split, the tempo and the wake"
     default y
     depends on DT_HAS_LANTERN_BEHAVIOR_HIT_ENABLED
     depends on ZMK_SPLIT_BLE
@@ -885,8 +893,9 @@ config LANTERN_HIT
       water's waves come in low, from a thumb higher, the dart's bar on its
       way; the heatmap warms nothing from it), the
       stain dyes with it, and it counts in the press count the thin ring's
-      colours follow, whichever of them the pick draws; its countdown's
-      clock ignores it, and a half dark for idle lights at it
+      colours follow, whichever of them the pick draws, and in the tempo's
+      count (LANTERN_TEMPO); its countdown's clock ignores it, and a half
+      dark for idle lights at it
       (LANTERN_WAKE_ON_HIT, on by default on a peripheral with the idle rule
       and without ZMK_SLEEP). The central sends
       only to a half whose link runs at peripheral latency 0, which a half
@@ -978,14 +987,15 @@ config LANTERN_PALETTE
       build time; and its run queue must hold a whole palette for every
       half at once, CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE at
       least 3 x the peripheral count (ZMK's default is 5), asserted too, and
-      one more a half with each pick (LANTERN_EFFECT, LANTERN_INTRO: 10 for
-      two halves with both). Default y where the node is present: the node
-      is the switch, as the lantern,rail node is for LANTERN_RAIL.
+      one more a half with each pick (LANTERN_EFFECT, LANTERN_INTRO,
+      LANTERN_TEMPO_PICK: six a half with all three, 12 for two halves).
+      Default y where the node is present: the node is the switch, as the
+      lantern,rail node is for LANTERN_RAIL.
 
 config LANTERN_PORT
-    bool "Take palette, effect and intro commands on the split central's USB CDC ACM port"
+    bool "Take palette, effect, intro and tempo commands on the split central's USB CDC ACM port"
     default y
-    depends on LANTERN_PALETTE || LANTERN_EFFECT || LANTERN_INTRO
+    depends on LANTERN_PALETTE || LANTERN_EFFECT || LANTERN_INTRO || LANTERN_TEMPO_PICK
     depends on ZMK_SPLIT_ROLE_CENTRAL
     depends on USB_CDC_ACM
     select UART_INTERRUPT_DRIVEN
@@ -1000,9 +1010,12 @@ config LANTERN_PORT
       answered with "effect ok", the names and the colour when set, and
       "effect" or "effect?" asks (LANTERN_EFFECT); "intro <name>" (src/intro.h's names,
       one) picks the intro the boot light plays the same way, answered with
-      "intro ok" and the name, and "intro" or "intro?" asks (LANTERN_INTRO).
-      canon's scripts/dongle.py palette, effect and intro send them to the
-      Imprint Dongle. The port's rate is untouched: 1200 baud is zmk-beacon's
+      "intro ok" and the name, and "intro" or "intro?" asks (LANTERN_INTRO);
+      "tempo on" or "tempo off" (src/tempo.h's names, one) picks whether
+      the tempo runs the same way, answered with "tempo ok" and the state,
+      and "tempo" or "tempo?" asks (LANTERN_TEMPO_PICK).
+      canon's scripts/dongle.py palette, effect, intro and tempo send them
+      to the Imprint Dongle. The port's rate is untouched: 1200 baud is zmk-beacon's
       bootloader entry. A reply is written without waiting for a reader; a
       line that begins with none of the words gets none. It takes the UART
       interrupt callback of every CDC ACM port, of which a device keeps one,

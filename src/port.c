@@ -21,7 +21,9 @@
  *   effect <name> [<name> ...] [RRGGBB]
  *                                 pick these effects (src/effect.h's names; two
  *                                 or more draw together), in one colour, or
- *                                 without one in the palette's colours
+ *                                 without one in the palette's colours (the
+ *                                 parse takes a colour anywhere after the
+ *                                 word, and of several the last)
  *     -> effect ok <name> [<name> ...] [RRGGBB]   the pick as stored, in the
  *                                   table's order, the colour when one is set
  *     -> effect error: <reason>
@@ -121,7 +123,7 @@
 LOG_MODULE_REGISTER(lantern_port, LOG_LEVEL_INF);
 
 BUILD_ASSERT(IS_ENABLED(CONFIG_LANTERN_PALETTE) || IS_ENABLED(CONFIG_LANTERN_EFFECT) ||
-                 IS_ENABLED(CONFIG_LANTERN_INTRO),
+                 IS_ENABLED(CONFIG_LANTERN_INTRO) || IS_ENABLED(CONFIG_LANTERN_TEMPO_PICK),
              "CONFIG_LANTERN_PORT has no word to answer without the palette or a pick");
 
 #define PALETTE_WORD "palette"
@@ -135,7 +137,8 @@ BUILD_ASSERT(IS_ENABLED(CONFIG_LANTERN_PALETTE) || IS_ENABLED(CONFIG_LANTERN_EFF
 #define PALETTE_LINE (16 + 7 * LANTERN_PALETTE_SLOTS)
 #define PICK_LINE(count) (16 + 7 + (PICK_NAME_MAX + 1) * (count))
 #define LINE_LIMIT                                                                                 \
-    MAX(PALETTE_LINE, MAX(PICK_LINE(LANTERN_EFFECT_COUNT), PICK_LINE(LANTERN_INTRO_COUNT)))
+    MAX(MAX(PALETTE_LINE, PICK_LINE(LANTERN_EFFECT_COUNT)),                                        \
+        MAX(PICK_LINE(LANTERN_INTRO_COUNT), PICK_LINE(LANTERN_TEMPO_COUNT)))
 #define REPLY_MAX MAX(64, LINE_LIMIT)
 #define LINES_WAITING 2
 
@@ -143,6 +146,7 @@ BUILD_ASSERT(IS_ENABLED(CONFIG_LANTERN_PALETTE) || IS_ENABLED(CONFIG_LANTERN_EFF
     BUILD_ASSERT(sizeof(name) - 1 <= PICK_NAME_MAX, "a pick's name is longer than PICK_NAME_MAX");
 LANTERN_EFFECT_LIST(NAME_FITS_)
 LANTERN_INTRO_LIST(NAME_FITS_)
+LANTERN_TEMPO_LIST(NAME_FITS_)
 #undef NAME_FITS_
 
 /* The USB work queue's side: bytes into a line. */

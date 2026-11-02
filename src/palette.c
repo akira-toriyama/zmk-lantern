@@ -34,16 +34,16 @@
  *   split_bt_invoke_behavior_payload). A set from the port queues every
  *   half's three in one go, 6 for two halves. The queue is asserted to hold
  *   a whole palette for every half, PAIRS x the peripheral count, and the
- *   picks' one more a half each (src/pick.c asserts the sum; a consumer with
- *   two halves sets 10, canon's config/imprint_dongle.conf): a set that
- *   starts on an empty queue then goes in without waiting, and a drain
- *   stalled for 100 ms (a half that stopped acknowledging) drops commands
- *   queued before the set, never the set's own, where ZMK's 5 would drop
- *   the first half's slots 0-1, the ones seen (read 2026-10-19, ZMK
- *   4dd95d78; on an idle link 5 drops nothing either, the drain takes the
- *   first command while the sixth put waits). A resend is one half's three,
- *   with each pick's one (src/pick.c), both halves' at once when both
- *   report together.
+ *   picks' one more a half each (src/pick.c asserts the sum, six a half with
+ *   the three picks; a consumer with two halves sets 12, canon's
+ *   config/imprint_dongle.conf): a set that starts on an empty queue then
+ *   goes in without waiting, and a drain stalled for 100 ms (a half that
+ *   stopped acknowledging) drops commands queued before the set, never the
+ *   set's own, where ZMK's 5 would drop the first half's slots 0-1, the ones
+ *   seen (read 2026-10-19, ZMK 4dd95d78; on an idle link 5 drops nothing
+ *   either, the drain takes the first command while the sixth put waits). A
+ *   resend is one half's three, with each pick's one (src/pick.c), both
+ *   halves' at once when both report together.
  * - Settings: "lantern/palette/colours", the six colours as one value, saved
  *   when a colour changed or the first palette arrived and not otherwise; a
  *   value of another size (stored by a build with another slot count) is
@@ -73,10 +73,11 @@
  *   hence CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING, asserted);
  *   there is no event on the central for a half's connection itself (ZMK
  *   4dd95d78 raises zmk_split_peripheral_status_changed on the half only).
- *   The send waits RESEND_DELAY_MS: the read's answer may arrive before the
- *   discovery has found the half's run-behavior characteristic, and a command
- *   sent until then is dropped with "Run behavior handle not found". A level
- *   report is a few an hour at most, and the half compares before it writes.
+ *   The send waits LANTERN_RESEND_DELAY_MS (src/resend.h, which the picks'
+ *   resends share): the read's answer may arrive before the discovery has
+ *   found the half's run-behavior characteristic, and a command sent until
+ *   then is dropped with "Run behavior handle not found". A level report is
+ *   a few an hour at most, and the half compares before it writes.
  * - Threads: the behavior handler runs where ZMK runs behaviors, on a half the
  *   Bluetooth receive work queue that delivers the central's write (ZMK
  *   app/src/split/bluetooth/service.c, CONFIG_BT_RECV_WORKQ_BT), on the
@@ -122,8 +123,9 @@
 #if IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
 #include <zmk/event_manager.h>
 #include <zmk/events/battery_state_changed.h>
-#include <zmk/events/position_state_changed.h>
 #include <zmk/split/central.h>
+
+#include "resend.h"
 #endif
 
 #include "palette.h"
@@ -150,7 +152,6 @@ BUILD_ASSERT(IS_ENABLED(CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING),
 #define KEY SUBTREE "/colours"
 #define PAIRS LANTERN_PALETTE_PAIRS
 #define PAIR_SHIFT 24
-#define RESEND_DELAY_MS 1000
 
 BUILD_ASSERT(LANTERN_PALETTE_SLOTS % 2 == 0, "an invocation carries a pair of slots");
 #if IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
@@ -269,15 +270,6 @@ SETTINGS_STATIC_HANDLER_DEFINE(lantern_palette, SUBTREE, NULL, on_set, on_commit
 
 #if IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
 
-static struct zmk_behavior_binding_event local_event(void) {
-    return (struct zmk_behavior_binding_event){
-        .layer = 0,
-        .position = 0,
-        .timestamp = k_uptime_get(),
-        .source = ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL,
-    };
-}
-
 static struct zmk_behavior_binding pair_binding(uint32_t pair, uint32_t a, uint32_t b) {
     return (struct zmk_behavior_binding){
         .behavior_dev = BEHAVIOR_NAME,
@@ -303,7 +295,7 @@ int lantern_palette_send(const uint32_t *in, size_t count) {
     int rc = 0;
     for (uint32_t pair = 0; pair < PAIRS; pair++) {
         struct zmk_behavior_binding binding = pair_binding(pair, next[2 * pair], next[2 * pair + 1]);
-        int err = zmk_behavior_invoke_binding(&binding, local_event(), true);
+        int err = zmk_behavior_invoke_binding(&binding, lantern_local_event(), true);
         if (err < 0 && rc == 0) {
             rc = err;
         }
@@ -327,7 +319,8 @@ static void resend(struct k_work *work) {
         struct zmk_behavior_binding binding =
             pair_binding(pair, (uint32_t)atomic_get(&colours[2 * pair]),
                          (uint32_t)atomic_get(&colours[2 * pair + 1]));
-        int err = zmk_split_central_invoke_behavior(r->source, &binding, local_event(), true);
+        int err =
+            zmk_split_central_invoke_behavior(r->source, &binding, lantern_local_event(), true);
         if (err < 0) {
             LOG_WRN("resend to half %u failed: %d", r->source, err);
             return;
@@ -339,14 +332,10 @@ static void resend(struct k_work *work) {
 static struct resend resends[ZMK_SPLIT_CENTRAL_PERIPHERAL_COUNT];
 
 static int battery_listener(const zmk_event_t *eh) {
-    const struct zmk_peripheral_battery_state_changed *ev =
-        as_zmk_peripheral_battery_state_changed(eh);
-    if (ev == NULL) {
-        return ZMK_EV_EVENT_BUBBLE;
-    }
-    if (ev->source < ARRAY_SIZE(resends) && ev->state_of_charge > 0 &&
-        atomic_get(&have_palette)) {
-        k_work_reschedule(&resends[ev->source].work, K_MSEC(RESEND_DELAY_MS));
+    int s = lantern_resend_slot(eh, ARRAY_SIZE(resends));
+
+    if (s >= 0 && atomic_get(&have_palette)) {
+        k_work_reschedule(&resends[s].work, K_MSEC(LANTERN_RESEND_DELAY_MS));
     }
     return ZMK_EV_EVENT_BUBBLE;
 }

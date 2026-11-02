@@ -15,13 +15,15 @@
 // the shield's 150 is a placeholder) and tells the key under each LED, the
 // palette slot each key shows and where each key is. This check build, on
 // Cyboard's stock keymap (imprint_function_row, 76 keys), takes the chain in
-// key order for positions, which a consumer measures on its hardware instead
-// (canon t-69g7), paints slots 0..4 left to right in five bands, and lays
-// the keys on a grid for coords (hundredths of a key unit: the five rows a
-// unit apart, the halves 6.5 units apart, the two bottom keys and the thumbs
-// below), a stand-in for the consumer's physical layout (canon: imprint.json
-// times 100) that the effects measuring the board take, and canon's shares
-// for the scatter.
+// key order for positions, which a consumer takes from its hardware instead
+// (canon: Cyboard's own LED map, its bands seen right on the hardware,
+// t-69g7), paints slots 0..4 left to right in five bands, and lays the keys
+// on a grid for coords (hundredths of a key unit: the five rows a unit apart,
+// the halves 6.5 units apart, the two bottom keys and the thumbs below), a
+// stand-in for the consumer's physical layout (canon: imprint.json times
+// 100) by which the right half's effects and its star waves measure the
+// board (config/imprint_right.conf; the left half builds neither), and
+// canon's shares for the scatter.
 
 #include <zephyr/dt-bindings/gpio/gpio.h>
 
