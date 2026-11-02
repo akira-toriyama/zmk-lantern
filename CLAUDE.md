@@ -265,14 +265,28 @@ how to build. Usage: [README.md](README.md). English only.
   `./scripts/build-zmk.sh imprint --module <this checkout>` (canon #267,
   2026-10-19): the images carry `-lantern` and a stamp of canon's pinned
   inputs plus that variant, which `dongle.py check` reports as `debug`.
-- The host harness (`~/.cache/zmk-lantern-harness`, outside the repository,
-  never committed): the real `src/keys.c` with the intros and the effects
-  as one translation unit over stubbed Zephyr, the frames compared to the
-  byte with an older tree's, the rail rule's nine scenes over the real
-  `src/on_usb_power.c` with and without `CONFIG_LANTERN_RAIL` (the settle is
-  100 ms with the rail, 0 without), the Kconfig combinations with
-  `-fsyntax-only`. A change to the engine or the rule runs it before the
-  Docker check builds.
+- The host harness, [scripts/harness/run.sh](scripts/harness/run.sh) (its
+  header lists the steps, what a new effect or intro needs in the harness,
+  and where the outputs go: a directory a checkout, one run at a time; clang
+  on the Mac, never in CI): the real `src/keys.c` with the intros and the
+  effects as one translation unit over stubbed Zephyr (canon's halves'
+  tables), each program checking what it draws; the rail rule's 11 scenes,
+  and the wake's 10 more in a build with it, over the real
+  `src/on_usb_power.c` in four builds (with and without the wake, with and
+  without the rail; the settle is 100 ms with the rail, 0 without); the
+  central's `src/layer.c` over canon's keymap and a synthetic 76-key one;
+  the Kconfig combinations with `-fsyntax-only`; and `run.sh equiv [REF]`,
+  REF's `src/` (default: the merge base with `origin/main`) and this tree's
+  under one program built as canon's halves are, their frames compared to
+  the byte: both intros, every effect, the layer keys over a state, the
+  pick's colour and the tempo (`harness_dump.c` lists the script; REF has
+  the tempo, aeec40c, or later). A change to the engine, an effect, an
+  intro, the rule or `src/layer.c` runs `./scripts/harness/run.sh` before
+  the Docker check builds (exit 0: every program exited 0, each ending in
+  `fails 0` or `0 failure(s)`). A change to the engine, an effect or an
+  intro that must not move a pixel also runs `run.sh equiv`, which compiles
+  neither `src/on_usb_power.c` nor `src/layer.c` (the `policy` and
+  `central` steps check those).
 - CI: `build.yml` → the local reusable `zmk-build.yml` (it says why not ZMK's);
   `shellcheck.yml`; the fleet gates. `release.yml` keeps a rolling draft
   release of the notes alone (glyph's reusable, verdict-only: the module ships
@@ -729,9 +743,10 @@ how to build. Usage: [README.md](README.md). English only.
   log was not read: the port's ring keeps the boot log only). The symptom
   it answers, the crossing ring not reaching a half left untouched for
   minutes, is the user's report of 2026-10-28; the cause was read from
-  the sources, not a log, and held in the host harness's rail scenes and a
-  host model of ZMK's activity, event manager and peripheral command
-  handler over the real module files (2026-10-28 and 2026-11-01). The
+  the sources, not a log, and held in the host harness's scenes (the wake's
+  are in `scripts/harness/policy.c`) and in a session's host model of ZMK's
+  activity, event manager and peripheral command handler over the real
+  module files (2026-10-28 and 2026-11-01; the model was not kept). The
   heatmap (2026-11-02, canon's trial images of e470587 on the dongle and
   both halves, `CONFIG_LANTERN_HEATMAP=y` on the halves, the pick `heatmap`
   alone, both halves typed, canon t-6ttk): the user's OK on sight, and the

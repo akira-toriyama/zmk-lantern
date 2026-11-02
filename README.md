@@ -693,8 +693,9 @@ host, below).
   host's bits as sent, the ones its image lacks included, so the reply names
   the pick as made (with the names this image knows; `effect none`, `intro
   none` or `tempo none` when it knows none of the stored bits) and an image with more effects
-  or intros shows it. The colour is measured in the host harness (every
-  effect in one colour, and the frames without one unchanged to the byte);
+  or intros shows it. The colour is measured in the host harness
+  ([scripts/harness/run.sh](scripts/harness/run.sh): every effect in one
+  colour);
   what ran on hardware is in canon's CLAUDE.md (Invariants, the effect
   paragraph).
 

@@ -1,7 +1,8 @@
 name: ShellCheck
 
-# Static check of the shell scripts (scripts/build.sh). shellcheck ships with
-# the GitHub Ubuntu runner, so there is nothing to install.
+# Static check of the shell scripts (scripts/build.sh,
+# scripts/harness/run.sh). shellcheck ships with the GitHub Ubuntu runner, so
+# there is nothing to install.
 on:
   # push only on main: a PR branch is checked once, through pull_request.
   push:
