@@ -6,7 +6,7 @@
  * The next effect from a key (canon t-rgp5): the behavior
  * lantern,behavior-effect-next, bound to a key of the central's keymap
  * (`&effect_next`), picks on press the effect after the stored pick in
- * LANTERN_EFFECT_LIST's order (src/effect.h, lantern_effect_next()), over the
+ * LANTERN_EFFECT_LIST's bits' order (src/effect.h, lantern_effect_next()), over the
  * effects this central builds (a stock half as the central) or the whole table
  * where it builds none (a dongle, which cannot know what the halves build),
  * round again after the last, and keeps the pick's colour. The pick itself is

@@ -377,7 +377,8 @@ config LANTERN_EFFECTS
       built effects (one file an effect under src/effects/, src/frame.h;
       each lives its design's time after a press, or on a larger board the
       time its shape needs to cross it, measured from the lantern,keys
-      node's coords; the beams keep the design's fade) and the pick of
+      node's coords; the beams keep the design's fade, the footprints their
+      two seconds) and the pick of
       which of them draw (LANTERN_EFFECT,
       the choice LANTERN_EFFECT_DEFAULT). Each effect selects it; nothing
       to set.
@@ -465,6 +466,10 @@ config LANTERN_EFFECT_DEFAULT_DART
     bool "The dart"
     depends on LANTERN_DART
 
+config LANTERN_EFFECT_DEFAULT_FOOTPRINTS
+    bool "The footprints"
+    depends on LANTERN_FOOTPRINTS
+
 config LANTERN_EFFECT_DEFAULT_LAYER_KEYS
     bool "The layer keys"
     depends on LANTERN_LAYER_KEYS
@@ -500,7 +505,8 @@ config LANTERN_EFFECT_NEXT
     help
       A key bound to the lantern,behavior-effect-next node (`&effect_next`
       in the keymap) picks, on press, the effect after the stored pick in
-      LANTERN_EFFECT_LIST's order, over the effects this central builds, or
+      LANTERN_EFFECT_LIST's bits' order (the layer keys before the
+      footprints), over the effects this central builds, or
       the whole table where it builds none (a dongle), round again after the
       last, and keeps the pick's colour (src/effect_next.c); with no pick
       stored, the effect after LANTERN_EFFECT_DEFAULT where this central
@@ -692,6 +698,28 @@ config LANTERN_DART
       copied). Needs the keys' places, as the thin ring does. Default n,
       as the thin ring.
 
+config LANTERN_FOOTPRINTS
+    bool "Build the footprints: each pressed key lights at once and fades out over two seconds, the last keys trailing behind"
+    depends on LANTERN_KEYS
+    select LANTERN_EFFECTS
+    help
+      The effect footprints (src/effect.h), built into the image and drawn
+      when the pick names it (LANTERN_EFFECT, LANTERN_EFFECT_DEFAULT): while
+      the key LEDs are lit, each pressed key lights at once in the palette's
+      next colour (the press's number, the thin ring's rule), at full
+      brightness within the frame's cap (so the build refuses a
+      LANTERN_BRIGHTNESS of 100), and fades out over two seconds, so that as
+      you type the last seconds' keys trail behind you, the newest the
+      brightest; a key pressed again lights afresh. Nothing spreads: the
+      effect measures nothing (no LANTERN_GEOMETRY), and a press of the
+      other half (LANTERN_HIT) lights nothing here, its key having no LED on
+      this half, though it counts in the press number the colours follow.
+      The effect keeps its own table of each key's last press, so a burst of
+      typing past the engine's ring of sixteen presses (src/keys.c) fades
+      every footprint to its end; more than sixteen presses of both halves
+      within one frame, and the oldest never show. The user's own idea (canon t-6ttk,
+      2026-10-28). Default n, as the thin ring.
+
 config LANTERN_LAYER_KEYS
     bool "Build the layer keys: while a layer is held, the keys it binds light in its colour"
     depends on LANTERN_KEYS
@@ -736,7 +764,8 @@ config LANTERN_HIT
       the dart do too, in their own colours (the beams' row comes in across
       the split, the disc then lives long enough to cross the board, the
       water's waves come in low, from a thumb higher, the dart's bar on its
-      way), the
+      way; the footprints light nothing from it, the key having no LED on
+      this half, and count it in the press number their colours follow), the
       stain dyes with it, and it counts in the press count the thin ring's
       colours follow, whichever of them the pick draws; its countdown's
       clock ignores it, and a half dark for idle lights at it

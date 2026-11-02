@@ -344,7 +344,7 @@ BUILD_ASSERT(HI_LEVEL > LEVEL, "CONFIG_LANTERN_BRIGHTNESS 100 leaves the frame's
 #define HIT_TIME 0x3FFFFu
 #define HIT_SEQ_SHIFT 18
 #define HIT_SEQ_MASK 0x3Fu
-#define HIT_SEQ_CYCLE 60
+#define HIT_SEQ_CYCLE LANTERN_HIT_SEQ_CYCLE
 BUILD_ASSERT(KEY_COUNT <= 255, "lantern,keys: a hit stores its key position + 1 in a byte");
 BUILD_ASSERT(HIT_SEQ_CYCLE <= HIT_SEQ_MASK + 1, "a hit's seq is stored in 6 bits");
 BUILD_ASSERT(LANTERN_PALETTE_SLOTS == 6 && HIT_SEQ_CYCLE % 60 == 0,
