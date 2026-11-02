@@ -737,9 +737,9 @@ config LANTERN_HEATMAP
       raises by an eighth of the scale and a press within 2.9 key units of
       it by up to six hundredths, less the farther, and which cools by
       fifteen hundredths a second; a key shows its heat at full brightness
-      within the frame's cap from a third of the scale on (three presses of
-      a key within a second or so; so the build refuses a LANTERN_BRIGHTNESS
-      of 100), dimmer below, in the palette's last colour when cold and
+      within the frame's cap from a third of the scale on (four presses of
+      a key within a second; so the build refuses a LANTERN_BRIGHTNESS of
+      100), dimmer below, in the palette's last colour when cold and
       running along the colours to the first at the top of the scale, so
       that as you type the keys you type most, and the keys around them,
       glow, and when you stop the glow cools to the last colour and goes out

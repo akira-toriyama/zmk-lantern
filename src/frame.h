@@ -242,7 +242,8 @@ static inline uint32_t apart(uint16_t a, uint16_t b) { return a > b ? a - b : b 
 /* The press count cycles over this many (src/keys.c: a multiple of every
  * shade count, so that an effect which gives each press the palette's next
  * shade skips none at the wrap); an effect that tells presses apart by
- * their number (the footprints, the heatmap) asserts its life against it. */
+ * their number (the footprints) asserts its life against it, and one that
+ * keeps a bit a number (the heatmap) asserts it fits. */
 #define LANTERN_HIT_SEQ_CYCLE 60
 
 /* A press the effects draw, read out of the engine's ring (src/keys.c). */

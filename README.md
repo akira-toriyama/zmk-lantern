@@ -359,8 +359,8 @@ lights what is at hand. The sibling module
   bar until it has run the board's width; measured from the keys' places at
   boot), so a wider board keeps it in sight; the beams keep the design's
   fade, which answers to the gap between the halves, the footprints
-  their two seconds, which spread nowhere, and the heatmap the seven
-  seconds its hottest key takes to cool. A frame keeps moving
+  their two seconds, which spread nowhere, and the heatmap the 6.7 s its
+  hottest key takes to cool (a life of seven). A frame keeps moving
   while a press is within the picked effects' life. The presses an effect
   still draws sit in a ring of sixteen, both halves together (the
   footprints and the heatmap keep a table of their own past it): more presses
@@ -455,7 +455,7 @@ lights what is at hand. The sibling module
   press within 2.9 key units of it by up to six hundredths, less the farther,
   and which cools by fifteen hundredths a second; a key shows its heat at
   full brightness within the frame's cap from a third of the scale on
-  (three presses of a key within a second or so), dimmer below, in the
+  (four presses of a key within a second), dimmer below, in the
   palette's last colour when cold and running along the colours to the
   first at the top of the scale. So as you type the keys you type most, and
   the keys around them, glow, the hotter the brighter and the nearer the
