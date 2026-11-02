@@ -529,8 +529,9 @@ config LANTERN_TEMPO
       beams, the water, the dart) run faster the faster you type, up to
       twice their speed at eight presses a second over the last two seconds,
       counting both halves' presses where the hit carries them (LANTERN_HIT),
-      eased over a quarter of a second so that no ring jumps; the heatmap
-      and the layer keys keep their own time. An effect's life is unchanged,
+      eased with a time constant of about a quarter second so that no ring
+      changes speed by a step; the heatmap and the layer keys keep their own
+      time. An effect's life is unchanged,
       so a ring on the tempo has left the board before its hit goes. Default
       n: canon t-6ttk's trial (2026-11-02); whether the tempo becomes a pick
       of the host's is decided after it.

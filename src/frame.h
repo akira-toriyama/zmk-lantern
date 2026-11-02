@@ -254,7 +254,9 @@ static inline uint32_t apart(uint16_t a, uint16_t b) { return a > b ? a - b : b 
 struct hit {
     uint8_t key;  /* a key position */
     uint8_t seq;  /* the press's number, mod LANTERN_HIT_SEQ_CYCLE */
-    uint16_t age; /* ms since the press, below the picked effects' life */
+    uint16_t age; /* ms since the press, below the picked effects' life; to an
+                   * entry on the tempo (the header) the tempo's ms, up to
+                   * twice that, so it skips a hit at or past its own life */
 };
 
 /* The most an effect lives after a press: the engine keeps a hit's age in

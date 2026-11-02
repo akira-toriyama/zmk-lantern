@@ -166,8 +166,9 @@
  *   as the ring's), and each frame counts those within TEMPO_WINDOW_MS: the
  *   tempo is 1 + count / TEMPO_FULL, at most 2 (the survey's rate over the
  *   last two seconds against eight presses a second), eased toward over the
- *   frames (a TEMPO_SMOOTH-th of the way each) so that a press, or a beat
- *   leaving the window, moves no ring by a step. Each hit's age on the tempo
+ *   frames (a TEMPO_SMOOTH-th of the way each, a time constant of about a
+ *   quarter second at FRAME_MS) so that a press, or a beat leaving the
+ *   window, changes no ring's speed by a step. Each hit's age on the tempo
  *   advances by the tempo times the frame's period (tempo_count, one a slot
  *   of the ring, restarted when the slot takes a new press, at its real age
  *   so far times the tempo), so a change of tempo bends a ring's speed from
@@ -182,8 +183,10 @@
  *   the count's tempo as it stands, without the easing; the blank drops the
  *   beats with the hits and its frame puts the tempo at rest; a change of
  *   the pick keeps the beats (the typing goes on). The beats are read as the hits are, the clock after each, so a
- *   press noted meanwhile is never cleared as stale. 256 bytes of RAM,
- *   nothing on the frame's stack.
+ *   press noted meanwhile is never cleared as stale; a beat keeps the whole
+ *   32-bit clock, since the frames stop under the window and leave beats
+ *   unread for as long as the half is lit (beats, below). About 270 bytes
+ *   of RAM, nothing on the frame's stack.
  * - The effects' table (src/frame.h says what an entry is): one entry a file
  *   under src/effects/, built from LANTERN_EFFECT_LIST (src/effect.h) in its
  *   order, those the image builds. The frame paints the picture, lets each
@@ -389,7 +392,6 @@ BUILD_ASSERT(LANTERN_EFFECT_LIFE_MAX_MS < HIT_TIME / 2,
 #define TEMPO_WINDOW_MS 2000
 #define TEMPO_TOP 512
 #define TEMPO_SMOOTH 8
-BUILD_ASSERT(TEMPO_WINDOW_MS < HIT_TIME / 2, "a beat's age must be told from a wrapped time");
 BUILD_ASSERT(LANTERN_EFFECT_LIFE_MAX_MS * TEMPO_TOP / 256 <= UINT16_MAX,
              "a hit's age on the tempo is kept in 16 bits");
 #endif
@@ -750,10 +752,13 @@ static uint32_t take_next(atomic_t *counter, uint32_t cycle) {
 
 #if IS_ENABLED(CONFIG_LANTERN_TEMPO)
 
-/* The beats (the header): the last TEMPO_FULL presses' times, BEAT_SET and the
- * low 18 bits of k_uptime_get_32() in ms, as a hit's; 0 is none. Written from
- * any thread as the ring is; the frame clears one past the window. */
-#define BEAT_SET BIT(18)
+/* The beats (the header): the last TEMPO_FULL presses' times, the whole of
+ * k_uptime_get_32() in ms (a 0 stored as 1), not a hit's 18 bits: the frames
+ * stop at the last hit's life, under the window, so a beat can sit here unread
+ * for as long as the half stays lit, and 18 bits would bring it back into the
+ * window every 262 s (Opus review, 2026-11-02); 32 wrap in 49.7 days. 0 is
+ * none. Written from any thread as the ring is; the frame clears one past the
+ * window. */
 static atomic_t beats[TEMPO_FULL];
 static atomic_t beat_next;
 
@@ -770,8 +775,9 @@ static uint16_t real_ages[HITS], tempo_ages[HITS];
 
 /* Any thread. A full ring drops the oldest. */
 static void beat_note(void) {
-    atomic_set(&beats[take_next(&beat_next, TEMPO_FULL)],
-               (atomic_val_t)(BEAT_SET | (k_uptime_get_32() & HIT_TIME)));
+    uint32_t now = k_uptime_get_32();
+
+    atomic_set(&beats[take_next(&beat_next, TEMPO_FULL)], (atomic_val_t)(now == 0 ? 1 : now));
 }
 
 /* Any thread. */
@@ -792,8 +798,7 @@ static uint32_t beats_count(void) {
         if (v == 0) {
             continue;
         }
-        uint32_t now = k_uptime_get_32() & HIT_TIME;
-        if (((now - ((uint32_t)v & HIT_TIME)) & HIT_TIME) < TEMPO_WINDOW_MS) {
+        if (k_uptime_get_32() - (uint32_t)v < TEMPO_WINDOW_MS) {
             count++;
         } else {
             (void)atomic_cas(&beats[j], v, 0);
@@ -804,15 +809,19 @@ static uint32_t beats_count(void) {
 
 /* The frame's thread, before the ring is read: this frame's tempo, eased from
  * the last frame's toward the count's, or the count's as it stands after a
- * rest (the header); returns the ms since the last frame that ran it, 0 after
- * a rest. */
+ * rest (the header), when every slot's count restarts too (a hit still live
+ * across a stall of frames longer than the window, a life past it, would
+ * otherwise keep a count the stall never advanced); returns the ms since the
+ * last frame that ran it, 0 after a rest. */
 static uint32_t tempo_step(uint32_t now) {
-    uint32_t target = 256 + (TEMPO_TOP - 256) * MIN(beats_count(), TEMPO_FULL) / TEMPO_FULL;
+    /* at most TEMPO_FULL beats exist */
+    uint32_t target = 256 + (TEMPO_TOP - 256) * beats_count() / TEMPO_FULL;
     uint32_t dt = now - tempo_at;
 
     tempo_at = now;
     if (!tempo_running || dt > TEMPO_WINDOW_MS) {
         tempo_f = target;
+        memset(tempo_seen, 0, sizeof(tempo_seen));
         return 0;
     }
     if (target > tempo_f) {
