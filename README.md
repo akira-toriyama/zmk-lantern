@@ -248,8 +248,9 @@ lights what is at hand. The sibling module
   the palette and the picks are resent to it then) and a run queue that
   holds a whole palette and every pick for every half at once, six
   invocations each with all three picks:
-  `CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE=12` for two halves
-  (ZMK's default is 5; both asserted at build time). A device without a `lantern,keys` node, such as a dongle, keeps and
+  `CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE=12` for two halves, 6
+  for one peripheral (ZMK's default is 5, one short even then; both asserted
+  at build time). A device without a `lantern,keys` node, such as a dongle, keeps and
   forwards the palette and the picks without painting anything. On a split
   peripheral `CONFIG_LANTERN_USB_LATENCY` is on by default with the rule:
   while USB powers the half it asks the central for peripheral latency 0, so
