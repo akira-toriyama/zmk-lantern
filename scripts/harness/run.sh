@@ -37,27 +37,35 @@
 #            must not move a pixel (harness_dump.c says what it draws; REF has
 #            the tempo, aeec40c, or later)
 #
-# A step passes when every program exits 0 (each exits non-zero on a failed
-# check) and it ran one at least. The builds' warnings are shown, but for
-# -Wunused-function: the stubs drop the handlers' registrations
-# (key_listener, tick, scatter_tick, board_init), and a build leaves some of
-# a program's helpers unused; an unused function in the module warns in the
-# Docker check builds that compile it.
+# A step passes when it ran every program it built, at least one, and each
+# exited 0 (each exits non-zero on a failed check). The builds' warnings are
+# shown, with the file and line, but -Wunused-function's for the module's
+# functions the stubs leave unused (they drop the handlers' registrations:
+# key_listener, tick, scatter_tick, board_init, paint; on_usb_power.c's
+# on_set and lantern_init in the policy builds) and for the programs' own
+# helpers a build leaves unused.
 #
 # A new effect or intro: its file joins the includes of unity.c and combo.c
 # (an effect a press starts joins unity.c's HIT_LIFE_MS too); its symbol joins
 # the flag lists here (SEVEN or a step's fl, `every` for the product
 # combination; INTROS_BOTH and `both` for an intro) with a combo line of its
 # own; a program checks what it draws, built and run in a step;
-# harness_dump.c runs it; and the programs that assert LANTERN_EFFECT_COUNT
-# take the new count.
+# harness_dump.c runs it; the programs that assert LANTERN_EFFECT_COUNT take
+# the new count. An effect also joins harness_colour.c's one[] (each effect
+# in the pick's colour) and, when it grows with a press's age,
+# harness_tempo.c's picks[]; an intro joins harness_intro.c's picks and its
+# length check, and gets a build of its own in step_intro when it can be the
+# default.
 #
 # Exit 0 when every step passed, 1 when one failed (a compile error, a
-# program's non-zero exit, frames that differ, a step that ran nothing), 2
-# for bad usage, no $CC, or another run on the same outputs. Outputs (the programs,
-# their logs and outputs, the CSVs) go to $LANTERN_HARNESS_OUT, by default
-# ~/.cache/zmk-lantern/harness/<checkout>-<hash of its path>, one directory a
-# checkout and locked while a run uses it, never into the repository; nothing
+# program's non-zero exit, frames that differ, a program built and not run),
+# 2 for bad usage (an unknown step, a REF that names no commit, no merge base
+# with origin/main for equiv's default), no $CC, outputs it cannot write, or
+# another run on them. Outputs (the programs, their logs and outputs, the
+# CSVs) go to $LANTERN_HARNESS_OUT, by default
+# ~/.cache/zmk-lantern/harness/<checkout>-<hash of its physical path>, one
+# directory a checkout and locked while a run uses it, never into the
+# repository; nothing
 # in them is personal (no keystroke, no palette of the day). sheet.py draws
 # the star waves' frames as a contact sheet PNG:
 #   python3 -I scripts/harness/sheet.py <OUT>/frames_star_waves_LEFT.csv \
@@ -66,14 +74,15 @@
 # Environment: LANTERN_HARNESS_OUT, CC (default clang).
 set -uo pipefail
 
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO="$(cd "$HERE/../.." && pwd)"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+REPO="$(cd "$HERE/../.." && pwd -P)"
 SRC="$REPO/src"
 OUT="${LANTERN_HARNESS_OUT:-$HOME/.cache/zmk-lantern/harness/$(basename "$REPO")-$(printf '%s' "$REPO" | shasum | cut -c1-8)}"
 CC="${CC:-clang}"
 CFLAGS=(-std=gnu11 -O1 -g -Wall -Wextra "-fsanitize=address,undefined" -fno-sanitize-recover=all)
 FAILED=()
 RAN=0
+BUILT=0
 
 usage() {
   awk 'NR>1 && /^#/{sub(/^# ?/,""); print; next} NR>1{exit}' "${BASH_SOURCE[0]}"
@@ -84,12 +93,15 @@ fail() { # step: a line, and the run fails
   FAILED+=("$1")
 }
 
-# warnings NAME LOG: each distinct warning of a build but -Wunused-function's
-# (the header), one line each. Always true: a build with no warning is no
-# failure, and `build && run` must not skip the run.
+# warnings NAME LOG: each distinct warning of a build, its file and line, but
+# the -Wunused-function ones the header names, one line each. Always true: a
+# build with no warning is no failure, and `build && run` must not skip the
+# run.
 warnings() {
-  grep 'warning:' "$2" | grep -v '\[-Wunused-function\]' | sed -E 's/^[^:]*:[0-9]+:[0-9]+: warning: //' |
-    sort -u | sed "s/^/warn $1: /"
+  grep 'warning:' "$2" |
+    grep -v -E "unused function '(key_listener|tick|scatter_tick|board_init|paint|on_set|lantern_init)'" |
+    awk -v h="$HERE/" 'index($0, h) == 1 && /\[-Wunused-function\]/ {next} {print}' |
+    sed -E 's|^[^:]*/||' | sort -u | sed "s/^/warn $1: /"
   return 0
 }
 
@@ -116,6 +128,7 @@ build() {
     fail "$name: compile error: $(grep -m1 error "$OUT/$name.log")"
     return 1
   fi
+  BUILT=$((BUILT + 1))
   warnings "$name" "$OUT/$name.log"
 }
 
@@ -350,14 +363,8 @@ step_lk76() {
 # equiv [REF]: REF's src/ (git archive) and this tree's under the same
 # program, built with canon's halves' flags.
 step_equiv() {
-  local ref=${1:-}
-  if [ -z "$ref" ]; then
-    ref=$(git -C "$REPO" merge-base HEAD origin/main 2>/dev/null) ||
-      { fail "equiv: no merge base with origin/main: name a REF"; return; }
-  fi
-  local at
-  at=$(git -C "$REPO" rev-parse --short "$ref^{commit}" 2>/dev/null) ||
-    { fail "equiv: $ref names no commit"; return; }
+  local ref=$1 at
+  at=$(git -C "$REPO" rev-parse --short "$ref^{commit}")
   local base="$OUT/equiv-base"
   rm -rf "$base"
   mkdir -p "$base"
@@ -401,10 +408,14 @@ while [ $# -gt 0 ]; do
     -h | --help) usage; exit 0 ;;
     equiv)
       if [ $# -gt 1 ] && [[ "$2" != -* ]] && ! declare -F "step_$2" >/dev/null; then
+        git -C "$REPO" rev-parse -q --verify "$2^{commit}" >/dev/null ||
+          { echo "run.sh: equiv: $2 names no commit" >&2; exit 2; }
         steps+=("equiv:$2")
         shift
       else
-        steps+=("equiv:")
+        ref=$(git -C "$REPO" merge-base HEAD origin/main 2>/dev/null) ||
+          { echo "run.sh: equiv: no merge base with origin/main: name a REF" >&2; exit 2; }
+        steps+=("equiv:$ref")
       fi
       ;;
     *)
@@ -419,21 +430,30 @@ while [ $# -gt 0 ]; do
 done
 [ ${#steps[@]} -gt 0 ] || steps=("${ALL[@]}")
 command -v "$CC" >/dev/null || { echo "run.sh: $CC not found" >&2; exit 2; }
-mkdir -p "$OUT"
+if ! mkdir -p "$OUT" 2>/dev/null || ! exec 9>>"$OUT/.lock"; then
+  echo "run.sh: cannot write $OUT" >&2
+  exit 2
+fi
 # One run at a time on these outputs: two would overwrite each other's
-# programs and CSVs. lockf takes the descriptor, and the lock goes with the
-# process.
-exec 9>>"$OUT/.lock"
-lockf -s -t 0 9 || { echo "run.sh: another run uses $OUT" >&2; exit 2; }
+# programs and CSVs. lockf locks the descriptor, so the lock is held while
+# the run or any program it started is alive; 75 is EX_TEMPFAIL, held.
+lockf -s -t 0 9
+case $? in
+  0) ;;
+  75) echo "run.sh: another run uses $OUT (pids $(lsof -t "$OUT/.lock" 2>/dev/null | tr '\n' ' '))" >&2; exit 2 ;;
+  *) echo "run.sh: cannot lock $OUT/.lock" >&2; exit 2 ;;
+esac
 
-# A step that ran no program and reported no failure did not pass.
+# A step that built a program and did not run it, or ran none and reported
+# no failure, did not pass.
 for s in "${steps[@]}"; do
-  echo "== $s"
-  ran=$RAN failed=${#FAILED[@]}
+  echo "== ${s%%:*}"
+  ran=$RAN built=$BUILT failed=${#FAILED[@]}
   case "$s" in
     equiv:*) step_equiv "${s#equiv:}" ;;
     *) "step_$s" ;;
   esac
+  [ $((RAN - ran)) -ge $((BUILT - built)) ] || fail "$s: a program was built and not run"
   [ "$RAN" -gt "$ran" ] || [ ${#FAILED[@]} -gt "$failed" ] || fail "$s: no program ran"
 done
 
