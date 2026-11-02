@@ -48,6 +48,7 @@
     X(WATER, 5, "water", water)                                                                    \
     X(DART, 6, "dart", dart)                                                                       \
     X(FOOTPRINTS, 9, "footprints", footprints)                                                    \
+    X(HEATMAP, 10, "heatmap", heatmap)                                                             \
     X(LAYER_KEYS, 8, "layer-keys", layer_keys)
 
 /* Each effect's bit in a pick: LANTERN_EFFECT_THIN_RING and so on. */
