@@ -38,8 +38,8 @@ how to build. Usage: [README.md](README.md). English only.
   scatter, the slots thrown over the keys at random by the node's
   `scatter-weights` and thrown again every ten seconds
   (`CONFIG_LANTERN_SCATTER`, `CONFIG_LANTERN_SCATTER_MS`), and the no
-  picture, every key black under the effects and the bands for the boot
-  light (`CONFIG_LANTERN_NO_PICTURE`); the
+  picture, every key black under the effects, the boot light still the
+  intro (`CONFIG_LANTERN_NO_PICTURE`); the
   effects that move the picture after a key, the thin ring, the disc, the
   stain, the crossing ring, the beams, the water, the dart and the
   heatmap, and the one that follows the held layer, the layer keys
@@ -95,7 +95,7 @@ how to build. Usage: [README.md](README.md). English only.
   keep in their settings (`CONFIG_LANTERN_PALETTE`;
   [src/palette.c](src/palette.c), binding `lantern,behavior-palette`); and
   the host's port, the split central's USB CDC ACM port reading the
-  palette's and the pick's lines (`CONFIG_LANTERN_PORT`; [src/port.c](src/port.c)).
+  palette's and the picks' lines (`CONFIG_LANTERN_PORT`; [src/port.c](src/port.c)).
   Each source's header carries its design and every reason.
   Device names follow canon's
   [docs/glossary.md](https://github.com/akira-toriyama/canon/blob/main/docs/glossary.md):
@@ -120,7 +120,8 @@ how to build. Usage: [README.md](README.md). English only.
   `config/corne.conf`, `config/corne_left.conf`; canon t-41g7): a standard
   split with a `zmk,physical-layout` and the per-key strip ZMK's underglow
   would drive, built with the least a consumer writes, no `lantern,rail`
-  node, no `slots`, no `coords`, every effect and both intros, so that the
+  node, no `slots`, no `coords`, every effect, both intros, the tempo and
+  two of the conf's colours, so that the
   rail-less rule, the slot default and the layout's places compile for a
   keyboard that is not the Imprint. With Cyboard's stock roles the Imprint's
   left half is a split central (canon's is a peripheral), as the Corne's:
@@ -458,8 +459,8 @@ how to build. Usage: [README.md](README.md). English only.
   `LANTERN_INTRO_LIST` and `LANTERN_TEMPO_LIST`** (the settings values, the
   port's words, canon's `dongle.py effect`, `intro` and `tempo`): never
   renumber or rename a line; a new intro is a line appended, a new effect a
-  line on the next free bit above the layer keys, which stay the table's
-  last line (`src/effect.h`). The effect's param2 is the colour (`0xRRGGBB`, 0 for the palette's
+  line that takes the next free bit (never 7 or 9, below) and goes above
+  the layer keys, which stay the table's last line (`src/effect.h`). The effect's param2 is the colour (`0xRRGGBB`, 0 for the palette's
   colours; stored after the mask under `lantern/effect/mask`, one value, so
   a power loss never leaves a mask with another pick's colour; the mask
   alone, from an image before the colour, reads as colour 0), the intro's
@@ -480,7 +481,8 @@ how to build. Usage: [README.md](README.md). English only.
   comes from ZMK's `peripheral_slot_index_for_conn()`, declared in
   `src/relay.c` since ZMK has no header for it: a rename or a static there
   fails the link, loudly, a changed signature silently (C links by name).
-  Bits 7 and 9 of `LANTERN_EFFECT_LIST` are no effect's: canon t-6ttk's
+  Bits 7 and 9 of `LANTERN_EFFECT_LIST` are no effect's and never will be
+  any line's: canon t-6ttk's
   trial of an effect that never reached main had 7 (2026-10-27), and the
   footprints, dropped for the heatmap the day they reached main
   (2026-11-02), had 9; a device that ran either may hold it in its
@@ -527,8 +529,9 @@ how to build. Usage: [README.md](README.md). English only.
   built; it plays the first built bit of the intro's pick in the table's
   order, else the choice `LANTERN_INTRO_DEFAULT` (without a conf line the
   star waves when built, else the bands); where it builds the tempo, it runs
-  it as the tempo's pick says, and with no pick stored or neither state in
-  it as `CONFIG_LANTERN_TEMPO_DEFAULT` says; a device stores the host's bits as
+  it as the tempo's pick says (on when both states are in it, as a key's
+  `&tempo 3 0` leaves), and with no pick stored or neither state in it as
+  `CONFIG_LANTERN_TEMPO_DEFAULT` says; a device stores the host's bits as
   sent, bits its table does not know included (a newer image's), so the port
   answers the pick as made with the names it knows (`effect none`, `intro
   none` or `tempo none` when it knows none: a bare word would be an ask, and an echoing host
@@ -537,8 +540,10 @@ how to build. Usage: [README.md](README.md). English only.
   `0xFFFFFF` (the argument's range is wire format too, unlike the mask's
   bits: a wider one from a newer central would drop the whole pick here);
   ignored at load: a stored value of another size, an empty mask, a colour
-  above the range. The central refuses the intro's pick with two bits (`one
-  intro at a time`) and the tempo's with both (`on or off, not both`). A
+  above the range. The central's port refuses the intro's pick with two
+  bits (`one intro at a time`) and the tempo's with both (`on or off, not
+  both`; the check is `lantern_pick_send()`'s, so a key's binding is
+  stored as pressed). A
   failed save is logged, not retried: the next change
   saves, and until then a boot returns to the previous pick, whole (as the
   mask before the colour). A change of the effects' pick clears the hits

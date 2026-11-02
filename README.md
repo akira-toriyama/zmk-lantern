@@ -76,8 +76,9 @@ lights what is at hand. The sibling module
    (below). The places follow the chosen layout: a layout selected at run
    time instead (ZMK Studio) numbers the keys differently, and the LEDs and
    the effects land a key off until the chosen one is selected again. The
-   check build of ZMK's Corne is this least plus the split's nodes and
-   every effect: [config/corne.overlay](config/corne.overlay),
+   check build of ZMK's Corne is this least plus the split's nodes, every
+   effect, both intros, the tempo and two colours:
+   [config/corne.overlay](config/corne.overlay),
    [config/corne.conf](config/corne.conf).
 
 3. The keyboard's conf:
@@ -767,7 +768,7 @@ after the first is a half woken), and the countdown's `stage N` at every
 move; the palette's: `slots 0-1 RRGGBB RRGGBB stored` (or
 `unchanged`) on every device, and on the central `N colour(s) from <port>`
 and `resent to half N`; the picks': `effect: 0000000X rrggbb stored` (or
-`unchanged`; `intro: 0000000X stored` without a colour) on every device, and
+`unchanged`) on every device, and
 on the central `effect: pick 0000000X rrggbb from <port>` and `effect: resent
 to half N` (the intro's and the tempo's without the colour: `intro: 0000000X
 stored`, `intro: pick 0000000X from <port>`, `intro: resent to half N`, and
