@@ -4,7 +4,8 @@ A [ZMK](https://zmk.dev) module for a keyboard's per-key LEDs. It lights them
 while USB powers the keyboard and the keyboard is in use, keeps them dark on
 battery and after the idle timeout, plays an intro at boot and whenever a
 cable is plugged in, paints the keys from a palette of six colours the host
-hands the keyboard over USB, and draws an effect from every key you press: a
+hands the keyboard over USB (or the conf's colours until it does), and draws
+an effect from every key you press: a
 ring, a disc, a stain, a ring crossing both halves, beams, water, a dart or
 a heatmap, in the palette's colours or in one colour of the host's choosing,
 faster the faster you type when the host says so; or, while
@@ -93,8 +94,8 @@ lights what is at hand. The sibling module
    (dark after ZMK's `CONFIG_ZMK_IDLE_TIMEOUT`, the consumer's line, 30 s by
    ZMK's default), `CONFIG_LANTERN_INTRO_BANDS` (the boot light: a second of
    the palette's bands at boot and when a cable is plugged in). With no more
-   than this, every key is white (the palette needs the split's palette
-   node, below; with it, the palette's first colour), and no effect is
+   than this, every key is white (the colours are a conf line, below, or a
+   host's palette through the split's palette node, below), and no effect is
    built: the effects and the other pictures are conf lines, below.
 
 ### Then, as you want them
@@ -167,6 +168,15 @@ lights what is at hand. The sibling module
 - **The scatter's shares: `scatter-weights`**, a percentage per palette slot
   (six, at most 100 in all), only with `CONFIG_LANTERN_SCATTER`.
 
+- **The colours: `CONFIG_LANTERN_COLOUR_0` to `_5`** (`0xRRGGBB`, 0 by
+  default), the palette the keys paint from until a host hands one, and for
+  good on a keyboard without a host, read exactly as a host's palette (The
+  palette, below): one line, `CONFIG_LANTERN_COLOUR_0=0x2060FF`, paints
+  every key in it (a slot left 0 shows slot 0's colour), six fill the bands
+  and the effects' colours (a 0 beside a set slot paints white, as a host's
+  black slot 0 does); all six 0, every key is white. A host's palette
+  replaces them as it arrives, and across boots.
+
 - **The pictures, the effects and the intros** (what they are: What it does,
   below). The picture is one Kconfig choice, `LANTERN_PICTURE`, the bands
   (`CONFIG_LANTERN_BANDS`) by default: `CONFIG_LANTERN_SOLID=y` paints every
@@ -174,7 +184,7 @@ lights what is at hand. The sibling module
   board by the keys' x, `CONFIG_LANTERN_SCATTER=y` throws the slots over the
   keys at random, `CONFIG_LANTERN_NO_PICTURE=y` leaves every key black so
   that only the effects light. `CONFIG_LANTERN_COUNTDOWN` (on by default with
-  the idle rule and the palette) changes the picture every
+  the idle rule) changes the picture every
   `CONFIG_LANTERN_COUNTDOWN_STAGE_MS` (10000) from the last key until the
   idle dark; `=n` keeps the picture. The effects are built one by one:
   `CONFIG_LANTERN_THIN_RING=y`, `CONFIG_LANTERN_DISC=y`,
@@ -298,8 +308,9 @@ lights what is at hand. The sibling module
   the picture, by default (the bands) the palette slot the `lantern,keys`
   node assigns to the key under it, so the palette's colours fall on the
   keyboard in bands. A slot the host left black shows slot 0, so one colour
-  paints every key alike; without a palette every key is white (black in the
-  no picture). Each colour is scaled so that its brightest channel is, by
+  paints every key alike; without a palette the conf's colours stand in
+  (`CONFIG_LANTERN_COLOUR_0` to `_5`), and without those every key is white
+  (black in the no picture). Each colour is scaled so that its brightest channel is, by
   default, `CONFIG_LANTERN_BRIGHTNESS` percent of full scale (default 16),
   which keeps its hue and saturation; a grey or black scales to white. The
   picture's colours, with the countdown's other pictures and the stain's dye,
@@ -334,16 +345,20 @@ lights what is at hand. The sibling module
   default the bands, so that a half still shows it has power; on the cable
   the keys turn black when it ends. With the countdown on, its first picture
   is the black one and the others the whole half in a colour.
-- The countdown (`CONFIG_LANTERN_COUNTDOWN`, on by default with the idle rule
-  and the palette): from the half's last key, the picture changes every
+- The countdown (`CONFIG_LANTERN_COUNTDOWN`, on by default with the idle
+  rule): from the half's last key, the picture changes every
   `CONFIG_LANTERN_COUNTDOWN_STAGE_MS` (default 10000): the bands, then the
-  whole half in each colour of the palette in turn (a slot the host left
-  black is slot 0's colour; colours that paint alike at the picture's
-  brightness count once), then the bands again, until the idle rule blanks
-  the LEDs (ZMK's idle, or the wake's end). A key brings the bands back and restarts the clock; a cable
+  whole half in each colour of the palette after the first, so as many
+  pictures as colours (the first colour has no stage of its own: it shows
+  where the bands put it; a slot the host left black is slot 0's colour;
+  colours that paint alike at the picture's brightness count once), then
+  the bands again, until the idle rule blanks
+  the LEDs (ZMK's idle, or the wake's end), on whichever picture the cycle
+  is at then. A key brings the bands back and restarts the clock; a cable
   plugged into a half that typed a while ago lights the stage its keys say.
   The clock is the half's own keys: a sensor or pointing input counts for
-  ZMK's idle, not for the stages. One colour: the bands until the dark.
+  ZMK's idle, not for the stages. The colours are the palette's, the host's
+  or the conf's. One colour, or none: the bands until the dark.
 - The effects: a picture that moves after a key, the eight below, and the
   layer keys, which follow the held layer instead (below the heatmap). The conf
   builds the ones it wants into the image, and the pick says which of them
@@ -601,6 +616,10 @@ than six colours clears the rest to `0x000000`, which the LEDs show as slot
   A half writes its flash only when a colour changed. A stored palette of
   another slot count (a device flashed across a change of the count) is
   ignored at load: `palette none` until the host sends again.
+- Until the host's first palette, and for good on a keyboard without a host,
+  the keys paint from the conf's colours (`CONFIG_LANTERN_COLOUR_0` to `_5`,
+  Using it: the colours), read as a palette; they are no palette set: the
+  port answers `palette none` meanwhile, and nothing is resent or stored.
 
 ## The picks
 
@@ -670,7 +689,9 @@ without a host has.
 ### Without a host
 
 A keyboard whose central has no host on its port picks in its conf and its
-keymap. The conf: `CONFIG_LANTERN_EFFECT_DEFAULT_<EFFECT>=y` names the effect
+keymap. The conf: `CONFIG_LANTERN_COLOUR_0` to `_5` are its colours (the
+palette a host would hand; Using it: the colours),
+`CONFIG_LANTERN_EFFECT_DEFAULT_<EFFECT>=y` names the effect
 drawn while no pick is stored (one of the built; without the line the stain
 when built, else the first built), `CONFIG_LANTERN_EFFECT_COLOUR=0xRRGGBB` its
 colour (default 0, the palette's colours), `CONFIG_LANTERN_INTRO_DEFAULT_<INTRO>=y`

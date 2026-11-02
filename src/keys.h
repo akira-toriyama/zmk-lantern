@@ -23,7 +23,8 @@
 
 #include <zephyr/sys/util.h>
 
-/* Paint the palette's picture (white without a palette; the no picture's
+/* Paint the palette's picture (the conf's colours without a palette, white
+ * without those; the no picture's
  * black stays black) and start the countdown. Call with the rail on and
  * settled, on the system work queue. */
 void lantern_keys_light(void);

@@ -10,8 +10,8 @@
  * pictures below); and the countdown to the idle dark
  * (CONFIG_LANTERN_COUNTDOWN, canon t-gsm2, t-x82q): from the half's last key
  * to its idle dark, the picture changes every CONFIG_LANTERN_COUNTDOWN_STAGE_MS,
- * a stage: the bands, then the whole half in each colour of the palette in
- * turn, then the bands again; and the effects (canon t-6ttk), a picture that
+ * a stage: the bands, then the whole half in each colour of the palette
+ * after the first, then the bands again; and the effects (canon t-6ttk), a picture that
  * moves after a key, each in its own file under src/effects/, of which the
  * pick (src/effect.c, canon t-5hqx) says which draw; and the intros (canon
  * t-qvgv), each in its own file under src/intros/, of which the pick
@@ -39,8 +39,10 @@
  *   it does not send (lantern_palette_send()), so a palette of one colour
  *   paints every LED alike (canon t-0967 leaves dark colours out of a
  *   sprite's palette since 2026-10-20, so black arrives only as a cleared
- *   slot). Without a palette every LED is white (the no picture's black
- *   aside). Each colour of the picture
+ *   slot). Without a palette from the host the conf's colours stand in
+ *   (CONFIG_LANTERN_COLOUR_0 to _5, read as a palette, palette_read()), and
+ *   without those every LED is white (the no picture's black aside). Each
+ *   colour of the picture
  *   (the picture, the countdown's other pictures, the stain's dye) is scaled
  *   so that its brightest channel is CONFIG_LANTERN_PICTURE_BRIGHTNESS
  *   percent of full scale: hue and saturation are the colour's, the
@@ -52,15 +54,21 @@
  *   brighten to full scale under the same cap, as much room or more. A grey
  *   has no hue and scales to white; so does black, which has no brightest
  *   channel, when it is slot 0.
- * - The countdown: the pictures are the bands and then the palette's shades
- *   in slot order, N of them (a cleared slot is slot 0's; two colours that
- *   scale to one shade, a hue at two brightnesses or two greys, are one:
- *   canon's sender fills its five slots from fewer colours by repeating
+ * - The countdown: N pictures, N the count of the palette's shades, its
+ *   distinct colours in slot order (a cleared slot is slot 0's; two colours
+ *   that scale to one shade, a hue at two brightnesses or two greys, are
+ *   one: canon's sender fills its five slots from fewer colours by repeating
  *   them, and a picture nobody could tell from the last would only be a
- *   skipped beat). Stage k, from k x CONFIG_LANTERN_COUNTDOWN_STAGE_MS after
- *   the last key, shows picture k mod N, so the pictures cycle until the
- *   rail rule blanks the LEDs (ZMK's idle, or the wake's end,
- *   src/on_usb_power.c); one shade is the bands
+ *   skipped beat): picture 0 the picture itself (the bands, or the choice's)
+ *   and picture k, 0 < k < N, the whole half in shade k, so shade 0 has no
+ *   stage of its own: it shows where the picture puts it, nowhere on a half
+ *   whose keys are all in other slots or under the no picture (the solid's
+ *   picture is shade 0 itself), and three colours are three pictures. Stage k, from k x
+ *   CONFIG_LANTERN_COUNTDOWN_STAGE_MS after the last key, shows picture
+ *   k mod N, so the pictures cycle until the rail rule blanks the LEDs
+ *   (ZMK's idle, or the wake's end, src/on_usb_power.c), on whichever
+ *   picture the cycle is at then (with five colours the bands came back
+ *   after every fifth on hardware, canon t-x82q); one shade is the picture
  *   alone. Up to 750f413 a stage was CONFIG_ZMK_IDLE_TIMEOUT / N and the last
  *   shade held until the dark, so that the colour read how far the dark was;
  *   on hardware a minute a colour read as still, and the user chose a ten
@@ -93,7 +101,7 @@
  *   its tick, a delayable work item, live on the system work queue, where ZMK
  *   raises the position events and where the rail rule lights and blanks
  *   (src/on_usb_power.c), so they need no lock either: one step computes the
- *   stage from the clock and the palette, arms the tick for the next
+ *   stage from the clock, arms the tick for the next
  *   boundary and says whether the stage moved, which alone costs a frame; the
  *   tick, a key and the light take the step there and then, a palette change
  *   runs the tick at once (k_work_reschedule works from any thread), the
@@ -366,8 +374,9 @@ BUILD_ASSERT(HI_LEVEL > LEVEL, "CONFIG_LANTERN_BRIGHTNESS 100 leaves the frame's
  * with the crossing ring, eight with the disc, and fewer on a larger board,
  * whose lives are longer (frame.h: lantern_life()); past it the oldest
  * press's effect goes in one frame. A larger ring costs RAM and, through
- * live[HITS] in compose(), the frame thread's stack (canon t-gwsw carries
- * the review of its size). */
+ * live[HITS] in compose(), the frame thread's stack (a struct hit a slot).
+ * Sixteen is the product's (canon t-gwsw, 2026-11-02: the trial's eight was
+ * raised after the review above, and nothing since asked for more). */
 #define HITS 16
 /* A hit in one atomic: (position + 1) << 24 | seq << HIT_SEQ_SHIFT | the
  * press's time, the low 18 bits of k_uptime_get_32() in ms (262 s). seq is
@@ -621,12 +630,33 @@ static bool same(const struct led_rgb *a, const struct led_rgb *b) {
 }
 
 /* The 0xRRGGBB slot s paints: a cleared slot paints slot 0's colour, and
- * without a palette every slot paints white. */
+ * without a palette, the host's or the conf's (palette_read()), every slot
+ * paints white. */
 static uint32_t slot_rgb(const uint32_t palette[LANTERN_PALETTE_SLOTS], bool have, size_t s) {
     if (!have) {
         return 0xFFFFFF;
     }
     return palette[s] != 0 ? palette[s] : palette[0];
+}
+
+/* The conf's colours (the header): a palette until the host's arrives. */
+static const uint32_t conf_colours[LANTERN_PALETTE_SLOTS] = {
+    CONFIG_LANTERN_COLOUR_0, CONFIG_LANTERN_COLOUR_1, CONFIG_LANTERN_COLOUR_2,
+    CONFIG_LANTERN_COLOUR_3, CONFIG_LANTERN_COLOUR_4, CONFIG_LANTERN_COLOUR_5};
+
+/* The palette the frame paints from: the host's (src/palette.c), else the
+ * conf's colours; false with neither set, every slot then white (slot_rgb()). */
+static bool palette_read(uint32_t palette[LANTERN_PALETTE_SLOTS]) {
+    if (IS_ENABLED(CONFIG_LANTERN_PALETTE) && lantern_palette_get(palette)) {
+        return true;
+    }
+    bool any = false;
+
+    for (size_t s = 0; s < LANTERN_PALETTE_SLOTS; s++) {
+        palette[s] = conf_colours[s];
+        any = any || palette[s] != 0;
+    }
+    return any;
 }
 
 /* The shades of the frame (frame.h): the palette's colours at PICTURE_LEVEL,
@@ -1081,8 +1111,8 @@ static void effects_clear(void) {
  * and clears spent hits (the palette, the picks and the hits are atomics, read
  * from there). */
 static bool compose(size_t at) {
-    uint32_t palette[LANTERN_PALETTE_SLOTS] = {0};
-    bool have = IS_ENABLED(CONFIG_LANTERN_PALETTE) && lantern_palette_get(palette);
+    uint32_t palette[LANTERN_PALETTE_SLOTS];
+    bool have = palette_read(palette);
 
     shades(palette, have, &frame_shades);
 #if IS_ENABLED(CONFIG_LANTERN_INTROS)

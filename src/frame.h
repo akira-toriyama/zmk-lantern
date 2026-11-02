@@ -121,8 +121,8 @@ static inline uint16_t key_y(uint8_t k) { return lantern_coords[2 * k + 1]; }
 #endif
 
 /* The shades a frame is made of: the palette's colours at PICTURE_LEVEL, the
- * distinct ones in slot order (a cleared slot is slot 0's; without a palette
- * one white), each with the 0xRRGGBB it was scaled from, for an effect that
+ * distinct ones in slot order (a cleared slot is slot 0's; with neither the
+ * host's palette nor the conf's colours one white), each with the 0xRRGGBB it was scaled from, for an effect that
  * paints it at another level and for the gradient's full-scale blend, and
  * each slot's rank among them. */
 struct shades {
