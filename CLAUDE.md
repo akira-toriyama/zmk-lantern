@@ -675,7 +675,11 @@ how to build. Usage: [README.md](README.md). English only.
   minutes, is the user's report of 2026-10-28; the cause was read from
   the sources, not a log, and held in the host harness's rail scenes and a
   host model of ZMK's activity, event manager and peripheral command
-  handler over the real module files (2026-10-28 and 2026-11-01). Not on
+  handler over the real module files (2026-10-28 and 2026-11-01). The
+  footprints (2026-11-02, canon's trial images of faedf33 on the dongle and
+  both halves, `CONFIG_LANTERN_FOOTPRINTS=y` on the halves, the pick
+  `footprints` alone, both halves typed, canon t-6ttk): the user's OK on
+  sight. Not on
   hardware: the key bindings `&effect` and `&effect_next`, the rail-less
   rule, the slot default and the physical layout's places (the Corne
   check build and the host harness only, canon t-41g7; no such keyboard
