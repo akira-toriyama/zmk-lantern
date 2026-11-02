@@ -120,7 +120,12 @@
  *   lantern_keys_boot_light() take no lock and block on nothing; each queues
  *   at most one frame on ZMK's low priority work queue (src/keys.c).
  *   settle-ms (the node) covers the LEDs' power-up before
- *   the first frame, as the ext-power node's init-delay-ms did; BLANK_MS
+ *   the first frame, as the ext-power node's init-delay-ms did, and RAIL_UP
+ *   waits it out whatever moves the step meanwhile: apply_rule()'s
+ *   immediate reschedule replaces the pending delay, so an unplug and a
+ *   replug within settle-ms once had the first frame out before the LEDs
+ *   were up (Opus review, 2026-10-21; canon t-gwsw), a millisecond over it
+ *   (SETTLE_WAIT_MS says why); BLANK_MS
  *   covers the black frame before the rail drops (a 29-LED frame at 4 MHz
  *   takes 1.4 ms, 7 ms at the Cyboard overlay's chain-length of 150). The
  *   only way to DARK is through BLANKING, so no frame the machine knows of
@@ -178,6 +183,11 @@ static const struct gpio_dt_spec rail = GPIO_DT_SPEC_INST_GET(0, gpios);
  * once. */
 #define SETTLE_MS 0
 #endif
+/* The settle as waited: a millisecond over settle-ms, since rail_at and the
+ * clock are floored milliseconds and their difference can read the settle as
+ * passed up to a millisecond early (Opus review, 2026-11-02); 0 without a
+ * rail. */
+#define SETTLE_WAIT_MS (SETTLE_MS > 0 ? SETTLE_MS + 1 : 0)
 
 enum phase {
     DARK,     /* rail off, the LEDs black */
@@ -194,6 +204,7 @@ static bool usb_powered;
 static bool idle; /* stays false without CONFIG_LANTERN_OFF_WHEN_IDLE */
 static bool woken; /* stays false without CONFIG_LANTERN_WAKE_ON_HIT */
 static bool want_lit;
+static uint32_t rail_at; /* k_uptime_get_32() when the rail last went on */
 
 #if IS_ENABLED(CONFIG_LANTERN_RAIL)
 static void rail_set(bool on) {
@@ -208,6 +219,14 @@ static void rail_set(bool on) { ARG_UNUSED(on); }
 
 static void step(struct k_work *work);
 static K_WORK_DELAYABLE_DEFINE(step_work, step);
+
+/* Milliseconds of the LEDs' settle still to wait since the rail went on
+ * (the header): 0 once they are up, and always without a rail. */
+static uint32_t settle_left(void) {
+    uint32_t gone = k_uptime_get_32() - rail_at;
+
+    return gone < SETTLE_WAIT_MS ? SETTLE_WAIT_MS - gone : 0;
+}
 
 static bool read_idle(void) {
     return IS_ENABLED(CONFIG_LANTERN_OFF_WHEN_IDLE) &&
@@ -275,11 +294,20 @@ static void step(struct k_work *work) {
             break;
         }
         rail_set(true);
+        rail_at = k_uptime_get_32();
         phase = RAIL_UP;
-        k_work_reschedule(&step_work, K_MSEC(SETTLE_MS));
+        k_work_reschedule(&step_work, K_MSEC(SETTLE_WAIT_MS));
         break;
 
-    case RAIL_UP:
+    case RAIL_UP: {
+        uint32_t left = settle_left();
+
+        if (left > 0) {
+            /* An input moved the step here early (the header): wait the
+             * settle out, then read the rule as it stands. */
+            k_work_reschedule(&step_work, K_MSEC(left));
+            break;
+        }
         if (want_lit) {
             light();
         } else {
@@ -287,6 +315,7 @@ static void step(struct k_work *work) {
             blank();
         }
         break;
+    }
 
     case LIT:
         if (boot_light) {

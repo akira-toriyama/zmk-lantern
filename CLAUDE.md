@@ -19,7 +19,9 @@ how to build. Usage: [README.md](README.md). English only.
   picture, painted by the module itself, each LED the
   palette slot the consumer's node assigns to the key under it, and the
   countdown to the idle dark: the pictures cycling every ten seconds, the
-  bands and then each colour of the palette (`CONFIG_LANTERN_KEYS`,
+  bands and then each colour of the palette after the first
+  (`CONFIG_LANTERN_KEYS`, `CONFIG_LANTERN_COLOUR_0` to `_5`, the colours
+  until the host's palette,
   `CONFIG_LANTERN_BRIGHTNESS`, `CONFIG_LANTERN_PICTURE_BRIGHTNESS`,
   `CONFIG_LANTERN_COUNTDOWN`,
   `CONFIG_LANTERN_COUNTDOWN_STAGE_MS`; [src/keys.c](src/keys.c), binding
@@ -75,7 +77,13 @@ how to build. Usage: [README.md](README.md). English only.
   default; canon t-5v1f), and the pick of which plays, the host's over the
   central's port, kept across boots, or the Kconfig choice
   `LANTERN_INTRO_DEFAULT` (`CONFIG_LANTERN_INTRO`; [src/intro.c](src/intro.c),
-  binding `lantern,behavior-intro`; canon t-qvgv); the two picks' one
+  binding `lantern,behavior-intro`; canon t-qvgv); the tempo, the effects
+  that grow with a press's age up to twice as fast at eight presses a second
+  over the last two seconds, and the pick of whether it runs
+  (`CONFIG_LANTERN_TEMPO`, `CONFIG_LANTERN_TEMPO_PICK`,
+  `CONFIG_LANTERN_TEMPO_DEFAULT`; the counting in src/keys.c, the pick
+  [src/tempo.c](src/tempo.c), binding `lantern,behavior-tempo`; canon
+  t-6ttk); the three picks' one
   mechanism, the store, the save and the resend ([src/pick.c](src/pick.c),
   `CONFIG_LANTERN_PICK`); the split link's peripheral
   latency, 0 while USB powers a split peripheral and the central's on battery
@@ -680,8 +688,13 @@ how to build. Usage: [README.md](README.md). English only.
   both halves, `CONFIG_LANTERN_HEATMAP=y` on the halves, the pick `heatmap`
   alone, both halves typed, canon t-6ttk): the user's OK on sight, and the
   footprints, which had the user's OK the same morning (the trial images of
-  faedf33), dropped for it the same day: the user kept one of the two. Not on
-  hardware: the key bindings `&effect` and `&effect_next`, the rail-less
+  faedf33), dropped for it the same day: the user kept one of the two. The
+  tempo (2026-11-02, canon's trial images of 4d95faf on both halves, the
+  dongle on its pinned image, the pick `cross-ring`, canon t-6ttk): the
+  user's OK on sight. Not on
+  hardware: the conf's colours (`CONFIG_LANTERN_COLOUR_0` to `_5`; the host
+  harness and the Corne check build, canon t-gwsw: canon's host hands a
+  palette every morning), the key bindings `&effect` and `&effect_next`, the rail-less
   rule, the slot default and the physical layout's places (the Corne
   check build and the host harness only, canon t-41g7; no such keyboard
   at hand).

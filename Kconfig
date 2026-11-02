@@ -19,9 +19,9 @@ config LANTERN_KEYS
       key under it (positions: the key under each LED, in chain order;
       slots: the slot of each key position, every key slot 0 without it),
       so the palette's colours fall on the keyboard in bands. A slot that
-      is 0x000000 shows slot 0, and a
-      device without a palette shows white (LANTERN_NO_PICTURE's black
-      aside). A frame is written when the LEDs
+      is 0x000000 shows slot 0, and a device without a palette shows the
+      conf's colours (LANTERN_COLOUR_0 to LANTERN_COLOUR_5), white without
+      those (LANTERN_NO_PICTURE's black aside). A frame is written when the LEDs
       light or go dark (LANTERN_ON_USB_POWER) and when the palette changes,
       on ZMK's low priority work queue, which this selects.
 
@@ -63,6 +63,65 @@ config LANTERN_PICTURE_BRIGHTNESS
       the countdown and one colour fewer in an effect's cycle. Default
       LANTERN_BRIGHTNESS; never above it (asserted: a still picture could
       pass the cap). canon t-skdt tries half of it under the disc.
+
+config LANTERN_COLOUR_0
+    hex "The palette's first colour until the host hands a palette, 0xRRGGBB (all six 0: none, every key white)"
+    range 0 0xFFFFFF
+    default 0
+    depends on LANTERN_KEYS
+    help
+      The colours the key LEDs paint from while this device holds no palette
+      from the host (LANTERN_PALETTE), and for good on a keyboard without a
+      host: slots 0 to 5 of a palette, LANTERN_COLOUR_0 to LANTERN_COLOUR_5,
+      read exactly as the host's (src/keys.c, palette_read(): a slot left 0
+      shows slot 0's colour, so this one line colours every key alike, and
+      a 0 here beside a set slot paints white, as the host's black slot 0
+      does; the effects and the intro take their colours from them as from
+      the host's). All six 0, the default: every key white, as without them.
+      The host's palette replaces them as it arrives and across boots,
+      and they are no palette: the port's ask answers "palette none" until
+      the host's, the central resends nothing, nothing is stored. canon sets
+      none: its host hands the day's palette (canon t-0967).
+
+config LANTERN_COLOUR_1
+    hex "The palette's second colour until the host hands a palette, 0xRRGGBB; 0 = slot 0's"
+    range 0 0xFFFFFF
+    default 0
+    depends on LANTERN_KEYS
+    help
+      Slot 1 of the conf's colours (LANTERN_COLOUR_0).
+
+config LANTERN_COLOUR_2
+    hex "The palette's third colour until the host hands a palette, 0xRRGGBB; 0 = slot 0's"
+    range 0 0xFFFFFF
+    default 0
+    depends on LANTERN_KEYS
+    help
+      Slot 2 of the conf's colours (LANTERN_COLOUR_0).
+
+config LANTERN_COLOUR_3
+    hex "The palette's fourth colour until the host hands a palette, 0xRRGGBB; 0 = slot 0's"
+    range 0 0xFFFFFF
+    default 0
+    depends on LANTERN_KEYS
+    help
+      Slot 3 of the conf's colours (LANTERN_COLOUR_0).
+
+config LANTERN_COLOUR_4
+    hex "The palette's fifth colour until the host hands a palette, 0xRRGGBB; 0 = slot 0's"
+    range 0 0xFFFFFF
+    default 0
+    depends on LANTERN_KEYS
+    help
+      Slot 4 of the conf's colours (LANTERN_COLOUR_0).
+
+config LANTERN_COLOUR_5
+    hex "The palette's sixth colour until the host hands a palette, 0xRRGGBB; 0 = slot 0's"
+    range 0 0xFFFFFF
+    default 0
+    depends on LANTERN_KEYS
+    help
+      Slot 5 of the conf's colours (LANTERN_COLOUR_0).
 
 config LANTERN_ON_USB_POWER
     bool "Light the key LEDs while USB powers this half, dark on battery"
@@ -246,19 +305,22 @@ config LANTERN_COUNTDOWN
     bool "Count down to the idle dark in the palette's colours, a stage a colour"
     default y
     depends on LANTERN_OFF_WHEN_IDLE
-    depends on LANTERN_PALETTE
     help
       While the key LEDs are lit, each half counts the time since its last key
       in stages of LANTERN_COUNTDOWN_STAGE_MS and changes the picture at each:
-      the bands, then the whole half in each colour of the palette in turn (a
-      cleared slot is slot 0's colour; colours that paint alike at
-      LANTERN_PICTURE_BRIGHTNESS count once), then the bands again, until
+      the bands, then the whole half in each colour of the palette after the
+      first, so as many pictures as colours (the first colour has no stage
+      of its own: it shows where the bands put it; a cleared slot is slot
+      0's colour; colours that paint alike at LANTERN_PICTURE_BRIGHTNESS
+      count once), then the bands again, until
       LANTERN_OFF_WHEN_IDLE blanks the LEDs (ZMK's idle, or the wake's end,
       LANTERN_WAKE_ON_HIT: a half the other half's keys keep lit cycles the
       pictures on, its clock being its own keys). A key brings the
       bands back and restarts the clock; a cable plugged in lights the stage
       the keys say (src/keys.c). A sensor or pointing input counts for ZMK's
-      idle and not for this clock. One colour: the bands until the dark.
+      idle and not for this clock. The colours are the palette's, the host's
+      or the conf's (LANTERN_COLOUR_0). One colour, or none: the bands until
+      the dark.
 
 config LANTERN_COUNTDOWN_STAGE_MS
     int "Milliseconds between two pictures of the countdown"
@@ -267,7 +329,8 @@ config LANTERN_COUNTDOWN_STAGE_MS
     depends on LANTERN_COUNTDOWN
     help
       How long each picture of the countdown shows before the next: the
-      bands, then each colour of the palette, then the bands again, until
+      bands, then each colour of the palette after the first, then the bands
+      again, until
       the idle rule blanks the LEDs. Ten seconds is what canon's user chose on
       hardware (2026-10-20, t-x82q); a minute a colour, with the colours
       running out at the idle timeout, read as still.
