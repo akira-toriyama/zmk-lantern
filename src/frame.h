@@ -19,9 +19,9 @@
  * then on (src/keys.c).
  *
  * - The geometry (CONFIG_LANTERN_GEOMETRY, which each effect that measures
- *   the board selects, the star waves for the coords and the square root, and
- *   the gradient for the board's ends): distances come from the consumer's
- *   coords, each key position's x and y in hundredths of a key unit (canon:
+ *   the board selects, the star waves for the keys' places and the square
+ *   root, and the gradient for the board's ends): distances come from the
+ *   consumer's coords, each key position's x and y in hundredths of a key unit (canon:
  *   imprint.json, keymap-drawer's physical layout, each key's top left
  *   corner; every key is one unit, so the offset to the centre cancels), or
  *   without the property from the keyboard's chosen zmk,physical-layout,

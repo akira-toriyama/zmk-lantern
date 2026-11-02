@@ -18,8 +18,8 @@
  *   under two rings shows the stronger one's colour at their summed strength.
  *   The idea is zmk-rgb-matrix's ripple, written from its description (its
  *   code is no clean room, its author says). The distances are the
- *   geometry's (src/frame.h: the coords, an integer square root), so the ring
- *   is round on the board, not in the matrix.
+ *   geometry's (src/frame.h: the keys' places, an integer square root), so
+ *   the ring is round on the board, not in the matrix.
  * - The stain: the thin ring dyes the keys it passes. An LED within
  *   the stain's reach of the press keeps the ring's shade as its picture colour, at
  *   the picture's level like a band, from the frame in which the ring's crest
