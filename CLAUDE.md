@@ -38,11 +38,12 @@ how to build. Usage: [README.md](README.md). English only.
   picture, every key black under the effects and the bands for the boot
   light (`CONFIG_LANTERN_NO_PICTURE`); the
   effects that move the picture after a key, the thin ring, the disc, the
-  stain, the crossing ring, the beams, the water and the dart, and the one
-  that follows the held layer, the layer keys
+  stain, the crossing ring, the beams, the water, the dart and the
+  footprints, and the one that follows the held layer, the layer keys
   (`CONFIG_LANTERN_THIN_RING`, `CONFIG_LANTERN_DISC`, `CONFIG_LANTERN_STAIN`,
   `CONFIG_LANTERN_CROSS_RING`, `CONFIG_LANTERN_BEAMS`, `CONFIG_LANTERN_WATER`,
-  `CONFIG_LANTERN_DART`, `CONFIG_LANTERN_LAYER_KEYS`, each built into the
+  `CONFIG_LANTERN_DART`, `CONFIG_LANTERN_LAYER_KEYS`,
+  `CONFIG_LANTERN_FOOTPRINTS`, each built into the
   image by the consumer's conf, off by default;
   one file an effect under src/effects/ on the engine of src/keys.c, the
   table and the node's `coords` through src/frame.h and
@@ -187,6 +188,9 @@ how to build. Usage: [README.md](README.md). English only.
   `CONFIG_LANTERN_GEOMETRY=y` and `CONFIG_LANTERN_HIT=y`, which the hit node
   (`config/hit.dtsi`, on every target) turns on by itself, with `hit.c.obj`
   in zmk.map;
+  `CONFIG_LANTERN_FOOTPRINTS=y` adds `CONFIG_LANTERN_EFFECTS=y` and
+  `CONFIG_LANTERN_FRAMES=y`, no `CONFIG_LANTERN_GEOMETRY` (it measures
+  nothing) and no node, with `footprints.c.obj` in zmk.map;
   `CONFIG_LANTERN_LAYER_KEYS=y` adds `CONFIG_LANTERN_EFFECTS=y`,
   `CONFIG_LANTERN_FRAMES=y` and, where it is the one effect built,
   `CONFIG_LANTERN_EFFECT_DEFAULT_LAYER_KEYS=y`, and no
@@ -207,7 +211,8 @@ how to build. Usage: [README.md](README.md). English only.
   the bands') and puts `star_waves.c.obj` in zmk.map, as each built effect
   puts its file's
   (`thin_ring.c.obj`, the stain's too, `disc.c.obj`, `cross_ring.c.obj`,
-  `beams.c.obj`, `water.c.obj`, `dart.c.obj`, `layer_keys.c.obj`);
+  `beams.c.obj`, `water.c.obj`, `dart.c.obj`, `layer_keys.c.obj`,
+  `footprints.c.obj`);
   a half shows `CONFIG_LANTERN_BANDS=y`, or `CONFIG_LANTERN_SOLID=y`,
   `CONFIG_LANTERN_GRADIENT=y`, `CONFIG_LANTERN_SCATTER=y` or
   `CONFIG_LANTERN_NO_PICTURE=y` in its place,
