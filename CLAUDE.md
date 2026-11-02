@@ -658,17 +658,22 @@ how to build. Usage: [README.md](README.md). English only.
   halves, `CONFIG_LANTERN_LAYER_KEYS=y` on the halves, the pick
   `layer-keys` alone, canon t-6ttk): holding a layer lit its keys in its
   colour, the user's OK on sight; the state went from the relay's queue
-  (`src/relay.c`). Not on hardware: the key bindings
-  `&effect` and `&effect_next`, the rail-less rule, the slot default and
-  the physical layout's places (the Corne check build and the host
-  harness only, canon t-41g7; no such keyboard at hand); the hit sent from
-  the relay's queue (the hit's own queue up to 72df855; the layer keys'
-  trial picked no effect that draws a hit); the wake
-  (`CONFIG_LANTERN_WAKE_ON_HIT`: the host harness's rail scenes and a host
-  model of ZMK's activity, event manager and peripheral command handler
-  over the real module files, 2026-10-28 and 2026-11-01; the symptom it answers, the
-  crossing ring not reaching a half left untouched for minutes, is the
-  user's report of that day, and the cause was not read from a log).
+  (`src/relay.c`). The wake and the hit from the relay's queue
+  (2026-11-02, canon's trial images of this change on both halves,
+  `CONFIG_ZMK_IDLE_TIMEOUT=20000`, the pick `cross-ring`, the dongle on
+  its pinned image, canon t-6ttk): both halves left untouched past the
+  timeout, two presses on one half, and the second press's crossing ring
+  reached the other half, in both directions, the user's OK on sight (the
+  log was not read: the port's ring keeps the boot log only). The symptom
+  it answers, the crossing ring not reaching a half left untouched for
+  minutes, is the user's report of 2026-10-28; the cause was read from
+  the sources, not a log, and held in the host harness's rail scenes and a
+  host model of ZMK's activity, event manager and peripheral command
+  handler over the real module files (2026-10-28 and 2026-11-01). Not on
+  hardware: the key bindings `&effect` and `&effect_next`, the rail-less
+  rule, the slot default and the physical layout's places (the Corne
+  check build and the host harness only, canon t-41g7; no such keyboard
+  at hand).
 
 ## Commits, pull requests, fleet files
 
