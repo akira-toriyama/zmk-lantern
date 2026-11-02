@@ -76,8 +76,9 @@ lights what is at hand. The sibling module
    (below). The places follow the chosen layout: a layout selected at run
    time instead (ZMK Studio) numbers the keys differently, and the LEDs and
    the effects land a key off until the chosen one is selected again. The
-   check build of ZMK's Corne is this least plus the split's nodes and
-   every effect: [config/corne.overlay](config/corne.overlay),
+   check build of ZMK's Corne is this least plus the split's nodes, every
+   effect, both intros, the tempo and two colours:
+   [config/corne.overlay](config/corne.overlay),
    [config/corne.conf](config/corne.conf).
 
 3. The keyboard's conf:
@@ -173,8 +174,8 @@ lights what is at hand. The sibling module
   good on a keyboard without a host, read exactly as a host's palette (The
   palette, below): one line, `CONFIG_LANTERN_COLOUR_0=0x2060FF`, paints
   every key in it (a slot left 0 shows slot 0's colour), six fill the bands
-  and the effects' colours (a 0 beside a set slot paints white, as a host's
-  black slot 0 does); all six 0, every key is white. A host's palette
+  and the effects' colours (slot 0 left 0 beside a set slot paints white, as
+  a host's black slot 0 does); all six 0, every key is white. A host's palette
   replaces them as it arrives, and across boots.
 
 - **The pictures, the effects and the intros** (what they are: What it does,
@@ -196,6 +197,9 @@ lights what is at hand. The sibling module
   `LANTERN_EFFECT_DEFAULT` (`CONFIG_LANTERN_EFFECT_DEFAULT_<EFFECT>=y`; the
   stain when built, else the first built) in `CONFIG_LANTERN_EFFECT_COLOUR`
   (`0xRRGGBB`; 0, the default, the effects' own colours from the palette).
+  `CONFIG_LANTERN_TEMPO=y` builds the tempo, the effects faster the faster
+  you type; whether it runs is the pick's, and without one
+  `CONFIG_LANTERN_TEMPO_DEFAULT` (y, it runs).
   The intros: `CONFIG_LANTERN_INTRO_BANDS` (on by default) and
   `CONFIG_LANTERN_INTRO_STAR_WAVES=y`; which plays is the pick's, and
   without one the choice `LANTERN_INTRO_DEFAULT` (the star waves when built,
@@ -212,8 +216,8 @@ lights what is at hand. The sibling module
   (the keymap's behaviors, or an overlay every device includes; the module's
   own check build includes [config/palette.dtsi](config/palette.dtsi),
   [config/effect.dtsi](config/effect.dtsi), [config/intro.dtsi](config/intro.dtsi),
-  [config/hit.dtsi](config/hit.dtsi) and [config/layer.dtsi](config/layer.dtsi)
-  from every overlay):
+  [config/tempo.dtsi](config/tempo.dtsi), [config/hit.dtsi](config/hit.dtsi)
+  and [config/layer.dtsi](config/layer.dtsi) from every overlay):
 
   ```dts
   / {
@@ -230,6 +234,10 @@ lights what is at hand. The sibling module
               compatible = "lantern,behavior-intro";
               #binding-cells = <2>;
           };
+          tempo: tempo {
+              compatible = "lantern,behavior-tempo";
+              #binding-cells = <2>;
+          };
           hit: hit {
               compatible = "lantern,behavior-hit";
               #binding-cells = <2>;
@@ -244,11 +252,13 @@ lights what is at hand. The sibling module
   ```
 
   `CONFIG_LANTERN_PALETTE`, `CONFIG_LANTERN_EFFECT`, `CONFIG_LANTERN_INTRO`,
-  `CONFIG_LANTERN_HIT` and `CONFIG_LANTERN_LAYER` are on wherever their node
-  exists; the hit (the central relaying each half's key presses to the other
-  half) is what the crossing ring and the beams need, and every effect but
-  the layer keys uses; the layer (the central telling the halves which keys
-  the held layer binds) is what the layer keys need. Its `layers` pairs each
+  `CONFIG_LANTERN_TEMPO_PICK`, `CONFIG_LANTERN_HIT` and `CONFIG_LANTERN_LAYER`
+  are on wherever their node exists; the hit (the central relaying each
+  half's key presses to the other half) is what the crossing ring and the
+  beams need, and every other effect but the heatmap and the layer keys
+  draws from it, the tempo counts it and the wake lights at it; the layer
+  (the central telling the halves which keys the held layer binds) is what
+  the layer keys need. Its `layers` pairs each
   layer to show, its index in the keymap, with a palette slot, 0 to 5; the
   central's node needs them (asserted) and only the central reads them, so
   a half's node may leave them out and a change of them is the central's
@@ -758,10 +768,11 @@ after the first is a half woken), and the countdown's `stage N` at every
 move; the palette's: `slots 0-1 RRGGBB RRGGBB stored` (or
 `unchanged`) on every device, and on the central `N colour(s) from <port>`
 and `resent to half N`; the picks': `effect: 0000000X rrggbb stored` (or
-`unchanged`; `intro: 0000000X stored` without a colour) on every device, and
+`unchanged`) on every device, and
 on the central `effect: pick 0000000X rrggbb from <port>` and `effect: resent
-to half N` (the intro's without the colour: `intro: 0000000X stored`, `intro:
-pick 0000000X from <port>`); the picture logs only a frame the strip refused
+to half N` (the intro's and the tempo's without the colour: `intro: 0000000X
+stored`, `intro: pick 0000000X from <port>`, `intro: resent to half N`, and
+the same with `tempo:`); the picture logs only a frame the strip refused
 (`frame not written`).
 
 The one keyboard this module has run on is the Cyboard Imprint of
