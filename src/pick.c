@@ -80,8 +80,8 @@
  *   next change saves, and until then a boot returns to the previous pick,
  *   whole.
  * - Delivery is not confirmed, as the palette's: the next battery report of a
- *   half resends the pick, RESEND_DELAY_MS after it (src/palette.c says why
- *   the wait).
+ *   half resends the pick, LANTERN_RESEND_DELAY_MS after it (src/resend.h,
+ *   the palette's wait too; src/palette.c says why the wait).
  */
 
 #include <errno.h>
@@ -98,9 +98,9 @@
 #if IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
 #include <zmk/behavior.h>
 #include <zmk/event_manager.h>
-#include <zmk/events/battery_state_changed.h>
-#include <zmk/events/position_state_changed.h>
 #include <zmk/split/central.h>
+
+#include "resend.h"
 #endif
 
 #include "palette.h"
@@ -127,8 +127,6 @@ BUILD_ASSERT(RESEND_INVOCATIONS * ZMK_SPLIT_CENTRAL_PERIPHERAL_COUNT <=
              "pick for every half at once (the header says why; 12 for two halves with the palette, "
              "the effects' pick, the intro's and the tempo's)");
 #endif
-
-#define RESEND_DELAY_MS 1000
 
 bool lantern_pick_get(struct lantern_pick *p, uint32_t *out, uint32_t *arg) {
     if (!atomic_get(&p->have)) {
@@ -227,15 +225,6 @@ void lantern_pick_commit(struct lantern_pick *p) { atomic_set(&p->loaded, 1); }
 
 #if IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
 
-static struct zmk_behavior_binding_event local_event(void) {
-    return (struct zmk_behavior_binding_event){
-        .layer = 0,
-        .position = 0,
-        .timestamp = k_uptime_get(),
-        .source = ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL,
-    };
-}
-
 static struct zmk_behavior_binding binding_of(const struct lantern_pick *p, uint32_t m,
                                               uint32_t a) {
     return (struct zmk_behavior_binding){
@@ -256,7 +245,7 @@ int lantern_pick_send(struct lantern_pick *p, uint32_t m, uint32_t a) {
         return -EAGAIN;
     }
     struct zmk_behavior_binding binding = binding_of(p, m, a);
-    return zmk_behavior_invoke_binding(&binding, local_event(), true);
+    return zmk_behavior_invoke_binding(&binding, lantern_local_event(), true);
 }
 
 /* System work queue. */
@@ -270,7 +259,7 @@ static void resend(struct k_work *work) {
     }
     struct zmk_behavior_binding binding =
         binding_of(p, (uint32_t)atomic_get(&p->mask), (uint32_t)atomic_get(&p->arg));
-    int err = zmk_split_central_invoke_behavior(r->source, &binding, local_event(), true);
+    int err = zmk_split_central_invoke_behavior(r->source, &binding, lantern_local_event(), true);
     if (err < 0) {
         LOG_WRN("%s: resend to half %u failed: %d", p->name, r->source, err);
         return;
@@ -279,13 +268,10 @@ static void resend(struct k_work *work) {
 }
 
 void lantern_pick_resend_after(struct lantern_pick *p, const zmk_event_t *eh) {
-    const struct zmk_peripheral_battery_state_changed *ev =
-        as_zmk_peripheral_battery_state_changed(eh);
-    if (ev == NULL) {
-        return;
-    }
-    if (ev->source < ARRAY_SIZE(p->resends) && ev->state_of_charge > 0 && atomic_get(&p->have)) {
-        k_work_reschedule(&p->resends[ev->source].work, K_MSEC(RESEND_DELAY_MS));
+    int s = lantern_resend_slot(eh, ARRAY_SIZE(p->resends));
+
+    if (s >= 0 && atomic_get(&p->have)) {
+        k_work_reschedule(&p->resends[s].work, K_MSEC(LANTERN_RESEND_DELAY_MS));
     }
 }
 

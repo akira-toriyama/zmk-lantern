@@ -264,14 +264,15 @@
  *   effect pulls an LED from black and fades back to it, and the cap leaves
  *   the effects all its room but what a stain's dye takes (the dye stays at
  *   the picture's level, as over any picture, and the cap counts it as the
- *   picture). The boot light shows the picked intro, by default the bands
- *   (src/intros/bands.c), so that a half still shows it has power (canon
- *   t-6ttk, the user's choice of 2026-10-19); its end sends a frame, so on
- *   USB the keys turn black (on battery the blank follows anyway). With the
- *   countdown on, its first picture is otherwise the black one and the others
- *   the whole half in a shade, as with the bands. The node still carries
- *   slots, which the bands intro reads, and the crossing ring and the beams
- *   for their colours.
+ *   picture). The boot light shows the picked intro, without a pick the
+ *   choice LANTERN_INTRO_DEFAULT's (the star waves where they are built, else
+ *   the bands, src/intros/bands.c), so that a half still shows it has power
+ *   (canon t-6ttk, the user's choice of 2026-10-19); its end sends a frame,
+ *   so on USB the keys turn black (on battery the blank follows anyway).
+ *   With the countdown on, its first picture is otherwise the black one and
+ *   the others the whole half in a shade, as with the bands. The node still
+ *   carries slots, which the bands intro reads, and the crossing ring and
+ *   the beams for their colours.
  * - The intros (CONFIG_LANTERN_INTROS, which each intro selects; src/intros/,
  *   one file an intro, the table from LANTERN_INTRO_LIST as the effects'):
  *   while the boot light lasts, the frame is the picked intro's, over a black
@@ -376,8 +377,9 @@ BUILD_ASSERT(HI_LEVEL > LEVEL, "CONFIG_LANTERN_BRIGHTNESS 100 leaves the frame's
  * press's effect goes in one frame. A larger ring costs RAM and, through
  * live[HITS] in compose(), the frame thread's stack (a struct hit a slot).
  * Sixteen is the product's (canon t-gwsw, 2026-11-02: the trial's eight was
- * raised after the review above, and nothing since asked for more). */
-#define HITS 16
+ * raised after the review above, and nothing since asked for more); frame.h
+ * holds the number, LANTERN_HITS, for the entries handed the live hits. */
+#define HITS LANTERN_HITS
 /* A hit in one atomic: (position + 1) << 24 | seq << HIT_SEQ_SHIFT | the
  * press's time, the low 18 bits of k_uptime_get_32() in ms (262 s). seq is
  * the count of presses mod HIT_SEQ_CYCLE: an effect that gives each press the

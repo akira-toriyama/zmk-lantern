@@ -1,6 +1,8 @@
 name: ZMK Build
 
-# Reusable build job, called by build.yml (CI) and release.yml (artifacts).
+# Reusable build job, called by build.yml (CI). The build is the check: the
+# images are no product (release.yml ships the notes alone), so none is
+# uploaded.
 #
 # Kept local instead of calling zmkfirmware/zmk's build-user-config.yml: the
 # fleet's zizmor policy (.github/zizmor.yml) hash-pins every third-party
@@ -91,12 +93,3 @@ jobs:
             -DSHIELD="$SHIELD" \
             -DZMK_CONFIG="$RUNNER_TEMP/ws/config" \
             -DZMK_EXTRA_MODULES="$GITHUB_WORKSPACE"
-          cp build/zephyr/zmk.uf2 "$GITHUB_WORKSPACE/$SHIELD.uf2"
-
-      # One artifact per shield, named after it, so release.yml can collect
-      # dist/<shield>/<shield>.uf2 without a mapping table.
-      - name: Upload firmware artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ matrix.shield }}
-          path: ${{ matrix.shield }}.uf2

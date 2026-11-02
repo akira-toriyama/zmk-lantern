@@ -11,7 +11,9 @@
  * contract: an effect or an intro paints only the pixels of the frame it is
  * handed (px[]) and keeps only its own state; the strip, the hits' ring, the
  * stage, the picks, the boot light and the cap are the engine's, which calls
- * everything here on ZMK's low priority work queue, so nothing here locks.
+ * the entries' life, picture, draw and clear and an intro's draw on ZMK's low
+ * priority work queue (an intro's start on the system work queue, the board's
+ * measure at boot: below), so nothing here locks.
  * Integers only: that queue's 768-byte stack is shared with ZMK's battery
  * sampling, and a thread that once uses the FPU keeps a larger context from
  * then on (src/keys.c).
@@ -217,16 +219,17 @@ static inline uint32_t distance2(uint8_t a, uint8_t b) {
 
 static inline uint32_t distance(uint8_t a, uint8_t b) { return isqrt(distance2(a, b)); }
 
-/* The board, measured from the coords once, at the first frame that asks
- * (src/keys.c), in hundredths of a key unit: its leftmost and rightmost
- * keys' x and its lowest key's y (y grows downwards), its width from the one
- * x to the other, the farthest two of its keys apart (span) and the farthest
- * two of this half's keys, those under its LEDs (half_span; a key of this
- * half without an LED counts as the other half's). What an effect's life
- * follows from, under the design's own value (lantern_life()): no life
- * carries a board's size but the beams' fade, which answers to the gap
- * between the halves, not the board (src/effects/beams.c says). Measured
- * at boot on the main thread (src/keys.c), read on the frame's. */
+/* The board, in hundredths of a key unit: its leftmost and rightmost keys'
+ * x and its lowest key's y (y grows downwards), its width from the one x to
+ * the other, the farthest two of its keys apart (span) and the farthest two
+ * of this half's keys, those under its LEDs (half_span; a key of this half
+ * without an LED counts as the other half's). What an effect's life follows
+ * from, under the design's own value (lantern_life()), but for the two
+ * lives without a board term: the beams' fade, which answers to the gap
+ * between the halves, not the board (src/effects/beams.c says), and the
+ * heatmap's, its hottest key's cooling. Measured once from the keys'
+ * places (the coords, or the physical layout's), at boot on the main thread
+ * (src/keys.c: board_init()), and read on the frame's. */
 struct lantern_board {
     uint16_t left, right, bottom;
     uint32_t width;
@@ -249,6 +252,10 @@ static inline uint32_t apart(uint16_t a, uint16_t b) { return a > b ? a - b : b 
  * shade skips none at the wrap); an effect that keeps a bit a number (the
  * heatmap) asserts it fits. */
 #define LANTERN_HIT_SEQ_CYCLE 60
+
+/* The engine's ring of the last presses, both halves' (src/keys.c says why
+ * sixteen): an entry is handed at most this many live hits a frame. */
+#define LANTERN_HITS 16
 
 /* A press the effects draw, read out of the engine's ring (src/keys.c). */
 struct hit {
@@ -292,9 +299,9 @@ struct lantern_effect_entry {
     /* Its lasting state into the picture px, before any effect draws, which
      * the cap then counts as picture (the stain's dye); NULL for none. */
     void (*picture)(struct led_rgb px[], const struct shades *sh);
-    /* The n live hits over the picture in px; picked is what this frame
-     * draws, the pick's bits built here (src/effect.h), for an entry that
-     * draws for more than one bit; NULL for none. */
+    /* The n live hits over the picture in px, n at most LANTERN_HITS; picked
+     * is what this frame draws, the pick's bits built here (src/effect.h),
+     * for an entry that draws for more than one bit; NULL for none. */
     void (*draw)(struct led_rgb px[], const struct shades *sh, const struct hit live[], size_t n,
                  uint32_t picked);
     /* Its state goes: at a blank, and when the stage or the pick moves; NULL

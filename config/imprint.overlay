@@ -20,7 +20,8 @@
 // the keys on a grid for coords (hundredths of a key unit: the five rows a
 // unit apart, the halves 6.5 units apart, the two bottom keys and the thumbs
 // below), a stand-in for the consumer's physical layout (canon: imprint.json
-// times 100) that the effects measuring the board take, and canon's shares
+// times 100) by which the right half's effects measure the board
+// (config/imprint_right.conf; the left half builds none), and canon's shares
 // for the scatter.
 
 #include <zephyr/dt-bindings/gpio/gpio.h>

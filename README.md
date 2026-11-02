@@ -713,9 +713,11 @@ the central builds effects (a dongle builds none: the table's first) and
 keeps `CONFIG_LANTERN_EFFECT_COLOUR` as read on the central, so a dongle's
 conf sets it to the halves' value (it cannot read theirs). Both store the
 pick as the host's line does, on the central and every half, and a stored
-pick outlives a boot; `&tempo 1 0` turns the tempo on and `&tempo 2 0` off
-the same way (the node `lantern,behavior-tempo`, named `tempo`). The three
-bindings compile in this repository's check
+pick outlives a boot; `&intro 1 0` picks the bands and `&intro 2 0` the star
+waves for the next boot light the same way (the node
+`lantern,behavior-intro`, named `intro`), and `&tempo 1 0` turns the tempo
+on and `&tempo 2 0` off (the node `lantern,behavior-tempo`, named `tempo`).
+The bindings compile in this repository's check
 build ([config/pick_keys.dtsi](config/pick_keys.dtsi)) and are unverified on
 hardware: canon's keymap binds none, its host picks.
 
@@ -731,7 +733,10 @@ hardware: canon's keymap binds none, its host picks.
 Docker, a west workspace under `~/.cache/zmk-lantern`, the images in
 `firmware/`. They are build checks, not a keyboard's firmware: both halves
 of the Cyboard Imprint (Cyboard's stock config plus the consumer-side lines
-of [config/imprint.overlay](config/imprint.overlay), with the rail) and its
+of [config/imprint.overlay](config/imprint.overlay), with the rail; the left
+half on the module's defaults, the right half a whole consumer's half,
+every effect and both intros over the no picture, with the tempo and the
+wake: [config/imprint_right.conf](config/imprint_right.conf)) and its
 `imprint_dongle` shield, the split central with the port, and both halves of
 ZMK's Corne on the nice!nano ([config/corne.overlay](config/corne.overlay):
 no rail, no `slots`, no `coords`, the places from the shield's physical

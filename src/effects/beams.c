@@ -18,7 +18,7 @@
  * its row's beam in here, from an inner column at about half strength (the
  * inner columns of canon's Imprint are 6.5 units apart, 542 ms at 12; 117 of
  * 256 at the head, less by the frame's phase), from an outer one all but
- * spent (the outermost's 10 of 255), and from a thumb nearly at full
+ * spent (the outermost's 10 of 256), and from a thumb nearly at full
  * strength, the strongest crossing; the column's beams never leave their
  * half. The design's fade of 0.6 s had the row's beam die in the gap (the
  * inner column's reaching the other half at a tenth of its strength); a

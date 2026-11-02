@@ -104,10 +104,16 @@ how to build. Usage: [README.md](README.md). English only.
   `build.yaml`) that CI and [scripts/build.sh](scripts/build.sh) build:
   Cyboard's stock Imprint halves and its `imprint_dongle` shield plus the
   consumer-side lines each needs (`config/imprint.conf`, `config/imprint.overlay`,
-  `config/imprint_left.conf`, `config/imprint_dongle.{conf,overlay}`,
+  `config/imprint_left.conf`, `config/imprint_right.conf`,
+  `config/imprint_dongle.{conf,overlay}`,
   `config/palette.dtsi`, `config/hit.dtsi`, `config/layer.dtsi`,
-  `config/effect.dtsi`, `config/intro.dtsi`, `config/effect_next.dtsi`,
-  `config/pick_keys.dtsi`),
+  `config/effect.dtsi`, `config/intro.dtsi`, `config/tempo.dtsi`,
+  `config/effect_next.dtsi`, `config/pick_keys.dtsi`): the left half with
+  the module's defaults (the bands, the countdown, the bands intro, no
+  effect), the right half with canon's lines for a half (the no picture,
+  the countdown off, both intros, every effect, the tempo and, with ZMK's
+  sleep off, the wake; canon t-a0c6), so that a change which breaks canon's
+  halves fails here first,
   and ZMK's own Corne shield on the nice!nano (`config/corne.overlay`,
   `config/corne.conf`, `config/corne_left.conf`; canon t-41g7): a standard
   split with a `zmk,physical-layout` and the per-key strip ZMK's underglow
@@ -146,9 +152,10 @@ how to build. Usage: [README.md](README.md). English only.
 - Per build directory (`$ZMK_WS/ws/build/<image name>/`): `build.log` (west's
   output, FLASH/RAM at its end), `zephyr/.config`, `zephyr/zephyr.dts`,
   `zephyr/zmk.map`, `zephyr/zmk.elf`. A half's build shows
-  `CONFIG_LANTERN_KEYS=y`, `CONFIG_LANTERN_ON_USB_POWER=y`,
-  `CONFIG_LANTERN_COUNTDOWN=y`, `CONFIG_LANTERN_COUNTDOWN_STAGE_MS=10000` and
-  `CONFIG_LANTERN_PALETTE=y` in `.config` and no `CONFIG_ZMK_RGB_UNDERGLOW`,
+  `CONFIG_LANTERN_KEYS=y`, `CONFIG_LANTERN_ON_USB_POWER=y` and
+  `CONFIG_LANTERN_PALETTE=y` in `.config`, with the countdown (every half
+  but the Imprint's right) `CONFIG_LANTERN_COUNTDOWN=y` and
+  `CONFIG_LANTERN_COUNTDOWN_STAGE_MS=10000`, and no `CONFIG_ZMK_RGB_UNDERGLOW`,
   a `lantern_keys` node with `compatible = "lantern,keys"` and a `palette`
   node with `compatible = "lantern,behavior-palette"` in `zephyr.dts`, and
   `keys.c.obj`, `on_usb_power.c.obj` and `palette.c.obj` in `zmk.map`; an
@@ -161,29 +168,40 @@ how to build. Usage: [README.md](README.md). English only.
   thumb key 38 at (598, 358), each a key's centre; read back from the ELF
   with the SDK's nm and objdump, 2026-10-27) and `lantern_slots` 42 zeros;
   the Imprint images unchanged to the byte by the rail, slots and coords
-  code of t-41g7 (the same sha256 before and after); a split peripheral half's (canon's both, the
-  stock right) `CONFIG_LANTERN_USB_LATENCY=y` and `latency.c.obj` too, and
-  with the hit node and `CONFIG_ZMK_SLEEP` unset (canon's halves, the
-  Corne's right) `CONFIG_LANTERN_WAKE_ON_HIT=y` (the stock Imprint right
-  half has `CONFIG_ZMK_SLEEP=y` from Cyboard's shield, so no wake there;
-  the check builds of 2026-11-01); a split
+  code of t-41g7 (the same sha256 before and after); the Imprint's right
+  half canon's combination (`config/imprint_right.conf`):
+  `CONFIG_LANTERN_NO_PICTURE=y`, no `CONFIG_LANTERN_COUNTDOWN`, the nine
+  effects' and both intros' symbols with
+  `CONFIG_LANTERN_EFFECT_DEFAULT_CROSS_RING=y` and
+  `CONFIG_LANTERN_INTRO_DEFAULT_STAR_WAVES=y`, `CONFIG_LANTERN_TEMPO=y`,
+  `CONFIG_LANTERN_GEOMETRY=y` with the overlay's coords, and every effect's
+  file and `star_waves.c.obj` in zmk.map (the check builds of 2026-11-02,
+  canon t-a0c6); a split peripheral half's (canon's both, the Imprint's and
+  the Corne's right) `CONFIG_LANTERN_USB_LATENCY=y` and `latency.c.obj` too,
+  and with the hit node and `CONFIG_ZMK_SLEEP` unset (canon's halves, the
+  Corne's right, the Imprint's right, whose conf turns off the
+  `CONFIG_ZMK_SLEEP=y` of Cyboard's shield) `CONFIG_LANTERN_WAKE_ON_HIT=y`;
+  a split
   central's (the dongle, the stock left half) never the latency nor the wake, and with a
   CDC ACM port (the dongle's board has one, the stock left half none)
   `CONFIG_LANTERN_PORT=y` and `port.c.obj`; the dongle's nothing of the rail
-  or the keys; a half's `CONFIG_LANTERN_INTROS=y`, `CONFIG_LANTERN_INTRO_BANDS=y`,
-  `CONFIG_LANTERN_INTRO_DEFAULT_BANDS=y` and `bands.c.obj`; every target
-  `CONFIG_LANTERN_EFFECT=y`, `CONFIG_LANTERN_INTRO=y`, `CONFIG_LANTERN_PICK=y`
-  and `effect.c.obj`, `intro.c.obj`, `pick.c.obj` from the effect and intro
-  nodes (`config/effect.dtsi`, `config/intro.dtsi`, on every target); a split
+  or the keys; a half's `CONFIG_LANTERN_INTROS=y`, `CONFIG_LANTERN_INTRO_BANDS=y`
+  and `bands.c.obj`, and `CONFIG_LANTERN_INTRO_DEFAULT_BANDS=y` where no star
+  waves are built (the Imprint's left half); every target
+  `CONFIG_LANTERN_EFFECT=y`, `CONFIG_LANTERN_INTRO=y`,
+  `CONFIG_LANTERN_TEMPO_PICK=y`, `CONFIG_LANTERN_PICK=y` and `effect.c.obj`,
+  `intro.c.obj`, `tempo.c.obj`, `pick.c.obj` from the effect, intro and tempo
+  nodes (`config/effect.dtsi`, `config/intro.dtsi`, `config/tempo.dtsi`, on
+  every target); a split
   central's (the dongle, the stock left half) `CONFIG_LANTERN_EFFECT_NEXT=y`
   and `effect_next.c.obj` from the effect-next node (`config/effect_next.dtsi`,
   on every target, a driver on the central only), and with the effects or
   the effect-next node `CONFIG_LANTERN_EFFECT_COLOUR=0` (`.config` writes a hex symbol's default
   as `0`, autoconf.h as `0x0`); the Corne's left half has no CDC ACM port in
   its board's defaults, so no `CONFIG_LANTERN_PORT` (the dongle covers the
-  port); `config/pick_keys.dtsi` binds
-  `&effect 1 0xFF0000` and `&effect_next` in a macro never invoked, so the
-  bindings compile as a consumer's keymap would write them.
+  port); `config/pick_keys.dtsi` binds `&effect 1 0xFF0000`,
+  `&effect_next`, `&intro 2 0` and `&tempo 1 0` in a macro never invoked,
+  so the bindings compile as a consumer's keymap would write them.
   `--kconfig CONFIG_LANTERN_THIN_RING=y`, `CONFIG_LANTERN_DISC=y`,
   `CONFIG_LANTERN_BEAMS=y`, `CONFIG_LANTERN_WATER=y` or
   `CONFIG_LANTERN_DART=y` adds
@@ -338,8 +356,10 @@ how to build. Usage: [README.md](README.md). English only.
   light follows, after the rail's settle where there is one): the next does. Off under `CONFIG_ZMK_SLEEP`
   (Kconfig), where ZMK powers the SoC off in the work item that raises
   SLEEP and a rail the wake kept on could stay on in System OFF; Cyboard's
-  stock Imprint halves have sleep on, so the module's stock Imprint check
-  build has no wake, the Corne's right half and canon's halves build it.
+  stock Imprint halves have sleep on, which the module's Imprint check build
+  turns off on its right half (`config/imprint_right.conf`), as canon does
+  on its halves, so that half builds the wake, as the Corne's right half
+  does.
 - A target without a `lantern,keys` node builds none of the painting
   (`CONFIG_LANTERN_KEYS` depends on `DT_HAS_LANTERN_KEYS_ENABLED`) and none of
   the rule (`CONFIG_LANTERN_ON_USB_POWER` depends on `LANTERN_KEYS`: the rule
@@ -360,8 +380,9 @@ how to build. Usage: [README.md](README.md). English only.
   distance fits 32 bits), and nothing about the order or the places: a wrong
   order paints the right colours on the wrong keys, a wrong table a ring that
   is round in the matrix and not on the board, which only the hardware shows
-  (canon t-69g7 measures the order one LED at a time; the coords are
-  imprint.json times 100). Without `slots` every key is slot 0 (one colour
+  (canon t-69g7 took Cyboard's own chain order, its QMK firmware's LED map,
+  and saw the bands right on both halves, the order within a band
+  unmeasured; the coords are imprint.json times 100). Without `slots` every key is slot 0 (one colour
   in the bands, the crossing ring and the beams); without `coords`, where
   something measures the board (`CONFIG_LANTERN_GEOMETRY`), the keyboard's
   chosen `zmk,physical-layout` (else its first) places the keys, each at
@@ -468,7 +489,7 @@ how to build. Usage: [README.md](README.md). English only.
   black slot other than 0 paints slot 0; a grey or black slot 0 paints white.
 - **The central's run queue holds a whole palette and every pick for every
   half at once** (`CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE` at least
-  five invocations a half with both picks, 10 for two halves, asserted in
+  six invocations a half with the three picks, 12 for two halves, asserted in
   `src/pick.c`; `src/palette.c` asserts the palette's three alone): a set
   from the port queues every half's three in one go, ZMK's own thread
   drains them with one GATT write each, and a put into a full queue waits
