@@ -108,7 +108,7 @@ static bool expect_on(uint32_t k, uint32_t c, uint32_t *along) {
     return false;
 }
 
-/* The shade a key's band paints at full scale: the harness's palette has six
+/* The shade a key's band paints at full scale: the harness's palette has five
  * distinct colours, slot 5 cleared to slot 0. */
 static struct led_rgb band_hi(uint32_t key) {
     uint32_t rgb = fake_palette[slots[key]] != 0 ? fake_palette[slots[key]] : fake_palette[0];

@@ -1,5 +1,7 @@
-/* Runs the real src/on_usb_power.c (included below) on the host with a fake
- * clock and one delayable work item, through the intro's scenarios. */
+/* Runs the real src/on_usb_power.c (run.sh writes it as policy_src.c,
+ * included below) on the host with a fake clock and its delayable items, the
+ * step's and, with CONFIG_LANTERN_WAKE_ON_HIT, the wake's: the rail rule's 11
+ * scenes, and the wake's 10 in a build with it. */
 #include <errno.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -47,7 +49,7 @@ static int gpio_pin_configure_dt(const struct gpio_dt_spec *s, int f) {
     return 0;
 }
 
-/* clock and the one delayable item */
+/* clock and the delayable items */
 static uint32_t now;
 struct k_work {
     int unused;
@@ -184,13 +186,7 @@ static void run_until(uint32_t t) {
 }
 static void event(int kind) {
     zmk_event_t e = {kind};
-#ifdef TRACE
-    fprintf(stderr, "ev %d at %u before: phase %d want %d lit %d pending %d due %u\n", kind, now, phase, want_lit, keys_lit, step_work.pending, step_work.due);
-#endif
     lantern_listener(&e);
-#ifdef TRACE
-    fprintf(stderr, "ev %d at %u after: phase %d want %d lit %d pending %d due %u\n", kind, now, phase, want_lit, keys_lit, step_work.pending, step_work.due);
-#endif
 }
 static void reset_bare(bool usb0, bool active0) {
     phase = DARK;

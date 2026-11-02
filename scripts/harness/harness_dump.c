@@ -1,9 +1,17 @@
 /* Dumps every frame of a fixed script as CSV, for comparing two trees of the
- * key LEDs frame for frame (t-pmfn: the one-file keys.c against the split):
- * the intro (three seeds, 1 ms frames, two presses meanwhile), then each
- * pick of the effects over a palette of five colours, one colour and none,
- * with this half's presses, the other half's relayed in, a stage move, a
- * pick change mid-ring and a blank. HARNESS_SRC names the tree. */
+ * key LEDs frame for frame (run.sh equiv). run.sh builds it with canon's
+ * halves' flags (every effect, both intros, the tempo, the no picture), so a
+ * tree it compares has all of them: aeec40c (the tempo) or later. The script:
+ * - the intro: the star waves (the default) at three seeds, then the bands
+ *   picked, 1 ms frames, presses meanwhile;
+ * - each pick of the effects, the heatmap and the layer keys among them (over
+ *   one layer state set before the picks), over a palette of five colours,
+ *   one colour and none, with this half's presses, the other half's relayed
+ *   in, a stage move, a pick change mid-ring and a blank;
+ * - some of the picks again with the pick's colour;
+ * - a burst of presses at eight a second under the crossing ring, with the
+ *   tempo not picked (the Kconfig default), picked off and picked on.
+ * HARNESS_SRC names the tree. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,7 +20,6 @@
 
 static bool fake_pick_have;
 static uint32_t fake_pick;
-#ifdef LANTERN_EFFECT_COLOUR_MAX
 bool lantern_effect_get(uint32_t *mask, uint32_t *colour) {
     if (fake_pick_have) {
         *mask = fake_pick;
@@ -22,14 +29,6 @@ bool lantern_effect_get(uint32_t *mask, uint32_t *colour) {
     }
     return fake_pick_have;
 }
-#else
-bool lantern_effect_get(uint32_t *mask) {
-    if (fake_pick_have) {
-        *mask = fake_pick;
-    }
-    return fake_pick_have;
-}
-#endif
 
 static FILE *out;
 static unsigned long frames;
@@ -114,16 +113,93 @@ static void script(const char *tag, uint32_t base, bool have, uint32_t mask) {
     paint(NULL);
 }
 
+/* The tempo's script from base: the crossing ring, presses at eight a second
+ * for two seconds, this half's and the other's in turn, then frames every
+ * 5 ms to 4000 while the tempo eases back. */
+static void burst(const char *tag, uint32_t base) {
+    pick(true, LANTERN_EFFECT_CROSS_RING);
+    for (uint32_t t = 0; t <= 4000; t += 5) {
+        uint32_t now = base + t;
+        fake_now = now;
+        if (t <= 2000 && t % 125 == 0) {
+            if ((t / 125) % 2 == 0) {
+                press((t / 125) % 4 == 0 ? own_a : own_b);
+            } else {
+                lantern_keys_hit((t / 125) % 4 == 1 ? other : other_thumb);
+            }
+        }
+        frame(tag, now);
+    }
+    fake_now = base + 4005;
+    lantern_keys_blank();
+    paint(NULL);
+    fake_now = base + 4010;
+    lantern_keys_light();
+    paint(NULL);
+}
+
 struct run {
     const char *tag;
     bool have;
     uint32_t mask;
 };
 
+static const struct run runs[] = {
+    {"ring", true, LANTERN_EFFECT_THIN_RING},
+    {"disc", true, LANTERN_EFFECT_DISC},
+    {"stain", true, LANTERN_EFFECT_STAIN},
+    {"cross", true, LANTERN_EFFECT_CROSS_RING},
+    {"beams", true, LANTERN_EFFECT_BEAMS},
+    {"water", true, LANTERN_EFFECT_WATER},
+    {"dart", true, LANTERN_EFFECT_DART},
+    {"heatmap", true, LANTERN_EFFECT_HEATMAP},
+    {"layer-keys", true, LANTERN_EFFECT_LAYER_KEYS},
+    {"ring+stain", true, LANTERN_EFFECT_THIN_RING | LANTERN_EFFECT_STAIN},
+    {"ring+disc", true, LANTERN_EFFECT_THIN_RING | LANTERN_EFFECT_DISC},
+    {"stain+disc", true, LANTERN_EFFECT_STAIN | LANTERN_EFFECT_DISC},
+    {"dart+layer-keys", true, LANTERN_EFFECT_DART | LANTERN_EFFECT_LAYER_KEYS},
+    {"seven", true, 0x7f},
+    {"every", true, LANTERN_EFFECT_ALL},
+    {"nopick", false, 0},
+    {"unbuilt", true, BIT(7)},
+    {"cross+dart+water", true, LANTERN_EFFECT_CROSS_RING | LANTERN_EFFECT_DART | LANTERN_EFFECT_WATER},
+};
+
+/* The picks run again with the pick's colour. */
+static const struct run coloured[] = {
+    {"ring+stain", true, LANTERN_EFFECT_THIN_RING | LANTERN_EFFECT_STAIN},
+    {"cross", true, LANTERN_EFFECT_CROSS_RING},
+    {"water", true, LANTERN_EFFECT_WATER},
+    {"dart", true, LANTERN_EFFECT_DART},
+    {"heatmap", true, LANTERN_EFFECT_HEATMAP},
+    {"layer-keys", true, LANTERN_EFFECT_LAYER_KEYS},
+    {"every", true, LANTERN_EFFECT_ALL},
+};
+
+static void palette_five(void) {
+    fake_have = true;
+    fake_palette[0] = 0xFF0000;
+    fake_palette[1] = 0x00FF00;
+    fake_palette[2] = 0x0000FF;
+    fake_palette[3] = 0xFFFF00;
+    fake_palette[4] = 0x00FFFF;
+    fake_palette[5] = 0;
+}
+
+static uint32_t all_runs(const char *prefix, const struct run *r, size_t n, uint32_t base) {
+    for (size_t i = 0; i < n; i++) {
+        char tag[48];
+        snprintf(tag, sizeof(tag), "%s-%s", prefix, r[i].tag);
+        base += 5000;
+        script(tag, base, r[i].have, r[i].mask);
+    }
+    return base;
+}
+
 int main(int argc, char **argv) {
     out = argc > 1 ? fopen(argv[1], "w") : stdout;
 
-    /* the intro, three seeds */
+    /* the intro: the default (the star waves) at three seeds */
     const uint32_t seeds[3] = {0x1234567u, 0xa3cbd250u, 0xdeadbeefu};
     for (size_t s = 0; s < 3; s++) {
         char tag[32];
@@ -145,57 +221,65 @@ int main(int argc, char **argv) {
         lantern_keys_blank();
         paint(NULL);
     }
+    /* the bands, picked, over the five colours (without a palette every band
+     * is white, and a band's colour would not show) */
+    {
+        uint32_t base = 65000;
+        palette_five();
+        fake_intro_have = true;
+        fake_intro = LANTERN_INTRO_BANDS;
+        fake_now = base;
+        uint32_t ms = lantern_keys_boot_light(true);
+        lantern_keys_light();
+        for (uint32_t t = 0; t <= ms + 60; t += 1) {
+            fake_now = base + t;
+            if (t == 300) {
+                press(positions[3]);
+            }
+            frame("intro-bands", base + t);
+        }
+        lantern_keys_boot_light(false);
+        frame("intro-bands", base + ms + 100);
+        lantern_keys_blank();
+        paint(NULL);
+        fake_intro_have = false;
+        fake_have = false;
+    }
 
-    /* the effects */
-    static const struct run runs[] = {
-        {"ring", true, LANTERN_EFFECT_THIN_RING},
-        {"disc", true, LANTERN_EFFECT_DISC},
-        {"stain", true, LANTERN_EFFECT_STAIN},
-        {"cross", true, LANTERN_EFFECT_CROSS_RING},
-        {"beams", true, LANTERN_EFFECT_BEAMS},
-        {"water", true, LANTERN_EFFECT_WATER},
-        {"dart", true, LANTERN_EFFECT_DART},
-        {"ring+stain", true, LANTERN_EFFECT_THIN_RING | LANTERN_EFFECT_STAIN},
-        {"ring+disc", true, LANTERN_EFFECT_THIN_RING | LANTERN_EFFECT_DISC},
-        {"stain+disc", true, LANTERN_EFFECT_STAIN | LANTERN_EFFECT_DISC},
-        {"all", true, 0x7f},
-        {"nopick", false, 0},
-        {"unbuilt", true, BIT(7)},
-        {"cross+dart+water", true, LANTERN_EFFECT_CROSS_RING | LANTERN_EFFECT_DART | LANTERN_EFFECT_WATER},
-    };
+    /* the effects: one layer state for the layer keys, keys on both halves */
     uint32_t base = 80000;
-    fake_have = true;
-    fake_palette[0] = 0xFF0000;
-    fake_palette[1] = 0x00FF00;
-    fake_palette[2] = 0x0000FF;
-    fake_palette[3] = 0xFFFF00;
-    fake_palette[4] = 0x00FFFF;
-    fake_palette[5] = 0;
+    palette_five();
     fake_now = base;
     lantern_keys_light();
     paint(NULL);
-    for (size_t r = 0; r < sizeof(runs) / sizeof(runs[0]); r++) {
-        char tag[48];
-        snprintf(tag, sizeof(tag), "p5-%s", runs[r].tag);
-        base += 5000;
-        script(tag, base, runs[r].have, runs[r].mask);
-    }
+    lantern_layer_keys_set(0, true, BIT(1) | BIT(8) | BIT(14) | BIT(20) | BIT(27),
+                           BIT(33 - 32) | BIT(40 - 32) | BIT(44 - 32) | BIT(57 - 32) |
+                               (2u << LANTERN_LAYER_SLOT_SHIFT));
+    base = all_runs("p5", runs, ARRAY_SIZE(runs), base);
     /* one colour */
     fake_palette[1] = fake_palette[2] = fake_palette[3] = fake_palette[4] = 0;
-    for (size_t r = 0; r < 11; r++) {
-        char tag[48];
-        snprintf(tag, sizeof(tag), "p1-%s", runs[r].tag);
-        base += 5000;
-        script(tag, base, runs[r].have, runs[r].mask);
-    }
+    base = all_runs("p1", runs, ARRAY_SIZE(runs), base);
     /* no palette: white */
     fake_have = false;
-    for (size_t r = 0; r < 11; r++) {
-        char tag[48];
-        snprintf(tag, sizeof(tag), "p0-%s", runs[r].tag);
-        base += 5000;
-        script(tag, base, runs[r].have, runs[r].mask);
-    }
+    base = all_runs("p0", runs, ARRAY_SIZE(runs), base);
+    /* the pick's colour over the five */
+    palette_five();
+    fake_colour = 0xFF8000;
+    base = all_runs("pc", coloured, ARRAY_SIZE(coloured), base);
+    fake_colour = 0;
+
+    /* the tempo: not picked (the default), off, on */
+    base += 5000;
+    burst("tempo-default", base);
+    fake_tempo_have = true;
+    fake_tempo = LANTERN_TEMPO_OFF;
+    base += 5000;
+    burst("tempo-off", base);
+    fake_tempo = LANTERN_TEMPO_ON;
+    base += 5000;
+    burst("tempo-on", base);
+    fake_tempo_have = false;
+
     fprintf(stderr, "%lu frames\n", frames);
     if (out != stdout) {
         fclose(out);

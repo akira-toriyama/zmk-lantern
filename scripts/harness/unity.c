@@ -3,7 +3,8 @@
  * intros, the effects; the stain is the thin ring's), with the names the
  * harness programs knew from the one-file keys.c, and the intro pick's store
  * faked (fake_intro_have / fake_intro: none by default, so the Kconfig default
- * plays). A new effect file joins the includes below and combo.c's. */
+ * plays). A new effect or intro joins the includes below, and more besides
+ * (run.sh's header lists it). */
 #include "keys.c"
 #include "intros/bands.c"
 #include "intros/star_waves.c"

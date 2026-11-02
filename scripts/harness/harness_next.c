@@ -16,7 +16,7 @@ static int fails;
     } while (0)
 
 int main(void) {
-    /* the table of ten: 0 -> 1 -> 2 -> ... -> 64 -> 1 */
+    /* the seven press effects' set, 0x7f: 0 -> 1 -> 2 -> ... -> 64 -> 1 */
     uint32_t m = 0;
     for (unsigned int i = 0; i < 7; i++) {
         m = lantern_effect_next(m, 0x7f);
@@ -35,7 +35,7 @@ int main(void) {
     /* a set of one */
     CHECK(lantern_effect_next(0x10, 0x10) == 0x10, "a set of one");
     CHECK(lantern_effect_next(0, 0x10) == 0x10, "a set of one from none");
-    /* a full round over the table returns to the start in seven steps */
+    /* a full round over the table returns to the start in LANTERN_EFFECT_COUNT steps */
     uint32_t start = LANTERN_EFFECT_DART, cur = start;
     unsigned int steps = 0;
     do {

@@ -76,7 +76,8 @@ static void pick(bool have, uint32_t mask) {
     lantern_keys_effect_changed();
 }
 
-/* Five colours, slot 5 cleared (canon's sender fills five): each distinct. */
+/* Five hand-picked test colours, each distinct; slot 5 cleared, as canon's
+ * sender leaves it. */
 static const uint32_t five[6] = {0xFF2000, 0x00C040, 0x2040FF, 0xFFD000, 0xC000FF, 0};
 static void palette_five(void) {
     fake_have = true;

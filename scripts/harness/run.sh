@@ -8,13 +8,15 @@
 #
 #   ./scripts/harness/run.sh                # every step below but equiv
 #   ./scripts/harness/run.sh effects tempo  # the named steps
-#   ./scripts/harness/run.sh equiv [REF]    # frames of REF's src (default
-#                                           # origin/main) against this tree's
+#   ./scripts/harness/run.sh equiv [REF]    # frames of REF's src (default: the
+#                                           # merge base with origin/main)
+#                                           # against this tree's
 #
 # Steps (the programs, both halves where a half matters; the flags are each
 # program's Kconfig combination, written out here):
 #   effects  harness_effect, _dart, _water, _beams, _heatmap and _star_waves
-#            over unity.c: canon's halves' effects and intros
+#            over unity.c: canon's halves' effects and intros without the
+#            tempo, the layer keys only in the heatmap's program
 #   colour   harness_colour (the pick's colour) over the bands and the no
 #            picture, and harness_next (the effect-next cycle)
 #   colours  harness_colours: the conf's colours (CONFIG_LANTERN_COLOUR_0 to _5)
@@ -22,25 +24,44 @@
 #            default
 #   layer    harness_layer: the layer keys drawn from a state
 #   tempo    harness_tempo
-#   policy   policy.c over src/on_usb_power.c: the rail rule's and the wake's
-#            scenes, with and without the wake and the rail
-#   combos   combo.c -fsyntax-only under Kconfig combinations (the stubs drop
-#            the handlers' registrations, so key_listener, tick and
-#            board_init warn as unused: no failure)
+#   policy   policy.c over src/on_usb_power.c: the rail rule's 11 scenes and,
+#            in a build with the wake, the wake's 10, in four builds (the wake
+#            and the rail, each on and off)
+#   combos   combo.c -fsyntax-only under Kconfig combinations
 #   central  central/harness_central over src/layer.c: the central over
 #            canon's keymap (central/canon_keymap.h, from central/gen_keymap.py)
 #            or a synthetic 76-key one, and the half
 #   lk76     harness_lk76: src/effects/layer_keys.c on a 76-key keymap
-#   equiv    harness_dump over unity.c, REF's src/ and this tree's: the same
-#            frames to the byte, for a change that must not move a pixel
+#   equiv    harness_dump over unity.c with canon's halves' flags, REF's src/
+#            and this tree's: the same frames to the byte, for a change that
+#            must not move a pixel (harness_dump.c says what it draws; REF has
+#            the tempo, aeec40c, or later)
+#
+# A step passes when every program exits 0 (each exits non-zero on a failed
+# check) and it ran one at least. The builds' warnings are shown, but for
+# -Wunused-function: the stubs drop the handlers' registrations
+# (key_listener, tick, scatter_tick, board_init), and a build leaves some of
+# a program's helpers unused; an unused function in the module warns in the
+# Docker check builds that compile it.
+#
+# A new effect or intro: its file joins the includes of unity.c and combo.c
+# (an effect a press starts joins unity.c's HIT_LIFE_MS too); its symbol joins
+# the flag lists here (SEVEN or a step's fl, `every` for the product
+# combination; INTROS_BOTH and `both` for an intro) with a combo line of its
+# own; a program checks what it draws, built and run in a step;
+# harness_dump.c runs it; and the programs that assert LANTERN_EFFECT_COUNT
+# take the new count.
 #
 # Exit 0 when every step passed, 1 when one failed (a compile error, a
-# program's non-zero exit, frames that differ), 2 for bad usage. Outputs (the
-# programs, their logs and outputs, the CSVs) go to $LANTERN_HARNESS_OUT
-# (default ~/.cache/zmk-lantern/harness), never into the repository; nothing
-# in them is personal (no keystroke, no palette of the day). sheet.py draws a
-# frames CSV, the star waves' say, as a contact sheet PNG:
-#   python3 -I scripts/harness/sheet.py <frames.csv> <out.png> [every_ms] [cols]
+# program's non-zero exit, frames that differ, a step that ran nothing), 2
+# for bad usage, no $CC, or another run on the same outputs. Outputs (the programs,
+# their logs and outputs, the CSVs) go to $LANTERN_HARNESS_OUT, by default
+# ~/.cache/zmk-lantern/harness/<checkout>-<hash of its path>, one directory a
+# checkout and locked while a run uses it, never into the repository; nothing
+# in them is personal (no keystroke, no palette of the day). sheet.py draws
+# the star waves' frames as a contact sheet PNG:
+#   python3 -I scripts/harness/sheet.py <OUT>/frames_star_waves_LEFT.csv \
+#     <out.png> [every_ms] [cols] [from_ms] [to_ms]
 #
 # Environment: LANTERN_HARNESS_OUT, CC (default clang).
 set -uo pipefail
@@ -48,10 +69,11 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 SRC="$REPO/src"
-OUT="${LANTERN_HARNESS_OUT:-$HOME/.cache/zmk-lantern/harness}"
+OUT="${LANTERN_HARNESS_OUT:-$HOME/.cache/zmk-lantern/harness/$(basename "$REPO")-$(printf '%s' "$REPO" | shasum | cut -c1-8)}"
 CC="${CC:-clang}"
 CFLAGS=(-std=gnu11 -O1 -g -Wall -Wextra "-fsanitize=address,undefined" -fno-sanitize-recover=all)
 FAILED=()
+RAN=0
 
 usage() {
   awk 'NR>1 && /^#/{sub(/^# ?/,""); print; next} NR>1{exit}' "${BASH_SOURCE[0]}"
@@ -60,6 +82,15 @@ usage() {
 fail() { # step: a line, and the run fails
   echo "FAIL $*"
   FAILED+=("$1")
+}
+
+# warnings NAME LOG: each distinct warning of a build but -Wunused-function's
+# (the header), one line each. Always true: a build with no warning is no
+# failure, and `build && run` must not skip the run.
+warnings() {
+  grep 'warning:' "$2" | grep -v '\[-Wunused-function\]' | sed -E 's/^[^:]*:[0-9]+:[0-9]+: warning: //' |
+    sort -u | sed "s/^/warn $1: /"
+  return 0
 }
 
 # The effects' and intros' base, canon's halves (no picture, every effect, both
@@ -85,6 +116,7 @@ build() {
     fail "$name: compile error: $(grep -m1 error "$OUT/$name.log")"
     return 1
   fi
+  warnings "$name" "$OUT/$name.log"
 }
 
 # run NAME ARGS...: run $OUT/NAME, its output in $OUT/NAME.txt; the line is the
@@ -92,6 +124,7 @@ build() {
 run() {
   local name=$1
   shift
+  RAN=$((RAN + 1))
   if "$OUT/$name" "$@" >"$OUT/$name.txt" 2>&1; then
     echo "ok   $name | $(tail -1 "$OUT/$name.txt")"
   else
@@ -142,13 +175,13 @@ step_colours() {
     -DCONFIG_LANTERN_COLOUR_5=0)
   local half
   for half in LEFT RIGHT; do
-    build "hc2_conf_$half" stubs_skew.h harness_colours.c "-DHALF_$half" "${fl[@]}" \
+    build "hc2_conf_$half" stubs.h harness_colours.c "-DHALF_$half" "${fl[@]}" \
       -DCONFIG_LANTERN_COLOUR_0=0xFF0000 -DCONFIG_LANTERN_COLOUR_1=0x00FF00 -DCONFIG_LANTERN_COLOUR_2=0x0000FF \
       -DCONFIG_LANTERN_COLOUR_3=0xFFFF00 -DCONFIG_LANTERN_COLOUR_4=0xFF00FF -DCONFIG_LANTERN_COLOUR_5=0x00FFFF &&
       run "hc2_conf_$half"
-    build "hc2_two_$half" stubs_skew.h harness_colours.c "-DHALF_$half" "${fl[@]}" \
+    build "hc2_two_$half" stubs.h harness_colours.c "-DHALF_$half" "${fl[@]}" \
       -DCONFIG_LANTERN_COLOUR_0=0xFF0000 -DCONFIG_LANTERN_COLOUR_1=0x00FF00 "${rest[@]}" && run "hc2_two_$half"
-    build "hc2_zero_$half" stubs_skew.h harness_colours.c "-DHALF_$half" "${fl[@]}" \
+    build "hc2_zero_$half" stubs.h harness_colours.c "-DHALF_$half" "${fl[@]}" \
       -DCONFIG_LANTERN_COLOUR_0=0 -DCONFIG_LANTERN_COLOUR_1=0 "${rest[@]}" -DEXPECT_WHITE=1 &&
       run "hc2_zero_$half"
   done
@@ -189,11 +222,10 @@ step_tempo() {
 }
 
 # policy.c includes the rule's file as policy_src.c, its #include and
-# DT_DRV_COMPAT lines dropped; its stubs serve every build, so a build that
-# leaves one unused is no failure (-Wno-unused-function).
+# DT_DRV_COMPAT lines dropped.
 step_policy() {
   grep -v '^#include\|^#define DT_DRV_COMPAT' "$SRC/on_usb_power.c" >"$OUT/policy_src.c"
-  local cf=("${CFLAGS[@]}" -Wno-unused-function -I "$OUT" -DCONFIG_LANTERN_INTROS=1
+  local cf=("${CFLAGS[@]}" -I "$OUT" -DCONFIG_LANTERN_INTROS=1
     -DCONFIG_LANTERN_ON_USB_POWER=1 -DCONFIG_USB_DEVICE_STACK=1 -DCONFIG_SETTINGS=1
     -DCONFIG_ZMK_IDLE_TIMEOUT=300000 -DCONFIG_LANTERN_OFF_WHEN_IDLE=1)
   local name flags
@@ -204,6 +236,8 @@ step_policy() {
     # flags is empty for nowake-norail: macOS's bash 3.2 takes "${flags[@]}"
     # of an empty array as unbound under set -u, hence the + form.
     if "$CC" "${cf[@]}" ${flags[@]+"${flags[@]}"} "$HERE/policy.c" -o "$OUT/p_$name" 2>"$OUT/p_$name.log"; then
+      warnings "p_$name" "$OUT/p_$name.log"
+      RAN=$((RAN + 1))
       if "$OUT/p_$name" >"$OUT/p_$name.txt" 2>&1; then
         echo "ok   p_$name | $(tail -1 "$OUT/p_$name.txt" | sed 's/; last log:.*//')"
       else
@@ -222,7 +256,9 @@ combo() {
   for half in LEFT RIGHT; do
     if "$CC" -std=gnu11 -O1 -Wall -Wextra -fsyntax-only -I "$HERE/stubinc" -I "$SRC" -include "$HERE/stubs.h" \
         "-DHALF_$half" "${CBASE[@]}" "$@" "$HERE/combo.c" >"$OUT/combo_${name}_$half.log" 2>&1; then
-      echo "ok   combo $name $half ($(grep -c 'warning:' "$OUT/combo_${name}_$half.log") warnings)"
+      RAN=$((RAN + 1))
+      echo "ok   combo $name $half"
+      warnings "combo $name $half" "$OUT/combo_${name}_$half.log"
     else
       fail "combo $name $half: $(grep -m1 error "$OUT/combo_${name}_$half.log")"
     fi
@@ -298,6 +334,7 @@ step_central() {
     if "$CC" "${CFLAGS[@]}" -I "$HERE/central/cstub" -I "$SRC" -include "$HERE/central/cstub_central.h" \
         -DCONFIG_LANTERN_LAYER=1 "${flags[@]}" "$HERE/central/harness_central.c" -o "$OUT/hc_$name" \
         2>"$OUT/hc_$name.log"; then
+      warnings "hc_$name" "$OUT/hc_$name.log"
       run "hc_$name"
     else
       fail "hc_$name: compile error: $(grep -m1 error "$OUT/hc_$name.log")"
@@ -311,10 +348,16 @@ step_lk76() {
 }
 
 # equiv [REF]: REF's src/ (git archive) and this tree's under the same
-# program; it holds the old program's signatures for an old tree
-# (harness_dump.c).
+# program, built with canon's halves' flags.
 step_equiv() {
-  local ref=${1:-origin/main}
+  local ref=${1:-}
+  if [ -z "$ref" ]; then
+    ref=$(git -C "$REPO" merge-base HEAD origin/main 2>/dev/null) ||
+      { fail "equiv: no merge base with origin/main: name a REF"; return; }
+  fi
+  local at
+  at=$(git -C "$REPO" rev-parse --short "$ref^{commit}" 2>/dev/null) ||
+    { fail "equiv: $ref names no commit"; return; }
   local base="$OUT/equiv-base"
   rm -rf "$base"
   mkdir -p "$base"
@@ -323,7 +366,8 @@ step_equiv() {
     return
   fi
   local fl=(-DCONFIG_LANTERN_KEYS=1 "${COLOURS_0[@]}" -DCONFIG_LANTERN_ON_USB_POWER=1 "${INTROS_BOTH[@]}"
-    -DCONFIG_LANTERN_INTRO_DEFAULT_STAR_WAVES=1 -DCONFIG_LANTERN_NO_PICTURE=1 "${SEVEN[@]}" "${ENGINE[@]}"
+    -DCONFIG_LANTERN_INTRO_DEFAULT_STAR_WAVES=1 -DCONFIG_LANTERN_NO_PICTURE=1 "${SEVEN[@]}"
+    -DCONFIG_LANTERN_HEATMAP=1 -DCONFIG_LANTERN_LAYER_KEYS=1 "${TEMPO[@]}" "${ENGINE[@]}"
     -DCONFIG_LANTERN_EFFECT_COLOUR=0x0 "${LEVELS[@]}")
   local half tree src
   for half in LEFT RIGHT; do
@@ -336,13 +380,15 @@ step_equiv() {
         fail "equiv $tree $half: compile error: $(grep -m1 error "$OUT/hdump_${tree}_$half.log")"
         continue 2
       fi
+      warnings "hdump_${tree}_$half" "$OUT/hdump_${tree}_$half.log"
       "$OUT/hdump_${tree}_$half" "$OUT/dump_${tree}_$half.csv" 2>"$OUT/dump_${tree}_$half.err" ||
         { fail "equiv $tree $half: run failed: $(tail -1 "$OUT/dump_${tree}_$half.err")"; continue 2; }
     done
+    RAN=$((RAN + 1))
     if cmp -s "$OUT/dump_base_$half.csv" "$OUT/dump_this_$half.csv"; then
-      echo "ok   equiv $half: $(tail -1 "$OUT/dump_this_$half.err") identical with $ref"
+      echo "ok   equiv $half: $(tail -1 "$OUT/dump_this_$half.err") identical with $at"
     else
-      fail "equiv $half: frames differ from $ref from line $(cmp "$OUT/dump_base_$half.csv" \
+      fail "equiv $half: frames differ from $at's from line $(cmp "$OUT/dump_base_$half.csv" \
         "$OUT/dump_this_$half.csv" | sed -n 's/.* line //p') of dump_this_$half.csv"
     fi
   done
@@ -354,28 +400,41 @@ while [ $# -gt 0 ]; do
   case "$1" in
     -h | --help) usage; exit 0 ;;
     equiv)
-      if [ $# -gt 1 ] && [[ "$2" != -* ]] && ! [[ " ${ALL[*]} equiv " == *" $2 "* ]]; then
+      if [ $# -gt 1 ] && [[ "$2" != -* ]] && ! declare -F "step_$2" >/dev/null; then
         steps+=("equiv:$2")
         shift
       else
         steps+=("equiv:")
       fi
       ;;
-    effects | colour | colours | intro | layer | tempo | policy | combos | central | lk76) steps+=("$1") ;;
-    *) echo "run.sh: unknown step $1 (see --help)" >&2; exit 2 ;;
+    *)
+      if [[ "$1" == -* ]] || ! declare -F "step_$1" >/dev/null; then
+        echo "run.sh: unknown step $1 (see --help)" >&2
+        exit 2
+      fi
+      steps+=("$1")
+      ;;
   esac
   shift
 done
 [ ${#steps[@]} -gt 0 ] || steps=("${ALL[@]}")
 command -v "$CC" >/dev/null || { echo "run.sh: $CC not found" >&2; exit 2; }
 mkdir -p "$OUT"
+# One run at a time on these outputs: two would overwrite each other's
+# programs and CSVs. lockf takes the descriptor, and the lock goes with the
+# process.
+exec 9>>"$OUT/.lock"
+lockf -s -t 0 9 || { echo "run.sh: another run uses $OUT" >&2; exit 2; }
 
+# A step that ran no program and reported no failure did not pass.
 for s in "${steps[@]}"; do
   echo "== $s"
+  ran=$RAN failed=${#FAILED[@]}
   case "$s" in
     equiv:*) step_equiv "${s#equiv:}" ;;
     *) "step_$s" ;;
   esac
+  [ "$RAN" -gt "$ran" ] || [ ${#FAILED[@]} -gt "$failed" ] || fail "$s: no program ran"
 done
 
 if [ ${#FAILED[@]} -gt 0 ]; then

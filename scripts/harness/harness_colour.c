@@ -4,7 +4,9 @@
  * clears the effects' state; without a pick CONFIG_LANTERN_EFFECT_COLOUR rules
  * (EXPECT_DEFAULT_RED=1 when built with it red). The palette is pure green, so
  * a red colour shows as r > 0 with b == 0 everywhere and g never above the
- * picture's. Without a colour nothing changes: run.sh equiv. */
+ * picture's. Without a colour nothing changed: harness_dump's frames of the
+ * one-file d4c19c9, before the colour, and of 3b6c21e were compared once, to
+ * the byte (canon t-rgp5); run.sh equiv compares trees that both have it. */
 #include <stdlib.h>
 
 #include "unity.c"

@@ -32,7 +32,7 @@ static void press(uint32_t position) {
     ev = (struct zmk_position_state_changed){
         .source = ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL, .position = position, .state = true};
     fake_event = &ev;
-    zmk_event_t e;
+    zmk_event_t e = {0};
     key_listener(&e);
     fake_event = NULL;
 }
@@ -58,7 +58,7 @@ int main(int argc, char **argv) {
     lantern_keys_boot_light(true);
     lantern_keys_light();
 
-    uint32_t max_sum = 0, capped = 0, frames = 0, presses = 0, mixed_star = 0;
+    uint32_t max_sum = 0, capped = 0, frames = 0, presses = 0;
     bool moving = true;
     for (uint32_t t = 0; t <= LANTERN_INTRO_MS + 2 * step; t += step) {
         fake_now = base + t;
@@ -128,8 +128,8 @@ int main(int argc, char **argv) {
     CHECK(lo == 0 && hi == DEPTH_ONE, "depths %u..%u", lo, hi);
 
     CHECK(presses == 2, "%u presses during the intro, not 2", presses);
-    printf("frames %u, CAP %u, max sum %u, frames the cap held %u, mixed LEDs by the star %u, fails %d\n",
-           frames, (unsigned)CAP, max_sum, capped, mixed_star, fails);
+    printf("frames %u, CAP %u, max sum %u, frames the cap held %u, fails %d\n", frames, (unsigned)CAP, max_sum,
+           capped, fails);
     if (out) {
         fclose(out);
     }
