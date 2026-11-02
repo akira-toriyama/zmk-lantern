@@ -180,8 +180,8 @@
  *   life, as it skips any past its life. The first frame after a rest (no
  *   live hit at the last frame, or longer than the window since it) takes
  *   the count's tempo as it stands, without the easing; the blank drops the
- *   beats with the hits; a change of the pick keeps them (the typing goes
- *   on). The beats are read as the hits are, the clock after each, so a
+ *   beats with the hits and its frame puts the tempo at rest; a change of
+ *   the pick keeps the beats (the typing goes on). The beats are read as the hits are, the clock after each, so a
  *   press noted meanwhile is never cleared as stale. 256 bytes of RAM,
  *   nothing on the frame's stack.
  * - The effects' table (src/frame.h says what an entry is): one entry a file
@@ -1133,6 +1133,10 @@ static void paint(struct k_work *work) {
         memset(pixels, 0, sizeof(pixels));
 #if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
         effects_clear();
+#endif
+#if IS_ENABLED(CONFIG_LANTERN_TEMPO)
+        /* the blank's frame: the next lit one starts from rest (the header) */
+        tempo_running = false;
 #endif
     }
     int rc = led_strip_update_rgb(strip, pixels, LED_COUNT);
