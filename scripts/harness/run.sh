@@ -33,9 +33,10 @@
 #            or a synthetic 76-key one, and the half
 #   lk76     harness_lk76: src/effects/layer_keys.c on a 76-key keymap
 #   equiv    harness_dump over unity.c with canon's halves' flags, REF's src/
-#            and this tree's: the same frames to the byte, for a change that
-#            must not move a pixel (harness_dump.c says what it draws; REF has
-#            the tempo, aeec40c, or later)
+#            and this tree's: the same frames to the byte, for a change to the
+#            engine, an effect or an intro that must not move a pixel
+#            (harness_dump.c says what it draws; not the rule nor src/layer.c;
+#            REF has the tempo, aeec40c, or later)
 #
 # A step passes when it ran every program it built, at least one, and each
 # exited 0 (each exits non-zero on a failed check). The builds' warnings are
@@ -382,7 +383,7 @@ step_equiv() {
       src=$SRC
       [ "$tree" = base ] && src=$base/src
       if ! "$CC" "${CFLAGS[@]}" -I "$HERE/stubinc" -I "$src" -include "$HERE/stubs.h" "-DHALF_$half" "${fl[@]}" \
-          -DHARNESS_SRC='"unity.c"' "$HERE/harness_dump.c" -o "$OUT/hdump_${tree}_$half" \
+          "$HERE/harness_dump.c" -o "$OUT/hdump_${tree}_$half" \
           2>"$OUT/hdump_${tree}_$half.log"; then
         fail "equiv $tree $half: compile error: $(grep -m1 error "$OUT/hdump_${tree}_$half.log")"
         continue 2

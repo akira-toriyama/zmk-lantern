@@ -283,8 +283,10 @@ how to build. Usage: [README.md](README.md). English only.
   the tempo, aeec40c, or later). A change to the engine, an effect, an
   intro, the rule or `src/layer.c` runs `./scripts/harness/run.sh` before
   the Docker check builds (exit 0: every program exited 0, each ending in
-  `fails 0` or `0 failure(s)`), and `run.sh equiv` too when it must not
-  move a pixel.
+  `fails 0` or `0 failure(s)`). A change to the engine, an effect or an
+  intro that must not move a pixel also runs `run.sh equiv`, which compiles
+  neither `src/on_usb_power.c` nor `src/layer.c` (the `policy` and
+  `central` steps check those).
 - CI: `build.yml` → the local reusable `zmk-build.yml` (it says why not ZMK's);
   `shellcheck.yml`; the fleet gates. `release.yml` keeps a rolling draft
   release of the notes alone (glyph's reusable, verdict-only: the module ships
