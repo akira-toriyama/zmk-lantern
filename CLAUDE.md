@@ -42,8 +42,8 @@ how to build. Usage: [README.md](README.md). English only.
   footprints, and the one that follows the held layer, the layer keys
   (`CONFIG_LANTERN_THIN_RING`, `CONFIG_LANTERN_DISC`, `CONFIG_LANTERN_STAIN`,
   `CONFIG_LANTERN_CROSS_RING`, `CONFIG_LANTERN_BEAMS`, `CONFIG_LANTERN_WATER`,
-  `CONFIG_LANTERN_DART`, `CONFIG_LANTERN_LAYER_KEYS`,
-  `CONFIG_LANTERN_FOOTPRINTS`, each built into the
+  `CONFIG_LANTERN_DART`, `CONFIG_LANTERN_FOOTPRINTS`,
+  `CONFIG_LANTERN_LAYER_KEYS`, each built into the
   image by the consumer's conf, off by default;
   one file an effect under src/effects/ on the engine of src/keys.c, the
   table and the node's `coords` through src/frame.h and
@@ -211,8 +211,8 @@ how to build. Usage: [README.md](README.md). English only.
   the bands') and puts `star_waves.c.obj` in zmk.map, as each built effect
   puts its file's
   (`thin_ring.c.obj`, the stain's too, `disc.c.obj`, `cross_ring.c.obj`,
-  `beams.c.obj`, `water.c.obj`, `dart.c.obj`, `layer_keys.c.obj`,
-  `footprints.c.obj`);
+  `beams.c.obj`, `water.c.obj`, `dart.c.obj`, `footprints.c.obj`,
+  `layer_keys.c.obj`);
   a half shows `CONFIG_LANTERN_BANDS=y`, or `CONFIG_LANTERN_SOLID=y`,
   `CONFIG_LANTERN_GRADIENT=y`, `CONFIG_LANTERN_SCATTER=y` or
   `CONFIG_LANTERN_NO_PICTURE=y` in its place,

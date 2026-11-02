@@ -179,9 +179,8 @@ lights what is at hand. The sibling module
   `CONFIG_LANTERN_THIN_RING=y`, `CONFIG_LANTERN_DISC=y`,
   `CONFIG_LANTERN_STAIN=y` (the ring that dyes), `CONFIG_LANTERN_CROSS_RING=y`
   (it brings the hit, below), `CONFIG_LANTERN_BEAMS=y`,
-  `CONFIG_LANTERN_WATER=y`, `CONFIG_LANTERN_DART=y`,
-  `CONFIG_LANTERN_LAYER_KEYS=y` (it brings the layer, below),
-  `CONFIG_LANTERN_FOOTPRINTS=y`; which of the built ones
+  `CONFIG_LANTERN_WATER=y`, `CONFIG_LANTERN_DART=y`, `CONFIG_LANTERN_FOOTPRINTS=y`,
+  `CONFIG_LANTERN_LAYER_KEYS=y` (it brings the layer, below); which of the built ones
   draw is the pick's (below), and without a pick the choice
   `LANTERN_EFFECT_DEFAULT` (`CONFIG_LANTERN_EFFECT_DEFAULT_<EFFECT>=y`; the
   stain when built, else the first built) in `CONFIG_LANTERN_EFFECT_COLOUR`
@@ -653,7 +652,8 @@ order (`thin-ring` 1, `disc` 2, `stain` 4, `cross-ring` 8, `beams` 16, `water`
 32, `dart` 64, `footprints` 512, `layer-keys` 256; several draw together) and the colour
 `0xRRGGBB` or 0 for the palette's (`&effect 4 0xFF0000`: the stain in red);
 `&effect_next` on a key
-picks the next effect in the table's order, round again after the last, and
+picks the next effect in the bits' order (the layer keys before the
+footprints), round again after the last, and
 keeps the colour (the node `lantern,behavior-effect-next`, in the keymap's
 behaviors with `#binding-cells = <0>`, on the central's keymap;
 `CONFIG_LANTERN_EFFECT_NEXT` is on wherever it exists on a split central,

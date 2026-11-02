@@ -15,8 +15,9 @@
  * held): what tells it apart is the trail, each key staying FOOTPRINT_MS.
  * Nothing spreads, so it measures nothing (no CONFIG_LANTERN_GEOMETRY), and
  * the other half's relayed presses (src/hit.c) light nothing here, their
- * keys having no LED on this half; their hits still live FOOTPRINT_MS in the
- * engine's ring and keep the frames moving that long, drawing nothing.
+ * keys having no LED on this half; their hits still live the picked effects'
+ * life in the engine's ring and keep the frames moving that long, drawing
+ * nothing.
  *
  * - Its own state (at[], seq1[]): each LED's last press, the time and the
  *   press's number, taken from the live hits at every frame, so that a
@@ -32,8 +33,10 @@
  *   put later than the press by the delay between the two readings (a
  *   preemption of the frame's thread, a stalled flash write), so a press seen
  *   again at the next frame, known by its number, keeps the earlier of the
- *   two timings, and a press of the same key between the readings, which
- *   that delay would otherwise hide behind the first, is taken. A press's
+ *   two timings; and each frame takes the newest live hit on the key, by the
+ *   engine's ages of that one frame, never by the table's time from another
+ *   reading, so a second press of the same key is taken as soon as it is
+ *   live, whatever the ring's order and the delay (Opus review, round 2). A press's
  *   number comes round after LANTERN_HIT_SEQ_CYCLE presses of both halves,
  *   which the assert below keeps past FOOTPRINT_MS at FOOTPRINT_TOP_RATE
  *   presses a second.
@@ -68,7 +71,7 @@ BUILD_ASSERT(FOOTPRINT_MS <= LANTERN_EFFECT_LIFE_MAX_MS, "the footprints outlive
 /* The most presses a second, both halves together, at which a press's
  * number must not come round within a footprint's life (the header). */
 #define FOOTPRINT_TOP_RATE 20
-BUILD_ASSERT(FOOTPRINT_MS * FOOTPRINT_TOP_RATE / 1000 < LANTERN_HIT_SEQ_CYCLE,
+BUILD_ASSERT(FOOTPRINT_MS * FOOTPRINT_TOP_RATE < 1000 * LANTERN_HIT_SEQ_CYCLE,
              "FOOTPRINT_MS: a press's number could come round within a footprint's life");
 
 /* The frame's thread (the header): each LED's last press, its time on the
@@ -81,10 +84,12 @@ static uint32_t footprints_life(void) { return FOOTPRINT_MS; }
 static void footprints_clear(void) { memset(seq1, 0, sizeof(seq1)); }
 
 /* Each LED's footprint (the header): with no live hit the table goes; else
- * a live hit on the LED's key goes into the table unless the table holds a
- * newer press, the same press refines its time to the earlier reading; then
- * the table's press, full at 0 and gone at FOOTPRINT_MS, in the shade its
- * number picks. */
+ * the newest live hit on the LED's key (the ages are one frame's readings,
+ * the engine's, so the newest is exact whatever the ring's order, and a
+ * table press no longer live is older than any live one) goes into the
+ * table, or being the table's press refines its time to the earlier
+ * reading; then the table's press, full at 0 and gone at FOOTPRINT_MS, in
+ * the shade its number picks. */
 static void footprints_draw(struct led_rgb px[], const struct shades *sh, const struct hit live[],
                             size_t n, uint32_t picked) {
     ARG_UNUSED(picked);
@@ -97,19 +102,21 @@ static void footprints_draw(struct led_rgb px[], const struct shades *sh, const 
     for (size_t i = 0; i < LED_COUNT; i++) {
         uint8_t key = led_key(i);
 
+        const struct hit *newest = NULL;
+
         for (size_t h = 0; h < n; h++) {
-            if (live[h].key != key) {
-                continue;
+            if (live[h].key == key && (newest == NULL || live[h].age < newest->age)) {
+                newest = &live[h];
             }
-            if (seq1[i] == (uint8_t)(live[h].seq + 1)) {
-                if (live[h].age > now - at[i]) {
-                    at[i] = now - live[h].age;
-                }
-                continue;
-            }
-            if (seq1[i] == 0 || live[h].age < now - at[i]) {
-                at[i] = now - live[h].age;
-                seq1[i] = (uint8_t)(live[h].seq + 1);
+        }
+        if (newest != NULL) {
+            uint8_t s1 = (uint8_t)(newest->seq + 1);
+
+            if (seq1[i] != s1) {
+                seq1[i] = s1;
+                at[i] = now - newest->age;
+            } else if (newest->age > now - at[i]) {
+                at[i] = now - newest->age;
             }
         }
         if (seq1[i] == 0) {
