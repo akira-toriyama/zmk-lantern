@@ -182,7 +182,12 @@
  *   live hit at the last frame, or longer than the window since it) takes
  *   the count's tempo as it stands, without the easing; the blank drops the
  *   beats with the hits and its frame puts the tempo at rest; a change of
- *   the pick keeps the beats (the typing goes on). The beats are read as the hits are, the clock after each, so a
+ *   the effects' pick keeps the beats (the typing goes on). Whether the
+ *   tempo runs is the pick of the tempo (src/tempo.c: on, off, or without
+ *   one CONFIG_LANTERN_TEMPO_DEFAULT), read at every frame that reads the
+ *   hits: off, the beats are still noted and every entry is handed the real
+ *   ages, and the tempo rests, so a pick of on starts from the count. The
+ *   beats are read as the hits are, the clock after each, so a
  *   press noted meanwhile is never cleared as stale; a beat keeps the whole
  *   32-bit clock, since the frames stop under the window and leave beats
  *   unread for as long as the half is lit (beats, below). About 270 bytes
@@ -308,6 +313,7 @@
 #include "intro.h"
 #include "keys.h"
 #include "palette.h"
+#include "tempo.h"
 
 LOG_MODULE_REGISTER(lantern_keys, LOG_LEVEL_INF);
 
@@ -844,6 +850,17 @@ static uint16_t tempo_age(size_t j, atomic_val_t v, uint32_t age, uint32_t dt) {
     return (uint16_t)MIN(tempo_count[j] >> 8, UINT16_MAX);
 }
 
+/* Whether the tempo runs (the header): the pick's state, or the Kconfig
+ * default without a pick or with neither state in it. */
+static bool tempo_picked(void) {
+    uint32_t pick;
+
+    if (lantern_tempo_get(&pick, NULL) && (pick & LANTERN_TEMPO_ALL) != 0) {
+        return (pick & LANTERN_TEMPO_ON) != 0;
+    }
+    return IS_ENABLED(CONFIG_LANTERN_TEMPO_DEFAULT);
+}
+
 /* The frame's thread: the live hits' ages on the tempo (on) or the engine's
  * clock (off), for the entry about to draw (compose()). */
 static void ages_set(struct hit live[], size_t n, bool on) {
@@ -884,7 +901,8 @@ static void hits_clear(void) {
 static size_t hits_read(struct hit live[HITS], uint32_t life) {
     size_t n = 0;
 #if IS_ENABLED(CONFIG_LANTERN_TEMPO)
-    uint32_t dt = tempo_step(k_uptime_get_32());
+    bool tempo = tempo_picked();
+    uint32_t dt = tempo ? tempo_step(k_uptime_get_32()) : 0;
 #endif
 
     for (size_t j = 0; j < HITS; j++) {
@@ -903,14 +921,14 @@ static size_t hits_read(struct hit live[HITS], uint32_t life) {
         }
 #if IS_ENABLED(CONFIG_LANTERN_TEMPO)
         real_ages[n] = (uint16_t)age;
-        tempo_ages[n] = tempo_age(j, v, age, dt);
+        tempo_ages[n] = tempo ? tempo_age(j, v, age, dt) : (uint16_t)age;
 #endif
         live[n++] = (struct hit){.key = (uint8_t)(((uint32_t)v >> 24) - 1),
                                  .seq = (uint8_t)(((uint32_t)v >> HIT_SEQ_SHIFT) & HIT_SEQ_MASK),
                                  .age = (uint16_t)age};
     }
 #if IS_ENABLED(CONFIG_LANTERN_TEMPO)
-    tempo_running = n > 0;
+    tempo_running = tempo && n > 0;
 #endif
     return n;
 }

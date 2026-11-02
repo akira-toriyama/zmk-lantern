@@ -4,26 +4,29 @@
  * SPDX-License-Identifier: MIT
  *
  * The pick's mechanism (src/pick.h): what the pick of the effects
- * (src/effect.c, canon t-5hqx) and the pick of the intro (src/intro.c, canon
- * t-qvgv) share. A pick is a mask of bits the instance's table gives a meaning
- * (src/effect.h, src/intro.h) and, where the instance has one, an argument
+ * (src/effect.c, canon t-5hqx), the pick of the intro (src/intro.c, canon
+ * t-qvgv) and the pick of the tempo (src/tempo.c, canon t-6ttk) share. A pick
+ * is a mask of bits the instance's table gives a meaning (src/effect.h,
+ * src/intro.h, src/tempo.h) and, where the instance has one, an argument
  * (the effects' colour, canon t-rgp5), chosen by the host on the split
  * central's port (src/port.c) or by a key of the central's keymap bound to the
  * behavior, kept by the central and every half in their settings across boots,
  * and read where it is used (the key LEDs, src/keys.c). The image carries
- * every effect and intro the consumer's conf turns on; the pick says which
- * show, so canon changes the effect of the day, its colour and the intro
- * without flashing (its dongle.py effect and intro), and a consumer without a
- * host has the Kconfig defaults, or binds the behavior to a key.
+ * every effect and intro the consumer's conf turns on, and the tempo when it
+ * does; the picks say which show and whether the tempo runs, so canon changes
+ * the effect of the day, its colour, the intro and the tempo without flashing
+ * (its dongle.py effect, intro and tempo), and a consumer without a host has
+ * the Kconfig defaults, or binds the behavior to a key.
  *
  * - One path for every change, the instance's behavior (lantern,behavior-effect
- *   named effect, lantern,behavior-intro named intro, the same node on every
- *   device of the split), invoked by the central's code with
+ *   named effect, lantern,behavior-intro named intro, lantern,behavior-tempo
+ *   named tempo, the same node on every device of the split), invoked by the
+ *   central's code with
  *   zmk_behavior_invoke_binding() as the palette's is (src/palette.c says how
  *   ZMK's split transport carries it by the node's name and why the name is at
  *   most 8 characters): param1 = the mask, absolute, param2 = the argument (0
  *   without one), press only (the release is nothing: src/effect.c,
- *   src/intro.c). A key of the central's keymap bound to the behavior
+ *   src/intro.c, src/tempo.c). A key of the central's keymap bound to the behavior
  *   invokes it the same way (ZMK app/src/behavior.c: a GLOBAL behavior goes
  *   to every half and then runs here), its release too, which does nothing
  *   anywhere. One
@@ -45,7 +48,7 @@
  *   masks with what is built. 0 is no pick: the port refuses it, the handler
  *   too, and a stored 0 is ignored at load; the reader then has the default.
  *   The central refuses a bit its own table lacks and, where the instance
- *   takes one bit (the intro), a mask of several; a half stores what it is
+ *   takes one bit (the intro, the tempo), a mask of several; a half stores what it is
  *   sent and leaves the choice among several to the reader.
  * - Settings: the instance's key ("lantern/<word>/mask"), one value: the
  *   mask as 32 bits and, where the instance has an argument, the argument as
@@ -60,7 +63,8 @@
  *   image has none until the next. The instance's changed hook runs after a
  *   changed or first store (the
  *   effects' clears the effects' state and repaints, src/keys.c; the intro's
- *   is none: the next boot light reads the pick). At boot the reader takes the
+ *   and the tempo's are none: the next boot light, the next frame, reads the
+ *   pick). At boot the reader takes the
  *   mask itself after settings_load() restored it, so this subtree's commit
  *   handler only marks the load done. Until then a send is refused with
  *   -EAGAIN, as the palette's.
@@ -115,12 +119,13 @@ BUILD_ASSERT(IS_ENABLED(CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING),
  * both halves may be resent at once (the header). */
 #define RESEND_INVOCATIONS                                                                         \
     ((IS_ENABLED(CONFIG_LANTERN_PALETTE) ? LANTERN_PALETTE_PAIRS : 0) +                            \
-     (IS_ENABLED(CONFIG_LANTERN_EFFECT) ? 1 : 0) + (IS_ENABLED(CONFIG_LANTERN_INTRO) ? 1 : 0))
+     (IS_ENABLED(CONFIG_LANTERN_EFFECT) ? 1 : 0) + (IS_ENABLED(CONFIG_LANTERN_INTRO) ? 1 : 0) +   \
+     (IS_ENABLED(CONFIG_LANTERN_TEMPO_PICK) ? 1 : 0))
 BUILD_ASSERT(RESEND_INVOCATIONS * ZMK_SPLIT_CENTRAL_PERIPHERAL_COUNT <=
                  CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE,
              "CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE must hold a whole palette and every "
-             "pick for every half at once (the header says why; 10 for two halves with the palette, "
-             "the effects' pick and the intro's)");
+             "pick for every half at once (the header says why; 12 for two halves with the palette, "
+             "the effects' pick, the intro's and the tempo's)");
 #endif
 
 #define RESEND_DELAY_MS 1000

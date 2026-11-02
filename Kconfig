@@ -171,8 +171,8 @@ config LANTERN_INTRO
       ("lantern/intro/mask"). A half plays the picked intro when it builds
       it; with no pick stored, or the picked intro not built, the one
       LANTERN_INTRO_DEFAULT names. On a split central the pick is resent to a
-      half at each of its battery reports, with the palette and the effects'
-      pick (src/pick.c; the run queue must hold one more invocation a half,
+      half at each of its battery reports, with the palette and the other
+      picks (src/pick.c; the run queue must hold one more invocation a half,
       LANTERN_EFFECT says). canon's scripts/dongle.py intro sends it
       (t-qvgv). Default y where the node is present: the node is the switch,
       as the palette's.
@@ -388,9 +388,9 @@ config LANTERN_PICK
     help
       The picks' mechanism (src/pick.c): a value the split central's host
       chooses, kept by every device in its settings and resent to a half
-      that is back. The pick of the effects (LANTERN_EFFECT) and the pick of
-      the intro (LANTERN_INTRO) are its instances and select it; nothing to
-      set.
+      that is back. The pick of the effects (LANTERN_EFFECT), the pick of
+      the intro (LANTERN_INTRO) and the pick of the tempo (LANTERN_TEMPO_PICK)
+      are its instances and select it; nothing to set.
 
 config LANTERN_EFFECT
     bool "Take the pick of the effects from the split central's host, and keep it across boots"
@@ -415,11 +415,11 @@ config LANTERN_EFFECT
       central the pick is resent to a half at each of its battery reports,
       with the palette (src/palette.c says why that signal), so a half that
       was away gets it when it is back; the run queue must then hold the
-      palette's three invocations, this one and the intro's pick
-      (LANTERN_INTRO) for every half at once,
-      CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE at least 5 x the
-      peripheral count with all three (10 for two halves; src/pick.c asserts
-      the sum). canon's scripts/dongle.py effect sends the pick (t-5hqx), and
+      palette's three invocations, this one, the intro's pick
+      (LANTERN_INTRO) and the tempo's (LANTERN_TEMPO_PICK) for every half at
+      once, CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE at least 6 x
+      the peripheral count with all four (12 for two halves; src/pick.c
+      asserts the sum). canon's scripts/dongle.py effect sends the pick (t-5hqx), and
       changes the effect of the day without flashing. Default y where the
       node is present: the node is the switch, as the palette's.
 
@@ -521,7 +521,7 @@ config LANTERN_EFFECT_NEXT
       none; the check build compiles both).
 
 config LANTERN_TEMPO
-    bool "Run the effects faster the faster you type: the tempo"
+    bool "Build the tempo: the effects run faster the faster you type"
     depends on LANTERN_EFFECTS
     help
       The tempo (src/keys.c): the effects whose shape grows with a press's
@@ -531,10 +531,44 @@ config LANTERN_TEMPO
       counting both halves' presses where the hit carries them (LANTERN_HIT),
       eased with a time constant of about a quarter second so that no ring
       changes speed by a step; the heatmap and the layer keys keep their own
-      time. An effect's life is unchanged,
-      so a ring on the tempo has left the board before its hit goes. Default
-      n: canon t-6ttk's trial (2026-11-02); whether the tempo becomes a pick
-      of the host's is decided after it.
+      time. An effect's life is unchanged, so a ring on the tempo has left
+      the board before its hit goes. Whether it runs is the pick of the tempo
+      (LANTERN_TEMPO_PICK, on or off from the host), and without a pick
+      LANTERN_TEMPO_DEFAULT. About 270 bytes of RAM. Default n, as the thin
+      ring (canon t-6ttk, the user's OK on hardware 2026-11-02).
+
+config LANTERN_TEMPO_DEFAULT
+    bool "The tempo runs while no pick is stored"
+    default y
+    depends on LANTERN_TEMPO
+    help
+      What the tempo does before the host's first pick (src/tempo.c) and
+      whenever the stored pick names neither state, and the only pick a
+      consumer without a host has: y runs it, n leaves the effects at their
+      own speed until the host says otherwise. Default y: a conf that builds
+      the tempo wants to see it, as the intros' default.
+
+config LANTERN_TEMPO_PICK
+    bool "Take the pick of the tempo from the split central's host, and keep it across boots"
+    default y
+    depends on DT_HAS_LANTERN_BEHAVIOR_TEMPO_ENABLED
+    depends on SETTINGS
+    select LANTERN_PICK
+    help
+      Whether the tempo runs (LANTERN_TEMPO), chosen at run time: the host
+      hands the split central a pick, on or off (LANTERN_PORT), the central
+      invokes the lantern,behavior-tempo node, which ZMK's split transport
+      carries to every half by its name (the node is named tempo on every
+      device, src/tempo.c, the binding), and the central and every half keep
+      the pick in their settings ("lantern/tempo/mask"). A half that builds
+      the tempo follows the pick at its next frame; one that does not builds
+      no tempo whatever the pick; with no pick stored, LANTERN_TEMPO_DEFAULT.
+      On a split central the pick is resent to a half at each of its battery
+      reports, with the palette and the other picks (src/pick.c; the run
+      queue must hold one more invocation a half, LANTERN_EFFECT says: 12
+      for two halves with the palette and all three picks). canon's
+      scripts/dongle.py tempo sends it (t-6ttk). Default y where the node is
+      present: the node is the switch, as the palette's.
 
 config LANTERN_GEOMETRY
     bool
