@@ -38,11 +38,11 @@ how to build. Usage: [README.md](README.md). English only.
   picture, every key black under the effects and the bands for the boot
   light (`CONFIG_LANTERN_NO_PICTURE`); the
   effects that move the picture after a key, the thin ring, the disc, the
-  stain, the crossing ring, the beams, the water, the dart, the
-  footprints and the heatmap, and the one that follows the held layer, the layer keys
+  stain, the crossing ring, the beams, the water, the dart and the
+  heatmap, and the one that follows the held layer, the layer keys
   (`CONFIG_LANTERN_THIN_RING`, `CONFIG_LANTERN_DISC`, `CONFIG_LANTERN_STAIN`,
   `CONFIG_LANTERN_CROSS_RING`, `CONFIG_LANTERN_BEAMS`, `CONFIG_LANTERN_WATER`,
-  `CONFIG_LANTERN_DART`, `CONFIG_LANTERN_FOOTPRINTS`, `CONFIG_LANTERN_HEATMAP`,
+  `CONFIG_LANTERN_DART`, `CONFIG_LANTERN_HEATMAP`,
   `CONFIG_LANTERN_LAYER_KEYS`, each built into the
   image by the consumer's conf, off by default;
   one file an effect under src/effects/ on the engine of src/keys.c, the
@@ -188,9 +188,6 @@ how to build. Usage: [README.md](README.md). English only.
   `CONFIG_LANTERN_GEOMETRY=y` and `CONFIG_LANTERN_HIT=y`, which the hit node
   (`config/hit.dtsi`, on every target) turns on by itself, with `hit.c.obj`
   in zmk.map;
-  `CONFIG_LANTERN_FOOTPRINTS=y` adds `CONFIG_LANTERN_EFFECTS=y` and
-  `CONFIG_LANTERN_FRAMES=y`, no `CONFIG_LANTERN_GEOMETRY` (it measures
-  nothing) and no node, with `footprints.c.obj` in zmk.map;
   `CONFIG_LANTERN_HEATMAP=y` adds `CONFIG_LANTERN_EFFECTS=y`,
   `CONFIG_LANTERN_FRAMES=y` and `CONFIG_LANTERN_GEOMETRY=y` and no node, with
   `heatmap.c.obj` in zmk.map;
@@ -214,8 +211,8 @@ how to build. Usage: [README.md](README.md). English only.
   the bands') and puts `star_waves.c.obj` in zmk.map, as each built effect
   puts its file's
   (`thin_ring.c.obj`, the stain's too, `disc.c.obj`, `cross_ring.c.obj`,
-  `beams.c.obj`, `water.c.obj`, `dart.c.obj`, `footprints.c.obj`,
-  `heatmap.c.obj`, `layer_keys.c.obj`);
+  `beams.c.obj`, `water.c.obj`, `dart.c.obj`, `heatmap.c.obj`,
+  `layer_keys.c.obj`);
   a half shows `CONFIG_LANTERN_BANDS=y`, or `CONFIG_LANTERN_SOLID=y`,
   `CONFIG_LANTERN_GRADIENT=y`, `CONFIG_LANTERN_SCATTER=y` or
   `CONFIG_LANTERN_NO_PICTURE=y` in its place,
@@ -545,10 +542,9 @@ how to build. Usage: [README.md](README.md). English only.
   its design's life against `LANTERN_EFFECT_LIFE_MAX_MS`, under which
   `lantern_life()` holds the board's; the board is measured once at boot on
   the main thread (`src/keys.c`'s `board_init()`), and the frame's thread
-  reads it. The beams, the footprints and the heatmap are the lives
-  without a board term: the beams' fade answers to the gap between the
-  halves, a footprint spreads nowhere, and the heatmap's is its hottest
-  key's cooling.
+  reads it. The beams and the heatmap are the lives without a board term:
+  the beams' fade answers to the gap between the halves, and the heatmap's
+  is its hottest key's cooling.
 - **A new intro is a line in `LANTERN_INTRO_LIST` (`src/intro.h`), its
   Kconfig symbol `LANTERN_INTRO_<SYMBOL>` (depends on
   `LANTERN_ON_USB_POWER`, selects `LANTERN_INTROS` and, when it moves,
@@ -680,10 +676,11 @@ how to build. Usage: [README.md](README.md). English only.
   the sources, not a log, and held in the host harness's rail scenes and a
   host model of ZMK's activity, event manager and peripheral command
   handler over the real module files (2026-10-28 and 2026-11-01). The
-  footprints (2026-11-02, canon's trial images of faedf33 on the dongle and
-  both halves, `CONFIG_LANTERN_FOOTPRINTS=y` on the halves, the pick
-  `footprints` alone, both halves typed, canon t-6ttk): the user's OK on
-  sight. Not on
+  heatmap (2026-11-02, canon's trial images of e470587 on the dongle and
+  both halves, `CONFIG_LANTERN_HEATMAP=y` on the halves, the pick `heatmap`
+  alone, both halves typed, canon t-6ttk): the user's OK on sight, and the
+  footprints, which had the user's OK the same morning (the trial images of
+  faedf33), dropped for it the same day: the user kept one of the two. Not on
   hardware: the key bindings `&effect` and `&effect_next`, the rail-less
   rule, the slot default and the physical layout's places (the Corne
   check build and the host harness only, canon t-41g7; no such keyboard

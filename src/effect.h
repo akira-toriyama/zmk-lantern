@@ -36,9 +36,11 @@
  * list them and the engine draws them. SYMBOL is the Kconfig suffix, the name
  * the host's word for it, ops the entry its file defines, lantern_effect_<ops>
  * (the stain's is in the thin ring's file: the stain is that ring, dyeing).
- * Bit 7 is no line's and never will be: canon t-6ttk's trial of an effect
- * that never reached main had it (2026-10-27), and a device that ran the
- * trial may still hold it in its settings. */
+ * Bits 7 and 9 are no line's and never will be: canon t-6ttk's trial of an
+ * effect that never reached main had 7 (2026-10-27), and the footprints,
+ * dropped the day they reached main (2026-11-02, the user kept the heatmap
+ * of the two), had 9; a device that ran either may still hold the bit in
+ * its settings. */
 #define LANTERN_EFFECT_LIST(X)                                                                     \
     X(THIN_RING, 0, "thin-ring", thin_ring)                                                        \
     X(DISC, 1, "disc", disc)                                                                       \
@@ -47,7 +49,6 @@
     X(BEAMS, 4, "beams", beams)                                                                    \
     X(WATER, 5, "water", water)                                                                    \
     X(DART, 6, "dart", dart)                                                                       \
-    X(FOOTPRINTS, 9, "footprints", footprints)                                                    \
     X(HEATMAP, 10, "heatmap", heatmap)                                                             \
     X(LAYER_KEYS, 8, "layer-keys", layer_keys)
 

@@ -5,8 +5,8 @@ while USB powers the keyboard and the keyboard is in use, keeps them dark on
 battery and after the idle timeout, plays an intro at boot and whenever a
 cable is plugged in, paints the keys from a palette of six colours the host
 hands the keyboard over USB, and draws an effect from every key you press: a
-ring, a disc, a stain, a ring crossing both halves, beams, water, a dart,
-footprints or a heatmap, in the palette's colours or in one colour of the host's choosing; or, while
+ring, a disc, a stain, a ring crossing both halves, beams, water, a dart or
+a heatmap, in the palette's colours or in one colour of the host's choosing; or, while
 you hold a layer, lights the keys that layer gives a meaning, in its colour.
 On a split keyboard each half lights from its own USB port, the central
 relays the key presses, the held layer and the host's choices to the halves,
@@ -179,8 +179,7 @@ lights what is at hand. The sibling module
   `CONFIG_LANTERN_THIN_RING=y`, `CONFIG_LANTERN_DISC=y`,
   `CONFIG_LANTERN_STAIN=y` (the ring that dyes), `CONFIG_LANTERN_CROSS_RING=y`
   (it brings the hit, below), `CONFIG_LANTERN_BEAMS=y`,
-  `CONFIG_LANTERN_WATER=y`, `CONFIG_LANTERN_DART=y`, `CONFIG_LANTERN_FOOTPRINTS=y`,
-  `CONFIG_LANTERN_HEATMAP=y`,
+  `CONFIG_LANTERN_WATER=y`, `CONFIG_LANTERN_DART=y`, `CONFIG_LANTERN_HEATMAP=y`,
   `CONFIG_LANTERN_LAYER_KEYS=y` (it brings the layer, below); which of the built ones
   draw is the pick's (below), and without a pick the choice
   `LANTERN_EFFECT_DEFAULT` (`CONFIG_LANTERN_EFFECT_DEFAULT_<EFFECT>=y`; the
@@ -343,7 +342,7 @@ lights what is at hand. The sibling module
   plugged into a half that typed a while ago lights the stage its keys say.
   The clock is the half's own keys: a sensor or pointing input counts for
   ZMK's idle, not for the stages. One colour: the bands until the dark.
-- The effects: a picture that moves after a key, the nine below, and the
+- The effects: a picture that moves after a key, the eight below, and the
   layer keys, which follow the held layer instead (below the heatmap). The conf
   builds the ones it wants into the image, and the pick says which of them
   draw (The picks, below): the host's, kept across boots, or without one the
@@ -358,12 +357,11 @@ lights what is at hand. The sibling module
   to cross it (a ring until it has left the board, the thin ring its half, a
   bar until it has run the board's width; measured from the keys' places at
   boot), so a wider board keeps it in sight; the beams keep the design's
-  fade, which answers to the gap between the halves, the footprints
-  their two seconds, which spread nowhere, and the heatmap the 6.7 s its
-  hottest key takes to cool (a life of seven). A frame keeps moving
+  fade, which answers to the gap between the halves, and the heatmap the
+  6.7 s its hottest key takes to cool (a life of seven). A frame keeps moving
   while a press is within the picked effects' life. The presses an effect
-  still draws sit in a ring of sixteen, both halves together (the
-  footprints and the heatmap keep a table of their own past it): more presses
+  still draws sit in a ring of sixteen, both halves together (the heatmap
+  keeps its heat past it): more presses
   than that within the longest picked life (ten a second on a 29-LED half
   with the crossing ring, fewer on a larger board) drop the oldest press's
   effect in one frame.
@@ -437,19 +435,6 @@ lights what is at hand. The sibling module
   away, at full brightness within the frame's cap (with the hit the bar runs
   on through the other half, and a press of the other half brings it in
   across the split); a key under two darts shows the stronger one's colour.
-- The footprints (`CONFIG_LANTERN_FOOTPRINTS`; the pick's `footprints`):
-  each pressed key lights at once in the palette's next colour (the press's
-  number, as the thin ring's) at full brightness within the frame's cap,
-  and fades out over two seconds, so that as you type the last seconds'
-  keys trail behind you, the newest the brightest; a key pressed again
-  lights afresh. Nothing spreads, and a press of the other half lights
-  nothing here (its key has no LED on this half). The effect keeps its own
-  table of each key's last press, so a burst of typing past the engine's
-  ring of sixteen presses fades every footprint to its end; more than
-  sixteen presses of both halves within one frame, and the oldest never
-  show. Its colours follow the press count the thin ring's do, the other
-  half's presses counted, so two footprints in a row here may share a
-  colour.
 - The heatmap (`CONFIG_LANTERN_HEATMAP`; the pick's `heatmap`): each key
   holds a heat, which a press of it raises by an eighth of the scale and a
   press within 2.9 key units of it by up to six hundredths, less the farther,
@@ -552,9 +537,9 @@ ZMK's idle does there). The crossing
 ring draws it from the other half's key; the beams, the thin ring, the
 disc, the water and the dart do too, in their own colours (the beams' row
 comes in across the split, the water's waves low, the dart's bar on its
-way; the footprints light nothing from it, the key having no LED on this
-half, and the heatmap warms nothing from it), the stain dyes with it, and it counts in the press count the thin
-ring's and the footprints' colours follow. Delivery is not confirmed, as the palette's, and the
+way; the heatmap warms nothing from it), the stain dyes with it, and it
+counts in the press count the thin ring's colours follow. Delivery is not
+confirmed, as the palette's, and the
 hits share the central's run queue with the palette (the source says what a
 half that vanishes while lit costs).
 
@@ -636,8 +621,8 @@ built, else the bands): the only picks a keyboard without a host has.
   (or the intro's) and changes nothing ([src/port.c](src/port.c) is the
   grammar). The names, and the bit each carries on the wire: the effects'
   `thin-ring`, `disc`, `stain`, `cross-ring`, `beams`, `water`, `dart`,
-  `footprints`, `heatmap`, `layer-keys` ([src/effect.h](src/effect.h)'s
-  table; bit 7 is no effect's), the intros' `bands`, `star-waves`
+  `heatmap`, `layer-keys` ([src/effect.h](src/effect.h)'s table; bits 7
+  and 9 are no effect's), the intros' `bands`, `star-waves`
   ([src/intro.h](src/intro.h)'s). The central's code invokes the
   `lantern,behavior-effect` or `lantern,behavior-intro` node, which ZMK's
   split transport carries to every half by the node's name; a key of the
@@ -666,11 +651,11 @@ colour (default 0, the palette's colours), `CONFIG_LANTERN_INTRO_DEFAULT_<INTRO>
 the intro. The keymap, on the central: `&effect <mask> <colour>` on a key picks
 on press, the mask a sum of the effects' bits in [src/effect.h](src/effect.h)'s
 order (`thin-ring` 1, `disc` 2, `stain` 4, `cross-ring` 8, `beams` 16, `water`
-32, `dart` 64, `footprints` 512, `heatmap` 1024, `layer-keys` 256; several draw together) and the colour
+32, `dart` 64, `heatmap` 1024, `layer-keys` 256; several draw together) and the colour
 `0xRRGGBB` or 0 for the palette's (`&effect 4 0xFF0000`: the stain in red);
 `&effect_next` on a key
 picks the next effect in the bits' order (the layer keys before the
-footprints and the heatmap), round again after the last, and
+heatmap), round again after the last, and
 keeps the colour (the node `lantern,behavior-effect-next`, in the keymap's
 behaviors with `#binding-cells = <0>`, on the central's keymap;
 `CONFIG_LANTERN_EFFECT_NEXT` is on wherever it exists on a split central,

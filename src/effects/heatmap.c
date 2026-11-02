@@ -52,10 +52,9 @@
  *   second (HEATMAP_MS, which the assert below keeps at or past it): a hit
  *   keeps the frames moving until every key it could have warmed is cold,
  *   and the frame with no live hit draws nothing and clears the heat and the
- *   numbers, so that nothing of a spent run reaches the next (the footprints'
- *   rule; here the heat is cold by then and the next run would cool it
- *   across the gap anyway, so this is hygiene, not a fix: the host harness
- *   passes without it). The engine's clear (a blank, a change of the stage
+ *   numbers, so that nothing of a spent run reaches the next (the heat is
+ *   cold by then and the next run would cool it across the gap anyway, so
+ *   this is hygiene, not a fix: the host harness passes without it). The engine's clear (a blank, a change of the stage
  *   or the pick) goes the same way; after a stage's move the live hits are
  *   replayed from the oldest, so the keys warm again to what they were, less
  *   what a press the ring had dropped gave them (a countdown with stages
