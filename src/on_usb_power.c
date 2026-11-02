@@ -5,7 +5,9 @@
  *
  * Light the key LEDs while USB powers this half and the half is in use, and
  * keep them dark otherwise: on battery, and once ZMK's activity state has
- * left ACTIVE (CONFIG_LANTERN_OFF_WHEN_IDLE). Lit = the LED rail on, where
+ * left ACTIVE (CONFIG_LANTERN_OFF_WHEN_IDLE) with no key press of another
+ * half relayed within the idle timeout (the wake, CONFIG_LANTERN_WAKE_ON_HIT,
+ * below). Lit = the LED rail on, where
  * the consumer has one (CONFIG_LANTERN_RAIL: the lantern,rail node's gpios),
  * then the palette's picture (lantern_keys_light(), src/keys.c); dark = a
  * black frame (lantern_keys_blank()), then the rail off BLANK_MS later.
@@ -26,9 +28,9 @@
  * an intro built there is no boot light. The rule stays true while the boot
  * light is open, so only its deadline is
  * pending, as at boot. The LIT step cannot tell that deadline from a rule
- * change, so an arrival processed while a dark step (an unplug's or an
- * idle's) is still queued would end its intro at once; the USB events cannot
- * overtake that step:
+ * change, so an arrival processed while a dark step (an unplug's, an idle's
+ * or the wake's end's) is still queued would end its intro at once; the USB
+ * events cannot overtake that step:
  * ZMK raises them from one work item that reads the live state, and the USB
  * driver's queue is cooperative at the system queue's priority (Opus review,
  * 2026-10-21). Raise the event or open the boot light from elsewhere and
@@ -51,9 +53,11 @@
  *   scan's message processor in app/src/physical_layouts.c, the sensor work
  *   in app/src/sensors.c, the pointing input's note_activity_work, and from
  *   the one-second idle check, activity_work, both in app/src/activity.c),
- *   the delayed steps and the first evaluation, so the state below needs no
- *   lock. The settings commit handler runs on the main thread and only
- *   submits the work.
+ *   the delayed steps, the wake's item and the first evaluation, so the
+ *   state below needs no lock. The settings commit handler runs on the main
+ *   thread and only submits the work; lantern_rule_hit() (src/hit.c's
+ *   handler, on the Bluetooth receive work queue) only stores the press's
+ *   time, an atomic, and reschedules the wake's item.
  * - The first evaluation starts from a settings commit handler at commit
  *   priority 1, not from SYS_INIT: settings_load() (ZMK app/src/main.c) runs
  *   after every init level, and the palette (src/palette.c) is restored in
@@ -74,16 +78,42 @@
  *   module's. ZMK already counts what the half does (key positions, sensor
  *   events, pointing input) and turns IDLE after CONFIG_ZMK_IDLE_TIMEOUT ms
  *   without any, per device: a split half knows nothing of the other half's
- *   keys, so each goes dark on its own. The timeout is the consumer's line
- *   (canon's halves: 300000). SLEEP counts as idle (unreachable with
- *   CONFIG_ZMK_SLEEP=n). A cable plugged into an idle half plays the boot
- *   light's intro, a timed light that needs no idle event, and lights nothing
- *   else until its next input: USB is no activity to ZMK, and lighting on it
- *   for longer would leave the LEDs on with no idle event to follow. On
- *   battery the idle input
+ *   keys. The timeout is the consumer's line (canon's halves: 300000). SLEEP
+ *   counts as idle (unreachable with CONFIG_ZMK_SLEEP=n).
+ * - The wake (CONFIG_LANTERN_WAKE_ON_HIT): a key press of another half, which
+ *   the split central relays (src/hit.c), keeps this half in use too, for
+ *   CONFIG_ZMK_IDLE_TIMEOUT ms from it, on this file's clock (the press's
+ *   time, the item rescheduled to its end): so a half dark for idle lights
+ *   at the other half's press, stays lit while either half is typed, and goes
+ *   dark the timeout after the later of its own last input and the other
+ *   half's last press. ZMK's activity is left alone: a relayed press is no
+ *   input of this half's, and a fake one (a position or sensor event) would
+ *   go to the central as a key; so a half the wake keeps lit stays IDLE to
+ *   ZMK, its battery sampling paused. A press relayed before the first
+ *   evaluation is dropped (the relay waits for latency 0, at least the
+ *   connection's first 5 s, src/latency.c). The relay reaches only a half at
+ *   peripheral latency 0, which a half asks for while USB powers it, so on
+ *   battery nothing lights it (the rule is false there anyway; a press
+ *   relayed around an unplug may still set the wake, which then lights the
+ *   half back at a plug-in within the timeout). The wake is off with
+ *   CONFIG_ZMK_SLEEP=y (Kconfig): ZMK's idle check raises SLEEP and powers
+ *   the SoC off in one work item once its sleep timeout passes on battery,
+ *   before a step queued by the unplug runs, and a half the wake had kept lit
+ *   past ZMK's sleep timeout could take the rail on into System OFF (the ext_power
+ *   driver has a PM hook for that, this rail has none; Opus review,
+ *   2026-10-28). The central's own LEDs need no wake: ZMK counts the other
+ *   half's keys there as its own.
+ * - A cable plugged into an idle half plays the boot light's intro, a timed
+ *   light that needs no idle event, and lights nothing else until its next
+ *   input or the other half's next press (or while the wake's last press is
+ *   within the timeout): USB is no activity to ZMK, and lighting on it for
+ *   longer would leave the LEDs on with no idle event to follow. On battery
+ *   the idle input
  *   changes nothing (the rule is already false) and is only kept current.
- *   In canon's halves the only other subscriber ZMK links is battery.c, which
- *   pauses its sampling while idle (zmk.map, 2026-10-19). The countdown
+ *   In canon's halves the other subscribers ZMK links are battery.c, which
+ *   pauses its sampling while idle, and the PMW3610 driver's idle sleeper,
+ *   which does nothing without its force-awake property (zmk.map,
+ *   2026-10-19; the sleeper read 2026-10-28). The countdown
  *   (src/keys.c) cuts the same timeout into stages for the picture, from its
  *   own clock of the half's keys; the dark stays this rule's.
  * - The frames: lantern_keys_light(), lantern_keys_blank() and
@@ -112,6 +142,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/settings/settings.h>
+#include <zephyr/sys/atomic.h>
 #include <zephyr/sys/util.h>
 
 #include <zmk/activity.h>
@@ -121,6 +152,7 @@
 #include <zmk/usb.h>
 
 #include "keys.h"
+#include "on_usb_power.h"
 
 LOG_MODULE_REGISTER(lantern, LOG_LEVEL_INF);
 
@@ -160,6 +192,7 @@ static bool started;
 static bool boot_light;
 static bool usb_powered;
 static bool idle; /* stays false without CONFIG_LANTERN_OFF_WHEN_IDLE */
+static bool woken; /* stays false without CONFIG_LANTERN_WAKE_ON_HIT */
 static bool want_lit;
 
 #if IS_ENABLED(CONFIG_LANTERN_RAIL)
@@ -181,8 +214,9 @@ static bool read_idle(void) {
            zmk_activity_get_state() != ZMK_ACTIVITY_ACTIVE;
 }
 
-/* The rule: the boot light, or USB power with the half in use. */
-static bool rule(void) { return boot_light || (usb_powered && !idle); }
+/* The rule: the boot light, or USB power with the half in use, by its own
+ * input or the other half's press (the header). */
+static bool rule(void) { return boot_light || (usb_powered && (!idle || woken)); }
 
 /* An input changed: let the machine catch up. The boot light keeps the rule
  * true, so only its own deadline is ever pending while it runs. */
@@ -307,6 +341,45 @@ ZMK_SUBSCRIPTION(lantern, zmk_usb_conn_state_changed);
 #if IS_ENABLED(CONFIG_LANTERN_OFF_WHEN_IDLE)
 ZMK_SUBSCRIPTION(lantern, zmk_activity_state_changed);
 #endif
+
+#if IS_ENABLED(CONFIG_LANTERN_WAKE_ON_HIT)
+
+/* k_uptime_get_32() at the last relayed press: lantern_rule_hit() writes it
+ * from any thread, the wake's item reads it. */
+static atomic_t hit_at;
+
+static void wake_step(struct k_work *work);
+static K_WORK_DELAYABLE_DEFINE(wake_work, wake_step);
+
+/* System work queue: woken while the last relayed press is within the idle
+ * timeout, the item run again at its end (the header). It reads the press's
+ * time each run, so a press that lands just before a queued end is counted
+ * by that run, and nothing is lost to the reschedule. */
+static void wake_step(struct k_work *work) {
+    ARG_UNUSED(work);
+    if (!started) {
+        return; /* the header: dropped */
+    }
+    uint32_t age = k_uptime_get_32() - (uint32_t)atomic_get(&hit_at);
+    bool in_use = age < CONFIG_ZMK_IDLE_TIMEOUT;
+
+    if (in_use) {
+        k_work_reschedule(&wake_work, K_MSEC(CONFIG_ZMK_IDLE_TIMEOUT - age));
+    }
+    if (in_use == woken) {
+        return;
+    }
+    woken = in_use;
+    LOG_INF("other half: %s", woken ? "in use" : "idle");
+    apply_rule();
+}
+
+void lantern_rule_hit(void) {
+    atomic_set(&hit_at, (atomic_val_t)k_uptime_get_32());
+    k_work_reschedule(&wake_work, K_NO_WAIT);
+}
+
+#endif /* IS_ENABLED(CONFIG_LANTERN_WAKE_ON_HIT) */
 
 /* Nothing is saved under "lantern"; Zephyr calls h_set unchecked should a key
  * ever appear there, so refuse it rather than leave the pointer NULL. */

@@ -20,9 +20,13 @@
  *   most 8 characters). On the half the handler, on the Bluetooth receive
  *   work queue, hands the position to src/keys.c (lantern_keys_hit()), which
  *   notes it as a hit like the half's own press while the LEDs are lit and
- *   never moves the countdown's clock: the other half's keys are not this
- *   half's activity (a stock half as the central counts them through its
- *   own listener, as ZMK's idle does there). The central never invokes the
+ *   never moves the countdown's clock, and then tells the rail rule
+ *   (lantern_rule_hit(), src/on_usb_power.c), which keeps the half in use
+ *   for the idle timeout from it: a half dark for idle lights at the other
+ *   half's press (the wake, CONFIG_LANTERN_WAKE_ON_HIT; ZMK's own activity
+ *   is left alone, the rule's header says why; a stock half as the central
+ *   counts the other half's keys through its own listener, as ZMK's idle
+ *   does there). The central never invokes the
  *   behavior through zmk_behavior_invoke_binding(), and nothing binds it to
  *   a key.
  * - The central's side (CONFIG_ZMK_SPLIT_ROLE_CENTRAL): a listener on
@@ -87,6 +91,7 @@
 
 #if IS_ENABLED(CONFIG_LANTERN_KEYS)
 #include "keys.h"
+#include "on_usb_power.h"
 #endif
 
 LOG_MODULE_REGISTER(lantern_hit, LOG_LEVEL_INF);
@@ -106,6 +111,7 @@ static int on_binding_pressed(struct zmk_behavior_binding *binding,
     }
 #if IS_ENABLED(CONFIG_LANTERN_KEYS)
     lantern_keys_hit((uint8_t)binding->param1);
+    lantern_rule_hit();
 #endif
     return ZMK_BEHAVIOR_OPAQUE;
 }

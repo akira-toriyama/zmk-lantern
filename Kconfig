@@ -207,12 +207,40 @@ config LANTERN_OFF_WHEN_IDLE
       While USB powers the device, the LEDs go dark (and the rail off, with
       LANTERN_RAIL), as on battery, once ZMK turns IDLE: CONFIG_ZMK_IDLE_TIMEOUT
       ms (ZMK's default 30000) without a key, sensor or pointing input on
-      this device, each split half for itself. The next input lights them
-      again (settle-ms after the rail, with one). The boot light is not cut short. The timeout is the
-      consumer's line (canon's halves set 300000); a cable plugged into an
-      idle device plays the boot light's intro (LANTERN_INTROS) and goes dark
-      at its end, and lights nothing else until its next input (the source
-      says why).
+      this device, each split half for itself (and, with LANTERN_WAKE_ON_HIT,
+      without a key press of another half relayed to it). The next input
+      lights them again (settle-ms after the rail, with one). The boot light
+      is not cut short. The timeout is the consumer's line (canon's halves set
+      300000); a cable plugged into an idle device plays the boot light's
+      intro (LANTERN_INTROS) and goes dark at its end, and lights nothing
+      else until its next input, or the other half's next press with the
+      wake (the source says why).
+
+config LANTERN_WAKE_ON_HIT
+    bool "Light a half dark for idle at a key press of the other half, which the split central relays"
+    default y
+    depends on LANTERN_OFF_WHEN_IDLE
+    depends on LANTERN_HIT
+    depends on !ZMK_SPLIT_ROLE_CENTRAL
+    depends on !ZMK_SLEEP
+    help
+      On a split peripheral half: a key press of another half, which the
+      central relays here (LANTERN_HIT), keeps this half in use for
+      CONFIG_ZMK_IDLE_TIMEOUT ms from it, as its own input does, so a half
+      gone dark for idle lights at the other half's press (settle-ms after
+      the rail, with one), stays lit while either half is typed, and goes
+      dark the timeout after the later of its own last input and the other
+      half's last press (src/on_usb_power.c). ZMK's own activity state is
+      left alone. The central relays only to a half at peripheral latency
+      0, which a half asks for while USB powers it (LANTERN_USB_LATENCY), and
+      the rule needs USB power anyway, so the wake never lights a half on
+      battery; a split central with key LEDs needs none, ZMK counting the
+      other half's keys there as its own. Not with ZMK_SLEEP: ZMK's idle
+      check powers the SoC off on battery in the same work item that raises
+      SLEEP, and a half the wake kept lit past ZMK's sleep timeout
+      (ZMK_IDLE_SLEEP_TIMEOUT) could take the rail on into System OFF (the
+      source says why). Default y on a peripheral with the hit and the idle
+      rule, without ZMK_SLEEP.
 
 config LANTERN_COUNTDOWN
     bool "Count down to the idle dark in the palette's colours, a stage a colour"
@@ -224,8 +252,10 @@ config LANTERN_COUNTDOWN
       in stages of LANTERN_COUNTDOWN_STAGE_MS and changes the picture at each:
       the bands, then the whole half in each colour of the palette in turn (a
       cleared slot is slot 0's colour; colours that paint alike at
-      LANTERN_PICTURE_BRIGHTNESS count once), then the bands again, until ZMK
-      turns idle and LANTERN_OFF_WHEN_IDLE blanks the LEDs. A key brings the
+      LANTERN_PICTURE_BRIGHTNESS count once), then the bands again, until
+      LANTERN_OFF_WHEN_IDLE blanks the LEDs (ZMK's idle, or the wake's end,
+      LANTERN_WAKE_ON_HIT: a half the other half's keys keep lit cycles the
+      pictures on, its clock being its own keys). A key brings the
       bands back and restarts the clock; a cable plugged in lights the stage
       the keys say (src/keys.c). A sensor or pointing input counts for ZMK's
       idle and not for this clock. One colour: the bands until the dark.
@@ -238,7 +268,7 @@ config LANTERN_COUNTDOWN_STAGE_MS
     help
       How long each picture of the countdown shows before the next: the
       bands, then each colour of the palette, then the bands again, until
-      ZMK's idle blanks the LEDs. Ten seconds is what canon's user chose on
+      the idle rule blanks the LEDs. Ten seconds is what canon's user chose on
       hardware (2026-10-20, t-x82q); a minute a colour, with the colours
       running out at the idle timeout, read as still.
 
@@ -686,8 +716,9 @@ config LANTERN_LAYER_KEYS
       they dim while a press's effect lives, and a layer of many keys or a
       whitish colour shows dimmer than one of few. A pick's colour paints
       every layer in it. A half shows the layer only while it is lit: one
-      gone dark for idle lights at its own next input, as ever. Default n,
-      as the thin ring.
+      gone dark for idle lights at its own next input, as ever, or at the
+      other half's press that raises the layer (LANTERN_WAKE_ON_HIT).
+      Default n, as the thin ring.
 
 config LANTERN_HIT
     bool "Carry each half's key presses to the other half through the split central, for the effects that cross the split"
@@ -708,7 +739,9 @@ config LANTERN_HIT
       way), the
       stain dyes with it, and it counts in the press count the thin ring's
       colours follow, whichever of them the pick draws; its countdown's
-      clock ignores it. The central sends
+      clock ignores it, and a half dark for idle lights at it
+      (LANTERN_WAKE_ON_HIT, on by default on a peripheral with the idle rule
+      and without ZMK_SLEEP). The central sends
       only to a half whose link runs at peripheral latency 0, which a half
       asks for while USB powers it (LANTERN_USB_LATENCY, on by default): a
       half on battery is dark, and writes to it would wait up to 31

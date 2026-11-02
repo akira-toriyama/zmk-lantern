@@ -9,7 +9,10 @@ how to build. Usage: [README.md](README.md). English only.
   keyboard (a split: the half) and ZMK's activity state is active, dark on
   battery and while idle, a boot light at boot and when USB power arrives
   (`CONFIG_LANTERN_ON_USB_POWER`, `CONFIG_LANTERN_OFF_WHEN_IDLE`;
-  [src/on_usb_power.c](src/on_usb_power.c)), and where the consumer gives
+  [src/on_usb_power.c](src/on_usb_power.c)), a split peripheral half dark
+  for idle lit again at a key press of the other half, which the central
+  relays (the wake, `CONFIG_LANTERN_WAKE_ON_HIT`; the same file; canon
+  t-6ttk, 2026-10-28), and where the consumer gives
   the LEDs' supply pin, a `lantern,rail` node, the supply switched with
   the LEDs, so that they draw nothing on battery (`CONFIG_LANTERN_RAIL`;
   the same file); their
@@ -150,8 +153,12 @@ how to build. Usage: [README.md](README.md). English only.
   with the SDK's nm and objdump, 2026-10-27) and `lantern_slots` 42 zeros;
   the Imprint images unchanged to the byte by the rail, slots and coords
   code of t-41g7 (the same sha256 before and after); a split peripheral half's (canon's both, the
-  stock right) `CONFIG_LANTERN_USB_LATENCY=y` and `latency.c.obj` too; a split
-  central's (the dongle, the stock left half) never the latency, and with a
+  stock right) `CONFIG_LANTERN_USB_LATENCY=y` and `latency.c.obj` too, and
+  with the hit node and `CONFIG_ZMK_SLEEP` unset (canon's halves, the
+  Corne's right) `CONFIG_LANTERN_WAKE_ON_HIT=y` (the stock Imprint right
+  half has `CONFIG_ZMK_SLEEP=y` from Cyboard's shield, so no wake there;
+  the check builds of 2026-11-01); a split
+  central's (the dongle, the stock left half) never the latency nor the wake, and with a
   CDC ACM port (the dongle's board has one, the stock left half none)
   `CONFIG_LANTERN_PORT=y` and `port.c.obj`; the dongle's nothing of the rail
   or the keys; a half's `CONFIG_LANTERN_INTROS=y`, `CONFIG_LANTERN_INTRO_BANDS=y`,
@@ -284,7 +291,7 @@ how to build. Usage: [README.md](README.md). English only.
   crosses to the painter as one atomic), so the light, the blank and the
   boot light are system work queue calls, the refresh any thread's.
 - **The idle timeout is ZMK's `CONFIG_ZMK_IDLE_TIMEOUT`, set by the consumer,
-  and the dark is ZMK's idle state**: it already counts a half's keys,
+  and the dark is ZMK's idle state, or the wake's end (below)**: it already counts a half's keys,
   sensors and pointing input. The countdown (`CONFIG_LANTERN_COUNTDOWN`)
   changes the picture every `CONFIG_LANTERN_COUNTDOWN_STAGE_MS` (10 s) from
   a clock of its own, the half's key positions
@@ -298,8 +305,28 @@ how to build. Usage: [README.md](README.md). English only.
   colour held until the dark; the user chose the ten-second cycle on
   hardware (t-x82q). A cable plugged into an idle half plays the boot
   light's intro and goes dark at its end, a timed light that needs no idle
-  event, and lights nothing else until its next key, by design (the source
-  says why).
+  event, and lights nothing else until its next key or the other half's (the
+  wake), by design (the source
+  says why). **The one input of the rule that is the module's own is the
+  wake** (`CONFIG_LANTERN_WAKE_ON_HIT`, canon t-6ttk, 2026-10-28; the
+  research of 2026-10-20 had deferred it, the user chose it): a key press
+  of another half, which the central relays as the hit, is no input to
+  ZMK on a peripheral (the command handler raises no event, and a fake
+  position or sensor event would go to the central as a key), so a half
+  dark for idle never lit at the other half's keys, and an effect that
+  crosses the split stopped at the dark half after the idle timeout (canon's five minutes) without
+  its own key; the rule now keeps the half in use for the idle timeout from
+  the last relayed press, on a clock of its own (`src/on_usb_power.c`: one
+  atomic the hit handler writes from the Bluetooth receive queue, one
+  delayable item on the system work queue that re-reads it at each run, so
+  no press is lost to a reschedule), ZMK's activity left IDLE meanwhile
+  (its battery sampling stays paused). The waking press itself, own or
+  relayed, draws no effect (`src/keys.c` drops a press while dark, and the
+  light follows, after the rail's settle where there is one): the next does. Off under `CONFIG_ZMK_SLEEP`
+  (Kconfig), where ZMK powers the SoC off in the work item that raises
+  SLEEP and a rail the wake kept on could stay on in System OFF; Cyboard's
+  stock Imprint halves have sleep on, so the module's stock Imprint check
+  build has no wake, the Corne's right half and canon's halves build it.
 - A target without a `lantern,keys` node builds none of the painting
   (`CONFIG_LANTERN_KEYS` depends on `DT_HAS_LANTERN_KEYS_ENABLED`) and none of
   the rule (`CONFIG_LANTERN_ON_USB_POWER` depends on `LANTERN_KEYS`: the rule
@@ -631,12 +658,22 @@ how to build. Usage: [README.md](README.md). English only.
   halves, `CONFIG_LANTERN_LAYER_KEYS=y` on the halves, the pick
   `layer-keys` alone, canon t-6ttk): holding a layer lit its keys in its
   colour, the user's OK on sight; the state went from the relay's queue
-  (`src/relay.c`). Not on hardware: the key bindings
-  `&effect` and `&effect_next`, the rail-less rule, the slot default and
-  the physical layout's places (the Corne check build and the host
-  harness only, canon t-41g7; no such keyboard at hand); the hit sent from
-  the relay's queue (the hit's own queue up to 72df855; the layer keys'
-  trial picked no effect that draws a hit).
+  (`src/relay.c`). The wake and the hit from the relay's queue
+  (2026-11-02, canon's trial images of this change on both halves,
+  `CONFIG_ZMK_IDLE_TIMEOUT=20000`, the pick `cross-ring`, the dongle on
+  its pinned image, canon t-6ttk): both halves left untouched past the
+  timeout, two presses on one half, and the second press's crossing ring
+  reached the other half, in both directions, the user's OK on sight (the
+  log was not read: the port's ring keeps the boot log only). The symptom
+  it answers, the crossing ring not reaching a half left untouched for
+  minutes, is the user's report of 2026-10-28; the cause was read from
+  the sources, not a log, and held in the host harness's rail scenes and a
+  host model of ZMK's activity, event manager and peripheral command
+  handler over the real module files (2026-10-28 and 2026-11-01). Not on
+  hardware: the key bindings `&effect` and `&effect_next`, the rail-less
+  rule, the slot default and the physical layout's places (the Corne
+  check build and the host harness only, canon t-41g7; no such keyboard
+  at hand).
 
 ## Commits, pull requests, fleet files
 
