@@ -239,10 +239,16 @@ static inline uint32_t apart(uint16_t a, uint16_t b) { return a > b ? a - b : b 
 
 #if IS_ENABLED(CONFIG_LANTERN_EFFECTS)
 
+/* The press count cycles over this many (src/keys.c: a multiple of every
+ * shade count, so that an effect which gives each press the palette's next
+ * shade skips none at the wrap); an effect that tells presses apart by
+ * their number (the footprints) asserts its life against it. */
+#define LANTERN_HIT_SEQ_CYCLE 60
+
 /* A press the effects draw, read out of the engine's ring (src/keys.c). */
 struct hit {
     uint8_t key;  /* a key position */
-    uint8_t seq;  /* the press's number, mod 60, a multiple of every shade count */
+    uint8_t seq;  /* the press's number, mod LANTERN_HIT_SEQ_CYCLE */
     uint16_t age; /* ms since the press, below the picked effects' life */
 };
 

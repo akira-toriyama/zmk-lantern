@@ -377,7 +377,8 @@ config LANTERN_EFFECTS
       built effects (one file an effect under src/effects/, src/frame.h;
       each lives its design's time after a press, or on a larger board the
       time its shape needs to cross it, measured from the lantern,keys
-      node's coords; the beams keep the design's fade) and the pick of
+      node's coords; the beams keep the design's fade, the footprints their
+      two seconds) and the pick of
       which of them draw (LANTERN_EFFECT,
       the choice LANTERN_EFFECT_DEFAULT). Each effect selects it; nothing
       to set.
@@ -739,9 +740,11 @@ config LANTERN_FOOTPRINTS
       brightest; a key pressed again lights afresh. Nothing spreads: the
       effect measures nothing (no LANTERN_GEOMETRY), and a press of the
       other half (LANTERN_HIT) lights nothing here, its key having no LED on
-      this half. The effect keeps its own table of each key's last press, so
-      a burst of typing past the engine's ring of presses (src/keys.c) fades
-      every footprint to its end. The user's own idea (canon t-6ttk,
+      this half, though it counts in the press number the colours follow.
+      The effect keeps its own table of each key's last press, so a burst of
+      typing past the engine's ring of sixteen presses (src/keys.c) fades
+      every footprint to its end; more than sixteen presses of both halves
+      within one frame, and the oldest never show. The user's own idea (canon t-6ttk,
       2026-10-28). Default n, as the thin ring.
 
 config LANTERN_HIT
@@ -761,7 +764,7 @@ config LANTERN_HIT
       the split, the disc then lives long enough to cross the board, the
       water's waves come in low, from a thumb higher, the dart's bar on its
       way; the footprints light nothing from it, the key having no LED on
-      this half), the
+      this half, and count it in the press number their colours follow), the
       stain dyes with it, and it counts in the press count the thin ring's
       colours follow, whichever of them the pick draws; its countdown's
       clock ignores it, and a half dark for idle lights at it

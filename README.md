@@ -344,7 +344,7 @@ lights what is at hand. The sibling module
   The clock is the half's own keys: a sensor or pointing input counts for
   ZMK's idle, not for the stages. One colour: the bands until the dark.
 - The effects: a picture that moves after a key, the eight below, and the
-  layer keys, which follow the held layer instead (below the dart). The conf
+  layer keys, which follow the held layer instead (below the footprints). The conf
   builds the ones it wants into the image, and the pick says which of them
   draw (The picks, below): the host's, kept across boots, or without one the
   effect the Kconfig choice `LANTERN_EFFECT_DEFAULT` names, in the pick's
@@ -358,9 +358,11 @@ lights what is at hand. The sibling module
   to cross it (a ring until it has left the board, the thin ring its half, a
   bar until it has run the board's width; measured from the keys' places at
   boot), so a wider board keeps it in sight; the beams keep the design's
-  fade, which answers to the gap between the halves. A frame keeps moving
+  fade, which answers to the gap between the halves, and the footprints
+  their two seconds, which spread nowhere. A frame keeps moving
   while a press is within the picked effects' life. The presses an effect
-  still draws sit in a ring of sixteen, both halves together: more presses
+  still draws sit in a ring of sixteen, both halves together (the
+  footprints keep a table of their own past it): more presses
   than that within the longest picked life (ten a second on a 29-LED half
   with the crossing ring, fewer on a larger board) drop the oldest press's
   effect in one frame.
@@ -434,6 +436,19 @@ lights what is at hand. The sibling module
   away, at full brightness within the frame's cap (with the hit the bar runs
   on through the other half, and a press of the other half brings it in
   across the split); a key under two darts shows the stronger one's colour.
+- The footprints (`CONFIG_LANTERN_FOOTPRINTS`; the pick's `footprints`):
+  each pressed key lights at once in the palette's next colour (the press's
+  number, as the thin ring's) at full brightness within the frame's cap,
+  and fades out over two seconds, so that as you type the last seconds'
+  keys trail behind you, the newest the brightest; a key pressed again
+  lights afresh. Nothing spreads, and a press of the other half lights
+  nothing here (its key has no LED on this half). The effect keeps its own
+  table of each key's last press, so a burst of typing past the engine's
+  ring of sixteen presses fades every footprint to its end; more than
+  sixteen presses of both halves within one frame, and the oldest never
+  show. Its colours follow the press count the thin ring's do, the other
+  half's presses counted, so two footprints in a row here may share a
+  colour.
 - The layer keys (`CONFIG_LANTERN_LAYER_KEYS`; the pick's `layer-keys`, and
   it brings the layer, below): while you hold a layer that the `layer` node's
   `layers` names, the keys that layer gives a meaning of its own light in
@@ -455,16 +470,6 @@ lights what is at hand. The sibling module
   a half gone dark for idle shows it from its own next input, or from the
   other half's press that raises the layer, which wakes it
   (`CONFIG_LANTERN_WAKE_ON_HIT`).
-- The footprints (`CONFIG_LANTERN_FOOTPRINTS`; the pick's `footprints`):
-  each pressed key lights at once in the palette's next colour (the press's
-  number, as the thin ring's) at full brightness within the frame's cap,
-  and fades out over two seconds, so that as you type the last seconds'
-  keys trail behind you, the newest the brightest; a key pressed again
-  lights afresh. Nothing spreads, and a press of the other half lights
-  nothing here (its key has no LED on this half). The effect keeps its own
-  table of each key's last press, so a burst of typing past the engine's
-  ring of sixteen presses fades every footprint to its end; sixteen or more
-  presses within one frame show the last sixteen.
 - The pick's colour: with one, every picked effect draws in that one colour
   in place of its own source above (the stain dyes in it too); the picture
   keeps the palette's colours.
@@ -533,7 +538,7 @@ disc, the water and the dart do too, in their own colours (the beams' row
 comes in across the split, the water's waves low, the dart's bar on its
 way; the footprints light nothing from it, the key having no LED on this
 half), the stain dyes with it, and it counts in the press count the thin
-ring's colours follow. Delivery is not confirmed, as the palette's, and the
+ring's and the footprints' colours follow. Delivery is not confirmed, as the palette's, and the
 hits share the central's run queue with the palette (the source says what a
 half that vanishes while lit costs).
 
@@ -615,7 +620,7 @@ built, else the bands): the only picks a keyboard without a host has.
   (or the intro's) and changes nothing ([src/port.c](src/port.c) is the
   grammar). The names, and the bit each carries on the wire: the effects'
   `thin-ring`, `disc`, `stain`, `cross-ring`, `beams`, `water`, `dart`,
-  `layer-keys`, `footprints` ([src/effect.h](src/effect.h)'s table; bit 7
+  `footprints`, `layer-keys` ([src/effect.h](src/effect.h)'s table; bit 7
   is no effect's), the intros' `bands`, `star-waves`
   ([src/intro.h](src/intro.h)'s). The central's code invokes the
   `lantern,behavior-effect` or `lantern,behavior-intro` node, which ZMK's
@@ -645,7 +650,7 @@ colour (default 0, the palette's colours), `CONFIG_LANTERN_INTRO_DEFAULT_<INTRO>
 the intro. The keymap, on the central: `&effect <mask> <colour>` on a key picks
 on press, the mask a sum of the effects' bits in [src/effect.h](src/effect.h)'s
 order (`thin-ring` 1, `disc` 2, `stain` 4, `cross-ring` 8, `beams` 16, `water`
-32, `dart` 64, `layer-keys` 256, `footprints` 512; several draw together) and the colour
+32, `dart` 64, `footprints` 512, `layer-keys` 256; several draw together) and the colour
 `0xRRGGBB` or 0 for the palette's (`&effect 4 0xFF0000`: the stain in red);
 `&effect_next` on a key
 picks the next effect in the table's order, round again after the last, and

@@ -542,8 +542,9 @@ how to build. Usage: [README.md](README.md). English only.
   its design's life against `LANTERN_EFFECT_LIFE_MAX_MS`, under which
   `lantern_life()` holds the board's; the board is measured once at boot on
   the main thread (`src/keys.c`'s `board_init()`), and the frame's thread
-  reads it. The beams are the one life without a board term: their fade
-  answers to the gap between the halves.
+  reads it. The beams and the footprints are the lives without a board
+  term: the beams' fade answers to the gap between the halves, and a
+  footprint spreads nowhere.
 - **A new intro is a line in `LANTERN_INTRO_LIST` (`src/intro.h`), its
   Kconfig symbol `LANTERN_INTRO_<SYMBOL>` (depends on
   `LANTERN_ON_USB_POWER`, selects `LANTERN_INTROS` and, when it moves,

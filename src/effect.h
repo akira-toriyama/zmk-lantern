@@ -20,7 +20,9 @@
  * file's line in CMakeLists.txt; the bit, the name, the mask of what is built
  * and the engine's table (src/keys.c) follow from the line. The bit is a wire
  * format (the behavior's param1, the settings value, canon's dongle.py names
- * it): never renumber a line, append.
+ * it): never renumber a line; a new line takes the next free bit and goes
+ * above the layer keys, which stay the last line (the engine draws in the
+ * list's order, and src/effects/layer_keys.c says why they draw last).
  */
 
 #pragma once
@@ -45,8 +47,8 @@
     X(BEAMS, 4, "beams", beams)                                                                    \
     X(WATER, 5, "water", water)                                                                    \
     X(DART, 6, "dart", dart)                                                                       \
-    X(LAYER_KEYS, 8, "layer-keys", layer_keys)                                                    \
-    X(FOOTPRINTS, 9, "footprints", footprints)
+    X(FOOTPRINTS, 9, "footprints", footprints)                                                    \
+    X(LAYER_KEYS, 8, "layer-keys", layer_keys)
 
 /* Each effect's bit in a pick: LANTERN_EFFECT_THIN_RING and so on. */
 enum lantern_effect {
