@@ -29,8 +29,9 @@ how to build. Usage: [README.md](README.md). English only.
   every key slot 0 without, `coords` optional where the keyboard has a
   `zmk,physical-layout`, whose key centres place the keys then); the
   pictures in place of the bands, one Kconfig choice
-  (`LANTERN_PICTURE`, the bands `CONFIG_LANTERN_BANDS` by default while
-  canon t-skdt tries the others one image at a time; src/keys.c): the solid,
+  (`LANTERN_PICTURE`, the bands `CONFIG_LANTERN_BANDS` by default; canon
+  t-skdt tried the others one image at a time and chose the no picture;
+  src/keys.c): the solid,
   every key in slot 0 (`CONFIG_LANTERN_SOLID`), the gradient, the colours
   blended across the board by the keys' x in `coords`
   (`CONFIG_LANTERN_GRADIENT`, which selects `CONFIG_LANTERN_GEOMETRY`), the
@@ -75,11 +76,12 @@ how to build. Usage: [README.md](README.md). English only.
   the star waves, a ten-second show in red, blue and green from the outer
   keys to the thumbs and back (`CONFIG_LANTERN_INTRO_STAR_WAVES`, off by
   default; canon t-5v1f), and the pick of which plays, the host's over the
-  central's port, kept across boots, or the Kconfig choice
-  `LANTERN_INTRO_DEFAULT` (`CONFIG_LANTERN_INTRO`; [src/intro.c](src/intro.c),
-  binding `lantern,behavior-intro`; canon t-qvgv); the tempo, the effects
-  that grow with a press's age up to twice as fast at eight presses a second
-  over the last two seconds, and the pick of whether it runs
+  central's port or a key's (`&intro <mask> 0`), kept across boots, or the
+  Kconfig choice `LANTERN_INTRO_DEFAULT` (`CONFIG_LANTERN_INTRO`;
+  [src/intro.c](src/intro.c), binding `lantern,behavior-intro`; canon
+  t-qvgv); the tempo, the effects that grow with a press's age up to twice
+  as fast at eight presses a second over the last two seconds, and the pick
+  of whether it runs, the host's or a key's (`&tempo <mask> 0`)
   (`CONFIG_LANTERN_TEMPO`, `CONFIG_LANTERN_TEMPO_PICK`,
   `CONFIG_LANTERN_TEMPO_DEFAULT`; the counting in src/keys.c, the pick
   [src/tempo.c](src/tempo.c), binding `lantern,behavior-tempo`; canon
@@ -142,7 +144,8 @@ how to build. Usage: [README.md](README.md). English only.
 ## Build
 
 - `./scripts/build.sh [shield | board:shield] [--logging] [--kconfig CONFIG_X=V]...
-  [--tag <name>] [--update]` (flags: its header). Docker, workspace `$ZMK_WS`
+  [--tag <name>] [--update]`, or `--clean` alone to delete the workspace
+  (flags: its header). Docker, workspace `$ZMK_WS`
   (default `~/.cache/zmk-lantern`), images `firmware/<shield>[-logging][-kconfig][-<tag>].uf2`,
   then a summary (sha256 prefix, FLASH, RAM, revisions). `--update` moves
   zmk@main and zmk-keyboards@zephyr-4.1.
@@ -217,6 +220,9 @@ how to build. Usage: [README.md](README.md). English only.
   `CONFIG_LANTERN_HEATMAP=y` adds `CONFIG_LANTERN_EFFECTS=y`,
   `CONFIG_LANTERN_FRAMES=y` and `CONFIG_LANTERN_GEOMETRY=y` and no node, with
   `heatmap.c.obj` in zmk.map;
+  `CONFIG_LANTERN_TEMPO=y`, with an effect built, adds
+  `CONFIG_LANTERN_TEMPO_DEFAULT=y` and no file of its own (the beats are
+  `keys.c`'s; `tempo.c.obj` is the pick's, on every target);
   `CONFIG_LANTERN_LAYER_KEYS=y` adds `CONFIG_LANTERN_EFFECTS=y`,
   `CONFIG_LANTERN_FRAMES=y` and, where it is the one effect built,
   `CONFIG_LANTERN_EFFECT_DEFAULT_LAYER_KEYS=y`, and no
@@ -443,19 +449,21 @@ how to build. Usage: [README.md](README.md). English only.
   system work queue (Zephyr's conn.c reports a disconnection from its
   deferred work there), all cooperative, so the store's writers never
   interleave. Nothing of it is in the settings or in the resends of the
-  battery reports. **The effect's and
-  the intro's nodes are named `effect` and `intro` on every device, their
-  invocations wire formats too** (`src/pick.c` for both: param1 = the pick, a
-  mask of `src/effect.h`'s or `src/intro.h`'s bits, param2 = the effect's
-  colour or the intro's 0; the release does nothing, a key's too),
-  **and so are the bits and the names of `LANTERN_EFFECT_LIST` and
-  `LANTERN_INTRO_LIST`** (the settings values, the port's words, canon's
-  `dongle.py effect` and `intro`): never renumber or rename a line, append
-  one. The effect's param2 is the colour (`0xRRGGBB`, 0 for the palette's
+  battery reports. **The picks' nodes are named `effect`, `intro` and
+  `tempo` on every device, their invocations wire formats too** (`src/pick.c`
+  for the three: param1 = the pick, a mask of `src/effect.h`'s,
+  `src/intro.h`'s or `src/tempo.h`'s bits, param2 = the effect's colour, the
+  intro's and the tempo's 0; the release does nothing, a key's too),
+  **and so are the bits and the names of `LANTERN_EFFECT_LIST`,
+  `LANTERN_INTRO_LIST` and `LANTERN_TEMPO_LIST`** (the settings values, the
+  port's words, canon's `dongle.py effect`, `intro` and `tempo`): never
+  renumber or rename a line; a new intro is a line appended, a new effect a
+  line on the next free bit above the layer keys, which stay the table's
+  last line (`src/effect.h`). The effect's param2 is the colour (`0xRRGGBB`, 0 for the palette's
   colours; stored after the mask under `lantern/effect/mask`, one value, so
   a power loss never leaves a mask with another pick's colour; the mask
-  alone, from an image before the colour, reads as colour 0), the intro's is
-  0. A key of the central's
+  alone, from an image before the colour, reads as colour 0), the intro's
+  and the tempo's are 0. A key of the central's
   keymap may bind `&effect <mask> <colour>`, `&intro <mask> 0` and
   `&tempo <mask> 0` (ZMK runs the keymap on the central and carries a
   GLOBAL behavior to every half before running it there,
@@ -472,9 +480,11 @@ how to build. Usage: [README.md](README.md). English only.
   comes from ZMK's `peripheral_slot_index_for_conn()`, declared in
   `src/relay.c` since ZMK has no header for it: a rename or a static there
   fails the link, loudly, a changed signature silently (C links by name).
-  Bit 7 of `LANTERN_EFFECT_LIST` is no effect's: canon t-6ttk's trial of
-  an effect that never reached main had it (2026-10-27), and a device that
-  ran it may hold it in its settings. A half notes a relayed
+  Bits 7 and 9 of `LANTERN_EFFECT_LIST` are no effect's: canon t-6ttk's
+  trial of an effect that never reached main had 7 (2026-10-27), and the
+  footprints, dropped for the heatmap the day they reached main
+  (2026-11-02), had 9; a device that ran either may hold it in its
+  settings. A half notes a relayed
   press from the Bluetooth receive queue (`lantern_keys_hit()`:
   `src/keys.c`'s hit ring advances by compare-and-set, so any of ZMK's
   cooperative threads may note; `keys.h` lists the hit among the callers)
@@ -509,29 +519,33 @@ how to build. Usage: [README.md](README.md). English only.
   picks' sends each wait a second for the discovery to finish; a half saves
   only a changed palette or pick.
 - **A pick picks among what is built, and never hides what the host sent**
-  (`src/pick.c`, the mechanism; `src/effect.c` and `src/intro.c`, the
-  instances): a half draws the effects' pick's bits its image builds, every
+  (`src/pick.c`, the mechanism; `src/effect.c`, `src/intro.c` and
+  `src/tempo.c`, the instances): a half draws the effects' pick's bits its image builds, every
   one over the last, and the default (`LANTERN_EFFECT_DEFAULT`, one built
   effect, asserted; without a conf line the stain when built, else the first
   built in the choice's order) when no pick is stored or none of its bits is
   built; it plays the first built bit of the intro's pick in the table's
   order, else the choice `LANTERN_INTRO_DEFAULT` (without a conf line the
-  star waves when built, else the bands); a device stores the host's bits as
+  star waves when built, else the bands); where it builds the tempo, it runs
+  it as the tempo's pick says, and with no pick stored or neither state in
+  it as `CONFIG_LANTERN_TEMPO_DEFAULT` says; a device stores the host's bits as
   sent, bits its table does not know included (a newer image's), so the port
-  answers the pick as made with the names it knows (`effect none` or `intro
-  none` when it knows none: a bare word would be an ask, and an echoing host
+  answers the pick as made with the names it knows (`effect none`, `intro
+  none` or `tempo none` when it knows none: a bare word would be an ask, and an echoing host
   would loop) and an image flashed with more shows it. Refused, on every
   device and with nothing stored: an empty pick, and a colour above
   `0xFFFFFF` (the argument's range is wire format too, unlike the mask's
   bits: a wider one from a newer central would drop the whole pick here);
   ignored at load: a stored value of another size, an empty mask, a colour
   above the range. The central refuses the intro's pick with two bits (`one
-  intro at a time`). A failed save is logged, not retried: the next change
+  intro at a time`) and the tempo's with both (`on or off, not both`). A
+  failed save is logged, not retried: the next change
   saves, and until then a boot returns to the previous pick, whole (as the
   mask before the colour). A change of the effects' pick clears the hits
   (`lantern_keys_effect_changed()`) and the stain's dye (the frame compares
   the pick and the colour it drew), never the palette; a change of the
-  intro's pick does nothing until the next boot light, which reads it. The
+  intro's pick does nothing until the next boot light, which reads it, and
+  of the tempo's until the next frame. The
   stain's bit draws the thin ring with the dye, the thin ring's the ring
   alone. **The pick's colour reaches every effect as the shades it draws
   from** (`src/keys.c`: with a colour, `effect_shades` is that one colour
@@ -649,7 +663,8 @@ how to build. Usage: [README.md](README.md). English only.
 - Hardware verification is canon's: flash with canon's `scripts/flash-dongle.sh
   imprint_left` / `imprint_right` (a data cable, USB power), read a `--logging`
   image's lines with its `dongle.py log`, set and ask the palette with its
-  `dongle.py palette` and the picks with its `dongle.py effect` and `intro`.
+  `dongle.py palette` and the picks with its `dongle.py effect`, `intro` and
+  `tempo`.
   Hardware claims here and in task bodies carry a date; README carries none
   (it is the consumer's). **The hardware record**, the one keyboard this
   module has run on, canon's Cyboard Imprint: builds for both halves
@@ -685,7 +700,12 @@ how to build. Usage: [README.md](README.md). English only.
   way with `CONFIG_LANTERN_WATER=y` and the pick `water`, on both halves)
   and the dart (2026-10-27, the same way with `CONFIG_LANTERN_DART=y` and
   the pick `dart`, on both halves, the bar running in across the split),
-  each the user's OK on sight (canon t-6ttk, t-5hqx). The pick's colour
+  each the user's OK on sight (canon t-6ttk, t-5hqx). The intro's pick
+  (2026-10-27, canon's pinned images of 4cafe59 on the dongle and both
+  halves, canon t-qvgv): `intro none` at first, then `intro bands` played
+  the bands for about a second at a half's cable plugged in and
+  `intro star-waves` the ten seconds in red, blue and green, each the
+  user's answer on sight. The pick's colour
   (2026-10-27, canon's pinned images of 3b6c21e on the dongle and both
   halves, canon t-rgp5): `effect stain FF0000` dyed red, `effect stain`
   returned the palette's colours, and the stored pick survived the flash
@@ -695,7 +715,8 @@ how to build. Usage: [README.md](README.md). English only.
   `layer-keys` alone, canon t-6ttk): holding a layer lit its keys in its
   colour, the user's OK on sight; the state went from the relay's queue
   (`src/relay.c`). The wake and the hit from the relay's queue
-  (2026-11-02, canon's trial images of this change on both halves,
+  (2026-11-02, canon's trial images of zmk-lantern#34, merged as ef90f08,
+  on both halves,
   `CONFIG_ZMK_IDLE_TIMEOUT=20000`, the pick `cross-ring`, the dongle on
   its pinned image, canon t-6ttk): both halves left untouched past the
   timeout, two presses on one half, and the second press's crossing ring
@@ -713,7 +734,10 @@ how to build. Usage: [README.md](README.md). English only.
   faedf33), dropped for it the same day: the user kept one of the two. The
   tempo (2026-11-02, canon's trial images of 4d95faf on both halves, the
   dongle on its pinned image, the pick `cross-ring`, canon t-6ttk): the
-  user's OK on sight. Not on
+  user's OK on sight; its pick the same day on canon's product images of
+  aeec40c on the dongle and both halves: `tempo none` after the flash, then
+  `tempo ok off`, `tempo ok on` and the ask `tempo on` (whether a half
+  followed `off` was not looked at). Not on
   hardware: the conf's colours (`CONFIG_LANTERN_COLOUR_0` to `_5`; the host
   harness and the Corne check build, canon t-gwsw: canon's host hands a
   palette every morning), the key bindings `&effect`, `&effect_next`, `&intro`
