@@ -201,7 +201,9 @@ step_policy() {
     flags=()
     case "$name" in wake-*) flags+=(-DCONFIG_LANTERN_WAKE_ON_HIT=1) ;; esac
     case "$name" in *-rail) flags+=(-DCONFIG_LANTERN_RAIL=1) ;; esac
-    if "$CC" "${cf[@]}" "${flags[@]}" "$HERE/policy.c" -o "$OUT/p_$name" 2>"$OUT/p_$name.log"; then
+    # flags is empty for nowake-norail: macOS's bash 3.2 takes "${flags[@]}"
+    # of an empty array as unbound under set -u, hence the + form.
+    if "$CC" "${cf[@]}" ${flags[@]+"${flags[@]}"} "$HERE/policy.c" -o "$OUT/p_$name" 2>"$OUT/p_$name.log"; then
       if "$OUT/p_$name" >"$OUT/p_$name.txt" 2>&1; then
         echo "ok   p_$name | $(tail -1 "$OUT/p_$name.txt" | sed 's/; last log:.*//')"
       else
