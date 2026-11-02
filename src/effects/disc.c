@@ -103,5 +103,6 @@ static void disc_draw(struct led_rgb px[], const struct shades *sh, const struct
 
 const struct lantern_effect_entry lantern_effect_disc = {
     .life = disc_life,
+    .tempo = true,
     .draw = disc_draw,
 };

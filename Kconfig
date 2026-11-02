@@ -520,6 +520,21 @@ config LANTERN_EFFECT_NEXT
       Neither key binding is verified on hardware (canon's keymap binds
       none; the check build compiles both).
 
+config LANTERN_TEMPO
+    bool "Run the effects faster the faster you type: the tempo"
+    depends on LANTERN_EFFECTS
+    help
+      The tempo (src/keys.c): the effects whose shape grows with a press's
+      age (the thin ring, the disc, the stain's ring, the crossing ring, the
+      beams, the water, the dart) run faster the faster you type, up to
+      twice their speed at eight presses a second over the last two seconds,
+      counting both halves' presses where the hit carries them (LANTERN_HIT),
+      eased over a quarter of a second so that no ring jumps; the heatmap
+      and the layer keys keep their own time. An effect's life is unchanged,
+      so a ring on the tempo has left the board before its hit goes. Default
+      n: canon t-6ttk's trial (2026-11-02); whether the tempo becomes a pick
+      of the host's is decided after it.
+
 config LANTERN_GEOMETRY
     bool
     help

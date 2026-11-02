@@ -91,5 +91,6 @@ static void cross_ring_draw(struct led_rgb px[], const struct shades *sh, const 
 
 const struct lantern_effect_entry lantern_effect_cross_ring = {
     .life = cross_life,
+    .tempo = true,
     .draw = cross_ring_draw,
 };

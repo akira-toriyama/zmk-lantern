@@ -114,5 +114,6 @@ static void dart_draw(struct led_rgb px[], const struct shades *sh, const struct
 
 const struct lantern_effect_entry lantern_effect_dart = {
     .life = dart_life,
+    .tempo = true,
     .draw = dart_draw,
 };

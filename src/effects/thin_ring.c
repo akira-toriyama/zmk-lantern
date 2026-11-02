@@ -158,6 +158,7 @@ static void thin_ring_draw(struct led_rgb px[], const struct shades *sh, const s
 const struct lantern_effect_entry lantern_effect_thin_ring = {
     .serves = LANTERN_EFFECT_STAIN,
     .life = ring_life,
+    .tempo = true,
     .draw = thin_ring_draw,
 };
 
