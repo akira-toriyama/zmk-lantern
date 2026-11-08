@@ -852,9 +852,12 @@ program reading the port, which takes the reply) or no device, 2 for bad
 usage. `--wait S` first polls up to S seconds for the device (plugged in,
 rebooting, hidden by a KVM switch), tries again within the same S when it
 goes away meanwhile, and asks again while the central answers `not ready`
-(its USB up before its settings loaded); `--timeout S` (3) bounds the write
-and then the reply. On Linux the port needs the permission to open it (the
-`dialout` group, or a udev rule). canon's `scripts/dongle.py palette`,
+(its USB up before its settings loaded), but not a port that cannot be
+opened for another reason (no permission, another program holding it);
+`--timeout S` (3) bounds the write and then the reply, after up to three
+seconds of reading away what arrived earlier. On Linux the port needs the
+permission to open it (the `dialout` group, or a udev rule). canon's
+`scripts/dongle.py palette`,
 `effect`, `intro` and `tempo` write the same lines to its Imprint Dongle,
 found canon's own way.
 
@@ -903,9 +906,9 @@ the GIF's: like the GIF, keep them out of anything public.
 
 A keyboard without a host, or one to have the colours from its first boot,
 takes them in its conf instead, `CONFIG_LANTERN_COLOUR_0` to `_5` (Using it:
-the colours), in the conf of each device with a `lantern,keys` node (each
-half's own; the symbols depend on the node, so a conf a dongle shares is not
-the place):
+the colours), in the conf of each device with a `lantern,keys` node: each
+half's own, or one both halves share, as the Corne's `corne.conf`, which ZMK
+merges into every `corne_*` shield's build (a dongle has no keys for them):
 
 ```sh
 python3 ../zmk-beacon/tools/sprite_colours.py sprite.gif | awk '{ for (i = 1; i <= NF; i++) printf "CONFIG_LANTERN_COLOUR_%d=0x%s\n", i - 1, $i }' >> config/corne.conf

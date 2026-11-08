@@ -8,16 +8,26 @@ name: Tools
 # Linux, one test listing the runner's own, and opens the port through
 # termios on either. timeout-minutes: a regression in the tests' pseudo-
 # terminal thread hung the suite on macOS once (a close waiting on a read).
+# The port's grammar and the tables the tests copy LINE_LIMIT from are
+# among the paths, so a change there reruns them.
 on:
   # push only on main: a PR branch is checked once, through pull_request.
   push:
     branches: [main]
     paths:
       - "tools/**"
+      - "src/port.c"
+      - "src/effect.h"
+      - "src/intro.h"
+      - "src/tempo.h"
       - ".github/workflows/tools-test.yml"
   pull_request:
     paths:
       - "tools/**"
+      - "src/port.c"
+      - "src/effect.h"
+      - "src/intro.h"
+      - "src/tempo.h"
       - ".github/workflows/tools-test.yml"
   workflow_dispatch:
 

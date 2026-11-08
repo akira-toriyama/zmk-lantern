@@ -107,7 +107,16 @@ how to build. Usage: [README.md](README.md). English only.
   rate, and sends more than LINE_LIMIT spaces and a newline before the line,
   so that a leftover in the central's buffer is dropped rather than completed
   and run; an Opus refutation of the first draft, 2026-11-08, found the bare
-  newline running a leftover set and its reply passing for the host's). Each
+  newline running a leftover set and its reply passing for the host's; a
+  second refutation of the fix, the same day, found the tests' device thread
+  able to hang the suite and the prelude's boundary unpinned, both fixed, and
+  left two windows the host cannot close, traced in the sources and not
+  reproduced: a complete line that a USB reset leaves in the CDC ACM ring,
+  `cdc_acm_reset_port` clearing `rx_ready` but not the ring, which the next
+  host's first packet feeds before its prelude; and a reply a central slower
+  than `--timeout` writes after the next run's drain. `--wait` tries again
+  only what a device that is away causes, `Failure.retry`, never a port
+  refused for permission or held by another program). Each
   source's header carries its design and every reason.
   Device names follow canon's
   [docs/glossary.md](https://github.com/akira-toriyama/canon/blob/main/docs/glossary.md):
@@ -746,9 +755,12 @@ how to build. Usage: [README.md](README.md). English only.
   `tempo` (or with `tools/lantern_port.py --name "Imprint Dongle" <word> ...`,
   which on 2026-11-08 asked canon's Imprint Dongle, its pinned image of
   f29e307, its three picks (`intro none`, `tempo none`, `effect thin-ring`),
-  got `effect error: no such effect (the names: effect?)` for a made-up
-  name, exit 1, refused a name two ports carry with exit 2, and timed out
-  with exit 1 on a word the firmware does not read; no set was sent, the
+  before and after the prelude was added, got `effect error: no such effect
+  (the names: effect?)` for a made-up name, exit 1, exit 2 for `effect none`
+  as usage, and timed out with exit 1 on a word the firmware does not read;
+  the first draft refused the name of a device with two ports (another ZMK
+  device on the same Mac) with exit 2, and the rule since, one device's
+  first port, is the unit test's, not re-measured; no set was sent, the
   dongle's palette being the morning's; canon t-t63a).
   Hardware claims here and in task bodies carry a date; README carries none
   (it is the consumer's). **The hardware record**, the one keyboard this

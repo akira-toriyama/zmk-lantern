@@ -24,8 +24,10 @@ devices carry (two keyboards, told apart by their serial numbers) needs
 product string, serial and manufacturer. `--wait S` first polls up to S
 seconds for the device (plugged in, rebooting, hidden by a KVM switch), tries
 again within the same S when it goes away meanwhile, and asks again while it
-answers `not ready` (its USB up before its settings loaded); `--timeout S`
-(3) bounds the write and then the reply.
+answers `not ready` (its USB up before its settings loaded), but not a port
+that cannot be opened for another reason (no permission, another program
+holding it); `--timeout S` (3) bounds the write and then the reply, after up
+to DRAIN_LIMIT_S of reading away what arrived earlier.
 
 The host's side of the port, which a host of its own follows too:
 
@@ -90,11 +92,18 @@ Port = collections.namedtuple("Port", "path product serial manufacturer")
 
 
 class Failure(Exception):
-    """A message for stderr and an exit status."""
+    """A message for stderr and an exit status; `retry` marks the failures
+    --wait tries again, those a device that is away or rebooting causes (not
+    found, gone, not there to open), never a port that cannot be opened for
+    another reason (no permission, another program holding it)."""
 
-    def __init__(self, message, status=1):
+    def __init__(self, message, status=1, retry=False):
         super().__init__(message)
         self.status = status
+        self.retry = retry
+
+
+GONE = (errno.ENOENT, errno.ENXIO, errno.EIO, errno.ENODEV)  # the device left between the lookup and the open
 
 
 def ioreg_serial():
@@ -183,7 +192,8 @@ def the_port(name, ports):
     numbers (2: --port names one)."""
     hits = [p for p in ports if p.product == name]
     if not hits:
-        raise Failure('no USB serial port of a device named "%s" (%s lists what there is)' % (name, PORTS_WORD))
+        raise Failure('no USB serial port of a device named "%s" (%s lists what there is)' % (name, PORTS_WORD),
+                      retry=True)
     serials = set(p.serial for p in hits)
     if len(hits) > 1 and (len(serials) > 1 or "" in serials):
         raise Failure('%d ports carry the name "%s": --port names one of %s'
@@ -199,10 +209,10 @@ def find_port(args, deadline):
             if args.port:
                 if os.path.exists(args.port):
                     return args.port
-                raise Failure("no %s: is the device plugged in?" % args.port)
+                raise Failure("no %s: is the device plugged in?" % args.port, retry=True)
             return the_port(args.name, usb_serial_ports())
         except Failure as e:
-            if e.status != 1 or time.monotonic() >= deadline:
+            if not e.retry or time.monotonic() >= deadline:
                 raise
         time.sleep(min(POLL_S, max(deadline - time.monotonic(), 0.0)))
 
@@ -213,7 +223,7 @@ def open_port(path):
     try:
         fd = os.open(path, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
     except OSError as e:
-        raise Failure("cannot open %s: %s" % (path, e.strerror or e))
+        raise Failure("cannot open %s: %s" % (path, e.strerror or e), retry=e.errno in GONE)
     try:
         attrs = termios.tcgetattr(fd)
         attrs[0] = 0  # iflag
@@ -243,9 +253,9 @@ def read_some(fd, path, timeout):
     except (BlockingIOError, InterruptedError):
         return b""
     except OSError as e:
-        raise Failure("lost %s: %s" % (path, e.strerror or e))
+        raise Failure("lost %s: %s" % (path, e.strerror or e), retry=True)
     if not chunk:
-        raise Failure("lost %s: end of file" % path)
+        raise Failure("lost %s: end of file" % path, retry=True)
     return chunk
 
 
@@ -269,7 +279,7 @@ def write_all(fd, path, data, deadline):
         except (BlockingIOError, InterruptedError):
             pass
         except OSError as e:
-            raise Failure("lost %s: %s" % (path, e.strerror or e))
+            raise Failure("lost %s: %s" % (path, e.strerror or e), retry=True)
         if data:
             left = deadline - time.monotonic()
             if left <= 0:
@@ -331,7 +341,7 @@ def ask(args):
         except Failure as e:
             # The device went away between the lookup and the reply (a KVM
             # switch cut its power, it rebooted): --wait's budget covers it.
-            if e.status != 1 or time.monotonic() >= deadline:
+            if not e.retry or time.monotonic() >= deadline:
                 raise
             print("lantern_port: %s; trying again" % e, file=sys.stderr)
             time.sleep(POLL_S)
@@ -361,20 +371,20 @@ def list_ports():
     return 0
 
 
-def seconds(text, least=0.0):
-    """A finite number of seconds, at least `least` (0 may be allowed, as
-    --wait's; a 0 timeout would write the line and never read the reply)."""
+def seconds(text, positive=False):
+    """A finite number of seconds, 0 or more, or more than 0 when positive (a
+    0 timeout would write the line and never read the reply)."""
     try:
         value = float(text)
     except ValueError:
         value = math.nan
-    if not math.isfinite(value) or value < least or (least > 0 and value == 0):
-        raise argparse.ArgumentTypeError("seconds, %s, not %r" % ("more than 0" if least > 0 else "0 or more", text))
+    if not math.isfinite(value) or value < 0 or (positive and value == 0):
+        raise argparse.ArgumentTypeError("seconds, %s, not %r" % ("more than 0" if positive else "0 or more", text))
     return value
 
 
 def timeout_seconds(text):
-    return seconds(text, least=1e-9)
+    return seconds(text, positive=True)
 
 
 def parser():
@@ -397,9 +407,11 @@ def parser():
     p.add_argument("--wait", type=seconds, default=0.0, metavar="S",
                    help="first poll up to S seconds, every %g s, for the device, and within the same S try again "
                         "when it goes away and ask again while it answers 'not ready' (a central just booted: its "
-                        "USB up before its settings; default 0)" % POLL_S)
+                        "USB up before its settings; default 0); a port that cannot be opened for another reason "
+                        "(no permission, another program holding it) is not tried again" % POLL_S)
     p.add_argument("--timeout", type=timeout_seconds, default=3.0, metavar="S",
-                   help="give up on writing the line, and then on the reply, after S seconds each (default 3)")
+                   help="give up on writing the line, and then on the reply, after S seconds each (default 3; "
+                        "before the write, up to %g s of reading away what arrived earlier)" % DRAIN_LIMIT_S)
     p.add_argument("word", metavar="WORD", help="palette, effect, intro or tempo (the port's words), or ports")
     p.add_argument("arguments", nargs="*", metavar="ARGUMENT",
                    help="the word's arguments, as the port takes them; none asks")
@@ -422,8 +434,8 @@ def main(argv=None):
             if not ARGUMENT.fullmatch(a):
                 raise Failure("an argument is printable ASCII without a space, not %r" % a, 2)
         if args.arguments and args.arguments[0] in REPLY_SHAPES:
-            raise Failure("'%s %s' is the shape of a reply, which the firmware ignores: a set names values (the "
-                          "picks one or more of the built names; there is no none)" % (args.word, args.arguments[0]), 2)
+            raise Failure("'%s %s' is the shape of a reply, which the firmware ignores: a set names values, a pick "
+                          "one or more of the built names, and there is no none" % (args.word, args.arguments[0]), 2)
         return ask(args)
     except Failure as e:
         print("lantern_port: %s" % e, file=sys.stderr)

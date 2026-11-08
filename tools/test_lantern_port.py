@@ -3,12 +3,14 @@ thread answering as src/port.c does: python3 -m unittest discover tools. No
 device is needed, and no port of the machine is opened (the one test that
 looks at this machine only lists)."""
 import contextlib
+import fcntl
 import io
 import os
 import select
 import sys
 import tempfile
 import threading
+import time
 import tty
 import unittest
 
@@ -17,27 +19,32 @@ import lantern_port  # noqa: E402
 
 NOT_READY = b"palette error: not ready: the settings have not loaded yet"
 SIX = b"112233 445566 778899 AABBCC DDEEFF 000000"
-LINE_LIMIT = 167  # src/port.c's with nine effect names
+LINE_LIMIT = 167  # src/port.c's with nine effect names (23 + 16 a name; the PRELUDE's margin covers 62)
+WORDS = (b"palette", b"effect", b"intro", b"tempo")
 
 
 class FakeCentral:
     """The device's side of a pseudo-terminal, fed as src/port.c's feed()
     is: bytes into a line up to LINE_LIMIT, an overlong line dropped at its
-    newline without a reply, an empty line nothing. Each complete line is
-    answered in turn from the script, a list of (expected line, reply bytes),
-    the reply written as the firmware writes it, a newline first and last,
-    unless it is None (no reply: a word the firmware does not read, or a
-    line shaped like a reply)."""
+    newline without a reply, an empty line nothing. A complete line that
+    starts with none of the port's words (arguments() in port.c) gets no
+    reply and uses no script entry; every other one is answered in turn from
+    the script, a list of (expected line, reply bytes), the reply written as
+    the firmware writes it, a newline first and last, unless it is None (no
+    reply). Reads and writes on the master end go through a select with a
+    timeout, never a blocking call: on macOS a close of the master waits for
+    a read or a write blocked on it."""
 
     def __init__(self, script):
         self.master, self.slave = os.openpty()
         tty.setraw(self.slave)  # no echo: what the test writes as the device must not come back as the host's
+        fcntl.fcntl(self.master, fcntl.F_SETFL, fcntl.fcntl(self.master, fcntl.F_GETFL) | os.O_NONBLOCK)
         self.path = os.ttyname(self.slave)
         self.script = list(script)
         self.lines = []
         self.dropped = 0
         self.stop = False
-        self.thread = threading.Thread(target=self.run)
+        self.thread = threading.Thread(target=self.run, daemon=True)
         self.thread.start()
 
     def run(self):
@@ -70,13 +77,23 @@ class FakeCentral:
 
     def answer(self, line):
         self.lines.append(line)
-        if not self.script:
+        word = line.split(b" ")[0].rstrip(b"?")
+        if word not in WORDS or not self.script:
             return
         expected, reply = self.script.pop(0)
         if line != expected:
-            os.write(self.master, b"\nunexpected " + line + b"\n")
+            self.write(b"\nunexpected " + line + b"\n")
         elif reply is not None:
-            os.write(self.master, b"\n" + reply + b"\n")
+            self.write(b"\n" + reply + b"\n")
+
+    def write(self, data):
+        while data and not self.stop:
+            if not select.select([], [self.master], [], 0.05)[1]:
+                continue
+            try:
+                data = data[os.write(self.master, data):]
+            except BlockingIOError:
+                pass
 
     def cut(self):
         """The device gone: its side of the pty closed, so the host's reads
@@ -120,6 +137,15 @@ class ExchangeTest(unittest.TestCase):
         self.assertEqual(reply, "palette none")
         self.assertEqual(central.lines, [b"palette?"], "the leftover never became a line")
         self.assertEqual(central.dropped, 1)
+
+    def test_the_prelude_drops_the_shortest_leftover_that_is_a_command(self):
+        # `palette` alone, 7 bytes: with fewer spaces than LINE_LIMIT - 6 the
+        # line would complete as an ask and its reply come before ours.
+        reply, central = self.exchange([(b"palette 445566", b"palette ok 445566 000000 000000 000000 000000 000000")],
+                                       "palette", "palette 445566", leftover=b"palette")
+        self.assertEqual(reply, "palette ok 445566 000000 000000 000000 000000 000000")
+        self.assertEqual(central.lines, [b"palette 445566"])
+        self.assertGreater(len(lantern_port.PRELUDE) - 1, LINE_LIMIT, "the spaces alone must overflow the buffer")
 
     def test_the_prelude_drops_a_leftover_already_overlong(self):
         reply, central = self.exchange([(b"effect stain", b"effect ok stain")], "effect", "effect stain",
@@ -219,14 +245,15 @@ class MainTest(unittest.TestCase):
             return [lantern_port.Port(current.path, "Corne", "A1", "ZMK Project")]
 
         def cut():
-            while len(gone.lines) < 1:
+            end = time.monotonic() + 5.0  # a host that never writes must not keep this thread alive
+            while len(gone.lines) < 1 and time.monotonic() < end:
                 select.select([], [], [], 0.01)
             gone.cut()
 
         real = lantern_port.usb_serial_ports
         lantern_port.usb_serial_ports = ports
         try:
-            threading.Thread(target=cut).start()
+            threading.Thread(target=cut, daemon=True).start()
             with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
                 status = lantern_port.main(["--name", "Corne", "--timeout", "2", "--wait", "5", "tempo"])
         finally:
@@ -278,17 +305,28 @@ class UsageTest(unittest.TestCase):
         self.assertEqual(status, 1)
         self.assertIn("plugged in", err)
 
+    def test_a_port_that_cannot_be_opened_is_not_tried_again(self):
+        # A directory opens with EISDIR, as a port without permission would
+        # with EACCES: not a device that is away, so --wait does not apply.
+        start = time.monotonic()
+        status, _, err = self.main(["--port", tempfile.gettempdir(), "--wait", "5", "palette"])
+        self.assertEqual(status, 1)
+        self.assertIn("cannot open", err)
+        self.assertNotIn("trying again", err)
+        self.assertLess(time.monotonic() - start, 2.0)
+
     def test_seconds_are_finite_and_a_timeout_is_more_than_0(self):
         for bad in ("nan", "inf", "-1", "x"):
             with self.assertRaises(SystemExit, msg=bad):
                 with contextlib.redirect_stderr(io.StringIO()):
                     lantern_port.parser().parse_args(["--wait", bad, "palette"])
-        for bad in ("0", "nan", "inf", "-1"):
+        for bad in ("0", "nan", "inf", "-1", "1e400"):
             with self.assertRaises(SystemExit, msg=bad):
                 with contextlib.redirect_stderr(io.StringIO()):
                     lantern_port.parser().parse_args(["--timeout", bad, "palette"])
         args = lantern_port.parser().parse_args(["--wait", "0", "--timeout", "0.5", "palette"])
         self.assertEqual((args.wait, args.timeout), (0.0, 0.5))
+        self.assertEqual(lantern_port.parser().parse_args(["--timeout", "1e-10", "palette"]).timeout, 1e-10)
 
 
 class FindTest(unittest.TestCase):
