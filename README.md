@@ -29,22 +29,42 @@ lights what is at hand. The sibling module
 
 ### The least
 
-1. `config/west.yml`: the module as a project, pinned by commit:
+1. `config/west.yml`: ZMK at `main`, and the module as a project, pinned by
+   commit:
 
    ```yaml
    manifest:
      remotes:
+       - name: zmkfirmware
+         url-base: https://github.com/zmkfirmware
        - name: akira-toriyama
          url-base: https://github.com/akira-toriyama
      projects:
+       - name: zmk
+         remote: zmkfirmware
+         revision: main
+         import: app/west.yml
        - name: zmk-lantern
          remote: akira-toriyama
-         revision: <commit sha> # or a release tag
+         revision: <commit sha>
          path: modules/zmk-lantern
+     self:
+       path: config
    ```
 
-2. The keyboard's overlay (a split: each half's, or a dtsi both include): the
-   strip and the key under each LED.
+   The module needs ZMK `main` (Zephyr 4.1): it is built against `main` only,
+   and ZMK's config template pins the `v0.3` release (Zephyr 3.5), where it is
+   untried, so a config made from the template moves `defaults: revision:
+   v0.3` to `main` as above and calls ZMK's workflow at `main` too (Building
+   it with ZMK's CI, below). `revision` is a commit of this repository's
+   `main` (a release tag names one as well; v0.1.0 predates the least on this
+   page).
+
+2. The keyboard's overlay (a split: each half's, or a dtsi both include;
+   ZMK reads one config overlay a build and tries the shield's shared name
+   before the half's, `corne.overlay` before `corne_left.overlay`, so a half
+   with a line of its own, the central's port below, has an overlay of its
+   own over a dtsi both include): the strip and the key under each LED.
 
    ```dts
    &led_strip {
@@ -78,8 +98,8 @@ lights what is at hand. The sibling module
    the effects land a key off until the chosen one is selected again. The
    check build of ZMK's Corne is this least plus the split's nodes, every
    effect, both intros, the tempo and two colours:
-   [config/corne.overlay](config/corne.overlay),
-   [config/corne.conf](config/corne.conf).
+   [config/corne.dtsi](config/corne.dtsi), which both halves' overlays
+   include, [config/corne.conf](config/corne.conf).
 
 3. The keyboard's conf:
 
@@ -270,8 +290,18 @@ lights what is at hand. The sibling module
   invocations each with all three picks:
   `CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE=12` for two halves, 6
   for one peripheral (ZMK's default is 5, one short even then; both asserted
-  at build time). A device without a `lantern,keys` node, such as a dongle, keeps and
-  forwards the palette and the picks without painting anything. On a split
+  at build time). ZMK `main` compiles the fetching with a write it does not
+  bounds-check ([zmk#3522](https://github.com/zmkfirmware/zmk/issues/3522);
+  the fix, [zmk#3556](https://github.com/zmkfirmware/zmk/pull/3556), is
+  open): the disconnect of any Bluetooth connection that is not a half's, a
+  host's, makes the central write a 0 to index 234 of a two-byte array, which
+  on the issue's keyboard zeroed a variable of the Bluetooth controller (late
+  radio events, then a fatal controller assert); canon carries the fix as a
+  patch, which a config repository built by ZMK's reusable workflow cannot,
+  so a central that hosts connect to over Bluetooth carries the bug until
+  the fix merges. A device without a
+  `lantern,keys` node, such as a dongle, keeps and forwards the palette and
+  the picks without painting anything. On a split
   peripheral `CONFIG_LANTERN_USB_LATENCY` is on by default with the rule:
   while USB powers the half it asks the central for peripheral latency 0, so
   what the central relays shows at once (The split link, below); `=n` leaves
@@ -280,10 +310,61 @@ lights what is at hand. The sibling module
 - **The host.** With a USB CDC ACM port on the split central
   (`CONFIG_USB_CDC_ACM`), `CONFIG_LANTERN_PORT` is on by default, and a host
   sets the palette and the picks by writing a text line on that port (The
-  palette and The picks, below). The port and the palette are a split
+  palette and The picks, below). Whether the central has a port is its
+  board's: the XIAO BLE's devicetree carries one (`board_cdc_acm_uart`), so a
+  central on it, a dongle or a half, needs nothing more; the nice!nano's
+  carries none, so a central on it adds one in its overlay and gives
+  `CONFIG_USB_CDC_ACM` the `CONFIG_SERIAL` it depends on (the check build's
+  central half: [config/corne_left.overlay](config/corne_left.overlay),
+  [config/corne_left.conf](config/corne_left.conf)):
+
+  ```dts
+  &zephyr_udc0 {
+      cdc_acm_uart: cdc_acm_uart {
+          compatible = "zephyr,cdc-acm-uart";
+      };
+  };
+  ```
+
+  ```
+  CONFIG_SERIAL=y
+  ```
+
+  Every okay `zephyr,cdc-acm-uart` node is one more USB serial port on the
+  host, and the module reads its lines on all of them, taking each port's
+  UART callback, of which a device keeps one: ZMK Studio over USB (the
+  `studio-rpc-usb-uart` snippet's port) and the module's port do not share a
+  build, so a Studio build sets `CONFIG_LANTERN_PORT=n` (read from the
+  sources, not tried: Studio sets its callback at `POST_KERNEL`, the module
+  at `APPLICATION`, after it). The port and the palette are a split
   central's: a keyboard that is not a split has neither. Without a host the
   keyboard has the Kconfig defaults, and a key of the central's keymap can
   pick (Without a host, below).
+
+### Building it with ZMK's CI
+
+A config repository made from
+[ZMK's template](https://github.com/zmkfirmware/unified-zmk-config-template)
+builds with ZMK's reusable workflow, the module included, once its
+`config/west.yml` is the one above and its `.github/workflows/build.yml`
+calls the workflow at `main`, as the manifest tracks ZMK `main`:
+
+```yaml
+jobs:
+  build:
+    uses: zmkfirmware/zmk/.github/workflows/build-user-config.yml@main
+```
+
+`build.yaml` lists the targets (`board: nice_nano/nrf52840/zmk` with
+`shield: corne_left` and `corne_right`, say). West fetches the module as a
+project of the manifest and Zephyr finds it by its `zephyr/module.yml`;
+nothing of ZMK is patched.
+[zmk-config-lantern-check](https://github.com/akira-toriyama/zmk-config-lantern-check)
+is that repository: the Corne on the nice!nano, the left half the central
+with the port, built green by ZMK's workflow
+([the run](https://github.com/akira-toriyama/zmk-config-lantern-check/actions/runs/42434412267)).
+This repository builds its own check images with a local copy of that
+workflow (Building this repository, below).
 
 ## What it does
 
@@ -751,10 +832,12 @@ half on the module's defaults, the right half a whole consumer's half,
 every effect and both intros over the no picture, with the tempo and the
 wake: [config/imprint_right.conf](config/imprint_right.conf)) and its
 `imprint_dongle` shield, the split central with the port, and both halves of
-ZMK's Corne on the nice!nano ([config/corne.overlay](config/corne.overlay):
-no rail, no `slots`, no `coords`, the places from the shield's physical
-layout). A consumer's keymap and roles are its own, and the check builds'
-`positions` are the chain in key order, not a measurement. CI builds the same
+ZMK's Corne on the nice!nano ([config/corne.dtsi](config/corne.dtsi), both
+halves' overlays: no rail, no `slots`, no `coords`, the places from the
+shield's physical layout; the left half the central with the port its board
+lacks, [config/corne_left.overlay](config/corne_left.overlay)). A consumer's
+keymap and roles are its own, and the check builds' `positions` are the chain
+in key order, not a measurement. CI builds the same
 targets on every pull request and weekly against the moving branches. Every
 push to `main` refreshes one rolling draft release of the notes, with nothing
 attached; publishing the draft by hand creates the tag.
@@ -780,3 +863,7 @@ The one keyboard this module has run on is the Cyboard Imprint of
 [akira-toriyama/canon](https://github.com/akira-toriyama/canon), whose config
 carries the real overlays and confs; what was seen on its hardware, and when,
 is in [CLAUDE.md](CLAUDE.md).
+
+## License
+
+MIT ([LICENSE](LICENSE)).
