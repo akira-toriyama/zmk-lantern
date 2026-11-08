@@ -64,8 +64,11 @@
  * be answered again without end. An echoed ask reply is a set of the same
  * values, which the devices take as unchanged and whose reply the echo then
  * drops. A line longer than LINE_LIMIT is dropped up to its end. The line
- * buffer is not cleared when USB goes away: a host starts with a newline, as
- * tools/lantern_port.py does, to end whatever a lost connection left. Each reply starts
+ * buffer is not cleared when USB goes away: a host starts with more than
+ * LINE_LIMIT spaces and a newline, as tools/lantern_port.py does, so that
+ * whatever a lost connection left overflows with them and is dropped here
+ * without a reply (a bare newline would complete the leftover, run it when it
+ * is a command and answer it, the answer passing for the host's). Each reply starts
  * on a line of its own (a newline first): in a logging image the log thread
  * writes its lines byte by byte and the reply may land in the middle of one.
  * "ok" means the value is stored here and the halves' invocations are queued

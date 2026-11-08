@@ -828,7 +828,7 @@ reply (standard library Python 3.9 or later, with termios: macOS and Linux).
 
 ```sh
 python3 tools/lantern_port.py ports                                # this machine's USB serial ports, each with its product string
-python3 tools/lantern_port.py --name Corne palette 2060FF FF2060  # slots 0 and 1, the rest black: palette ok 2060FF FF2060 000000 000000 000000 000000
+python3 tools/lantern_port.py --name Corne palette 2060FF FF2060  # slots 0 and 1, the rest cleared (shown as slot 0): palette ok 2060FF FF2060 000000 000000 000000 000000
 python3 tools/lantern_port.py --name Corne palette                # ask: palette 2060FF FF2060 000000 000000 000000 000000, or palette none
 python3 tools/lantern_port.py --name Corne effect stain 2060FF    # the stain, in one colour
 python3 tools/lantern_port.py --name Corne intro bands
@@ -839,34 +839,43 @@ python3 tools/lantern_port.py --name Corne tempo off
 a stock split shield the central's; `ports` shows it), looked up among the
 machine's USB serial ports through macOS's I/O Registry or Linux's sysfs,
 never by a `/dev` name, which follows the USB socket, nor by the USB IDs,
-which every ZMK keyboard shares; a name that several ports carry (a device
-with two CDC ACM ports, two keyboards) needs `--port <device>` instead. The
-tool passes the word and its arguments through as they are and knows no name
-and no colour: the firmware refuses what it does not know and says why. Exit
-0 for `ok` or an ask's answer, 1 for an error reply, no reply (an image
-without `CONFIG_LANTERN_PORT`, or another program reading the port, which
-takes the reply) or no device, 2 for bad usage. `--wait S` first polls up to
-S seconds for the device (plugged in, rebooting, hidden by a KVM switch) and
-asks again within the same S while the central answers `not ready` (its USB
-up before its settings loaded); `--timeout S` (3) bounds the write and then
-the reply. On Linux the port needs the permission to open it (the `dialout`
-group, or a udev rule). canon's `scripts/dongle.py palette`, `effect`,
-`intro` and `tempo` write the same lines to its Imprint Dongle, found canon's
-own way.
+which every ZMK keyboard shares; a device with several CDC ACM ports answers
+on every one, so its first is taken, and a name that several devices carry
+(two keyboards, told apart by their serial numbers) needs `--port <device>`
+instead. The tool passes the word and its arguments through as they are and
+knows no name and no colour: the firmware refuses what it does not know and
+says why (an argument shaped like a reply, `effect none`, is refused here,
+since the firmware would ignore the line: there is no none, a pick names one
+or more of the built names). Exit 0 for `ok` or an ask's answer, 1 for an
+error reply, no reply (an image without `CONFIG_LANTERN_PORT`, or another
+program reading the port, which takes the reply) or no device, 2 for bad
+usage. `--wait S` first polls up to S seconds for the device (plugged in,
+rebooting, hidden by a KVM switch), tries again within the same S when it
+goes away meanwhile, and asks again while the central answers `not ready`
+(its USB up before its settings loaded); `--timeout S` (3) bounds the write
+and then the reply. On Linux the port needs the permission to open it (the
+`dialout` group, or a udev rule). canon's `scripts/dongle.py palette`,
+`effect`, `intro` and `tempo` write the same lines to its Imprint Dongle,
+found canon's own way.
 
 A host of your own writes the same lines and keeps to what the tool does:
-the port opened raw, 8N1 at 115200, DTR and RTS raised, and its rate left
-alone (1200 baud is zmk-beacon's bootloader entry on a central that builds
-it, 2400 its screen dump); a newline first, ending whatever a lost connection
-left in the central's line buffer, then one line at a time, its reply
-awaited (the central keeps two lines waiting and drops a third); the reply
-found by its word on a line of its own, since a logging image's log lines
-pass by and one may be finished after it; `ok` read as stored on the central
-and queued for the halves, a half that is away getting it a second after its
-next battery report; nothing shaped like a reply ever written (`<word> ok
-...`, `<word> none`, `<word> error: ...`: the central ignores such a line, so
-an echoing terminal cannot start a loop, but a host that answered replies
-would); and one reader of the port at a time.
+the port opened raw, 8N1 at 115200, DTR and RTS raised, and 115200 the only
+rate it ever sets (1200 baud is zmk-beacon's bootloader entry on a central
+that builds it, 2400 its screen dump); before the line, more spaces than
+the central's line buffer holds (the tool sends 1024) and a newline, so
+that whatever a lost connection left in the buffer overflows with them and
+is dropped at the newline without a reply, where a bare newline would
+complete the leftover, run it when it is a command (a set typed in a
+terminal and never sent) and answer it, the answer passing for the line's;
+then one line at a time, its reply awaited (the central keeps two lines
+waiting and drops a third); the reply read at the start of a line by its
+word, since a logging image's log lines pass by and one may be finished
+after it; `ok` read as stored on the central and queued for the halves, a
+half that is away getting it a second after its next battery report;
+nothing shaped like a reply ever written (`<word> ok ...`, `<word> none`,
+`<word> error: ...`: the central ignores such a line, so an echoing terminal
+cannot start a loop, but a host that answered replies would); and one
+reader of the port at a time.
 
 ### A sprite's colours
 
@@ -894,16 +903,17 @@ the GIF's: like the GIF, keep them out of anything public.
 
 A keyboard without a host, or one to have the colours from its first boot,
 takes them in its conf instead, `CONFIG_LANTERN_COLOUR_0` to `_5` (Using it:
-the colours), on each device with a `lantern,keys` node (each half's conf,
-or the shield's shared one; not a dongle's):
+the colours), in the conf of each device with a `lantern,keys` node (each
+half's own; the symbols depend on the node, so a conf a dongle shares is not
+the place):
 
 ```sh
 python3 ../zmk-beacon/tools/sprite_colours.py sprite.gif | awk '{ for (i = 1; i <= NF; i++) printf "CONFIG_LANTERN_COLOUR_%d=0x%s\n", i - 1, $i }' >> config/corne.conf
 ```
 
 A slot left 0 shows slot 0's colour, so five colours give slot 5 slot 0's;
-and a host's palette, once one arrives, replaces them for good: nothing
-clears it. This is the one route for a keyboard that is not a split, which
+and a host's palette, once one arrives, replaces them for good: nothing but
+a settings reset clears it. This is the one route for a keyboard that is not a split, which
 has no port; the conf's colours are read from the sources and the check
 build, not tried on a keyboard.
 
@@ -927,7 +937,8 @@ port() { python3 /Users/you/zmk-lantern/tools/lantern_port.py --name Corne --wai
 "$sender" daily --config "$config"
 colours=$("$sender" colours --config "$config")
 # shellcheck disable=SC2086
-port palette $colours
+port palette ${colours:?}
+# the effect of the day: the built ones in turn, by the day (UTC)
 set -- thin-ring disc stain cross-ring beams water dart heatmap
 shift $(( $(date +%s) / 86400 % $# ))
 port effect "$1"
@@ -946,8 +957,9 @@ The rest of the plist is zmk-beacon's: six every morning, the log in
 `~/Library/Logs`, which now keeps the colours along with the sender's lines
 (read by you alone). `--wait 600` waits up to ten minutes for the keyboard
 (hidden by a KVM switch, say) and asks again while a rebooted central has
-not loaded its settings; the exit status is the first failed step's, and a
-failed swap sends nothing. The effect's names are the port's (The picks):
+not loaded its settings; the exit status is the first failed step's (`set
+-e`; `${colours:?}` stops an empty line, which would ask instead of set), and
+a failed swap sends nothing. The effect's names are the port's (The picks):
 list the ones your conf builds, and a stored pick of the layer keys is
 replaced by the day's (`effect <name> layer-keys` adds them back). canon's
 keyboard runs this way, with its own `dongle.py` in the tool's place.

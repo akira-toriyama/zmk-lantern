@@ -17,31 +17,40 @@ The device is the split central, found by its USB product string
 (CONFIG_ZMK_KEYBOARD_NAME; on a stock split shield the central's), `--name
 Corne`, among this machine's USB serial ports: macOS's I/O Registry (ioreg)
 or Linux's sysfs, never by a /dev name, which follows the USB socket, nor by
-the USB IDs, which every ZMK keyboard shares. A name that several ports carry
-(a device with two CDC ACM ports, two keyboards) needs `--port <device>`
-instead; `ports` lists every USB serial port with its product string, serial
-and manufacturer. `--wait S` first polls up to S seconds for the device
-(plugged in, rebooting, hidden by a KVM switch) and asks again within the same
-S while it answers `not ready` (its USB up before its settings loaded);
-`--timeout S` (3) bounds the write and then the reply.
+the USB IDs, which every ZMK keyboard shares. A device with several CDC ACM
+ports answers on every one, so its first port is taken; a name that several
+devices carry (two keyboards, told apart by their serial numbers) needs
+`--port <device>` instead; `ports` lists every USB serial port with its
+product string, serial and manufacturer. `--wait S` first polls up to S
+seconds for the device (plugged in, rebooting, hidden by a KVM switch), tries
+again within the same S when it goes away meanwhile, and asks again while it
+answers `not ready` (its USB up before its settings loaded); `--timeout S`
+(3) bounds the write and then the reply.
 
 The host's side of the port, which a host of its own follows too:
 
-- The port is opened raw, 8N1 at 115200, DTR and RTS raised, and its rate is
-  never changed: 1200 baud is zmk-beacon's bootloader entry on a central that
-  builds it, 2400 its screen dump.
-- A newline goes first, ending whatever a lost connection left in the
-  central's line buffer; then the line and a newline. One line at a time,
-  its reply awaited: the central keeps two lines waiting and drops a third.
-- The reply starts on a line of its own and is found by its word: in a
-  logging image the log thread's lines pass by, and one may be finished after
-  the reply. Whatever arrived before the line is read away first.
+- The port is opened raw, 8N1 at 115200, DTR and RTS raised, and 115200 is
+  the only rate a host ever sets: 1200 baud is zmk-beacon's bootloader entry
+  on a central that builds it, 2400 its screen dump.
+- The line is preceded by more spaces than the central's line buffer holds
+  and a newline (PRELUDE): whatever a lost connection left in the buffer,
+  with the spaces, overflows the buffer, and the central drops an overlong
+  line at its newline without a reply (src/port.c, feed()), where a bare
+  newline would complete the leftover, run it when it is a command (a set
+  typed in a terminal and never sent) and answer it, the answer passing
+  for ours. One line at a time, its reply awaited: the central keeps two
+  lines waiting and drops a third.
+- The reply starts on a line of its own, and is read at the start of a line
+  by its word: in a logging image the log thread's lines pass by, and one
+  may be finished after the reply. Whatever arrived before the line is read
+  away first.
 - `ok` means the central stored the value and queued the halves' invocations;
   a half that is away gets them a second after its next battery report.
 - Nothing shaped like a reply is ever sent (`<word> ok ...`, `<word> none`,
-  `<word> error: ...`): the central ignores such a line, so an echoing
-  terminal cannot start a loop, but a host that answered replies would. One
-  reader of the port at a time: another program reading it takes the reply.
+  `<word> error: ...`; refused here as usage): the central ignores such a
+  line, so an echoing terminal cannot start a loop, but a host that answered
+  replies would. One reader of the port at a time: another program reading
+  it takes the reply.
 
 Standard library only, Python 3.9 (macOS's /usr/bin/python3): termios, so
 macOS and Linux, where the port needs the permission to open it (the dialout
@@ -52,6 +61,7 @@ import argparse
 import collections
 import errno
 import fcntl
+import math
 import os
 import plistlib
 import re
@@ -63,11 +73,15 @@ import termios
 import time
 
 BAUD = termios.B115200
-POLL_S = 0.5  # --wait's poll, and the pause before asking again after `not ready`
+POLL_S = 0.5  # --wait's poll, and the pause before asking or trying again
 QUIET_S = 0.2  # what arrived before the line is read away until this long without a byte...
 DRAIN_LIMIT_S = 3.0  # ...or this long in all (a logging image never falls silent)
+# More than src/port.c's LINE_LIMIT (167 with nine effect names: 23 + 16 a
+# name of the longest table), so a leftover of any length overflows with it.
+PRELUDE = b" " * 1024 + b"\n"
 PORTS_WORD = "ports"
 WORDS = ("palette", "effect", "intro", "tempo")  # the port's words today, for the messages only
+REPLY_SHAPES = ("ok", "none", "error:")  # src/port.c's arguments(): a line with one of these first is no command
 WORD = re.compile(r"[a-z]+")
 ARGUMENT = re.compile(r"[!-~]+")  # printable ASCII without a space: the line is ASCII, split at spaces
 ESCAPES = re.compile(r"\x1b(?:\[[0-?]*[ -/]*[@-~]|[@-Z\\-_])|[\x00-\x08\x0b-\x1f\x7f]")
@@ -91,7 +105,10 @@ def ioreg_serial():
                              capture_output=True, check=True).stdout
     except (OSError, subprocess.CalledProcessError) as e:
         raise Failure("ioreg failed: %s" % e)
-    roots = plistlib.loads(raw) if raw.strip() else []
+    try:
+        roots = plistlib.loads(raw) if raw.strip() else []
+    except Exception as e:  # plistlib raises expat's and its own errors on malformed output
+        raise Failure("ioreg's output is no plist: %s" % e)
     return roots if isinstance(roots, list) else [roots]
 
 
@@ -160,12 +177,15 @@ def usb_serial_ports():
 
 
 def the_port(name, ports):
-    """The one port of the device whose product string is name, or Failure:
-    none (1), or several (2: --port names one)."""
+    """The port of the device whose product string is name: its first when
+    the device has several (src/port.c answers on every CDC ACM port), or
+    Failure: no such device (1), or several, told apart by their serial
+    numbers (2: --port names one)."""
     hits = [p for p in ports if p.product == name]
     if not hits:
         raise Failure('no USB serial port of a device named "%s" (%s lists what there is)' % (name, PORTS_WORD))
-    if len(hits) > 1:
+    serials = set(p.serial for p in hits)
+    if len(hits) > 1 and (len(serials) > 1 or "" in serials):
         raise Failure('%d ports carry the name "%s": --port names one of %s'
                       % (len(hits), name, ", ".join(p.path for p in hits)), 2)
     return hits[0].path
@@ -173,7 +193,7 @@ def the_port(name, ports):
 
 def find_port(args, deadline):
     """The port to write, --port as given or --name's, polled for until
-    deadline (--wait); a name on several ports is refused at once."""
+    deadline (--wait); a name several devices carry is refused at once."""
     while True:
         try:
             if args.port:
@@ -262,16 +282,17 @@ def clean(raw):
 
 
 def reply_pattern(word):
-    """The reply to the word, found in a line: the firmware starts it on a
-    line of its own, but a logging image's log thread, interrupted mid-line,
-    finishes its line after it, and the word also ends a log module's name
-    (`lantern_palette:`) and starts a log line (`effect: pick ...`)."""
-    return re.compile(r"(?<![A-Za-z_])" + re.escape(word) + r"(?: |$)")
+    """The reply to the word at the start of a line: the firmware writes it
+    on a line of its own, whole (a logging image's log thread, interrupted
+    mid-line, finishes its line after it), so a line that carries the word
+    elsewhere (a log module's name, `lantern_palette:`, a log line, `effect:
+    pick ...`, a shell's echo of our own line) is not it."""
+    return re.compile(r"^" + re.escape(word) + r"(?: |$)")
 
 
 def read_reply(fd, path, word, deadline):
-    """The first line from the port that carries the word's reply, from the
-    word on, or None at the deadline."""
+    """The first line from the port that is the word's reply, or None at the
+    deadline."""
     pattern = reply_pattern(word)
     buf = b""
     while True:
@@ -281,19 +302,19 @@ def read_reply(fd, path, word, deadline):
         buf += read_some(fd, path, min(left, POLL_S))
         *lines, buf = buf.split(b"\n")
         for raw in lines:
-            m = pattern.search(clean(raw))
-            if m is not None:
-                return m.string[m.start():]
+            text = clean(raw)
+            if pattern.match(text):
+                return text
 
 
 def exchange(path, word, line, timeout):
-    """Writes the line on the port, a newline before it, and returns the
+    """Writes the line on the port, the PRELUDE before it, and returns the
     reply to the word, or None after timeout seconds (the write, then the
     reply)."""
     fd = open_port(path)
     try:
         drain(fd, path)
-        write_all(fd, path, ("\n" + line + "\n").encode("ascii"), time.monotonic() + timeout)
+        write_all(fd, path, PRELUDE + (line + "\n").encode("ascii"), time.monotonic() + timeout)
         return read_reply(fd, path, word, time.monotonic() + timeout)
     finally:
         os.close(fd)
@@ -303,9 +324,18 @@ def ask(args):
     line = args.word + ("?" if not args.arguments else " " + " ".join(args.arguments))
     not_ready = args.word + " error: not ready"
     deadline = time.monotonic() + args.wait
-    path = find_port(args, deadline)
     while True:
-        reply = exchange(path, args.word, line, args.timeout)
+        try:
+            path = find_port(args, deadline)
+            reply = exchange(path, args.word, line, args.timeout)
+        except Failure as e:
+            # The device went away between the lookup and the reply (a KVM
+            # switch cut its power, it rebooted): --wait's budget covers it.
+            if e.status != 1 or time.monotonic() >= deadline:
+                raise
+            print("lantern_port: %s; trying again" % e, file=sys.stderr)
+            time.sleep(POLL_S)
+            continue
         if reply is None or not reply.startswith(not_ready) or time.monotonic() >= deadline:
             break
         print("lantern_port: %s; asking again" % reply, file=sys.stderr)
@@ -331,14 +361,20 @@ def list_ports():
     return 0
 
 
-def seconds(text):
+def seconds(text, least=0.0):
+    """A finite number of seconds, at least `least` (0 may be allowed, as
+    --wait's; a 0 timeout would write the line and never read the reply)."""
     try:
         value = float(text)
     except ValueError:
-        value = -1.0
-    if value < 0:
-        raise argparse.ArgumentTypeError("seconds, 0 or more, not %r" % text)
+        value = math.nan
+    if not math.isfinite(value) or value < least or (least > 0 and value == 0):
+        raise argparse.ArgumentTypeError("seconds, %s, not %r" % ("more than 0" if least > 0 else "0 or more", text))
     return value
+
+
+def timeout_seconds(text):
+    return seconds(text, least=1e-9)
 
 
 def parser():
@@ -347,7 +383,7 @@ def parser():
         description="Write one line on the USB serial port of a keyboard running zmk-lantern (its split central) "
                     "and print the reply: WORD and its ARGUMENTs as the port takes them (palette RRGGBB ..., "
                     "effect NAME ... [RRGGBB], intro NAME, tempo on|off; the README's The palette and The picks), "
-                    "or WORD alone to ask. The port's rate is never changed. 'ports' instead lists this machine's "
+                    "or WORD alone to ask. 115200 is the only rate it sets. 'ports' instead lists this machine's "
                     "USB serial ports with their product strings.",
         epilog="Exit status: 0 for '<word> ok' or an ask's answer, 1 for '<word> error', no reply or no device, "
                "2 for bad usage.",
@@ -357,12 +393,12 @@ def parser():
                        help="the keyboard's USB product string (CONFIG_ZMK_KEYBOARD_NAME, the split central's; "
                             "'ports' shows it)")
     which.add_argument("--port", metavar="DEVICE",
-                       help="the port itself (/dev/cu.usbmodem..., /dev/ttyACM0): when the name is on several ports")
+                       help="the port itself (/dev/cu.usbmodem..., /dev/ttyACM0): when several devices carry the name")
     p.add_argument("--wait", type=seconds, default=0.0, metavar="S",
-                   help="first poll up to S seconds, every %g s, for the device, and within the same S ask again "
-                        "while it answers 'not ready' (a central just booted: its USB up before its settings; "
-                        "default 0)" % POLL_S)
-    p.add_argument("--timeout", type=seconds, default=3.0, metavar="S",
+                   help="first poll up to S seconds, every %g s, for the device, and within the same S try again "
+                        "when it goes away and ask again while it answers 'not ready' (a central just booted: its "
+                        "USB up before its settings; default 0)" % POLL_S)
+    p.add_argument("--timeout", type=timeout_seconds, default=3.0, metavar="S",
                    help="give up on writing the line, and then on the reply, after S seconds each (default 3)")
     p.add_argument("word", metavar="WORD", help="palette, effect, intro or tempo (the port's words), or ports")
     p.add_argument("arguments", nargs="*", metavar="ARGUMENT",
@@ -385,6 +421,9 @@ def main(argv=None):
         for a in args.arguments:
             if not ARGUMENT.fullmatch(a):
                 raise Failure("an argument is printable ASCII without a space, not %r" % a, 2)
+        if args.arguments and args.arguments[0] in REPLY_SHAPES:
+            raise Failure("'%s %s' is the shape of a reply, which the firmware ignores: a set names values (the "
+                          "picks one or more of the built names; there is no none)" % (args.word, args.arguments[0]), 2)
         return ask(args)
     except Failure as e:
         print("lantern_port: %s" % e, file=sys.stderr)

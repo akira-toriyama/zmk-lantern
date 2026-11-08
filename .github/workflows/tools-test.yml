@@ -1,11 +1,13 @@
 name: Tools
 
-# The unit tests of tools/ (lantern_port.py, the host's tool) on the Python
-# that ships with the GitHub Ubuntu runner and with the macOS runner (the
-# tool's floor is macOS's /usr/bin/python3, 3.9): standard library only,
-# nothing to install, and no device: a pseudo-terminal stands for the port.
-# Both runners because the tool finds the device through sysfs on Linux and
-# through ioreg on macOS, and opens the port through termios on either.
+# The unit tests of tools/ (lantern_port.py, the host's tool): standard
+# library only, nothing to install, and no device, a pseudo-terminal standing
+# for the port. On the macOS runner with /usr/bin/python3, the tool's floor
+# (3.9, what a Mac ships), and on the Ubuntu runner with its python3; the two
+# because the tool finds the device through ioreg on macOS and sysfs on
+# Linux, one test listing the runner's own, and opens the port through
+# termios on either. timeout-minutes: a regression in the tests' pseudo-
+# terminal thread hung the suite on macOS once (a close waiting on a read).
 on:
   # push only on main: a PR branch is checked once, through pull_request.
   push:
@@ -26,12 +28,21 @@ jobs:
   test:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            python: python3
+          - os: macos-latest
+            python: /usr/bin/python3
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with:
           # Test-only, never pushes.
           persist-credentials: false
       - name: Run the tests
-        run: python3 -m unittest discover -v -s tools -p 'test_*.py'
+        env:
+          PYTHON: ${{ matrix.python }}
+        run: |
+          "$PYTHON" --version
+          "$PYTHON" -m unittest discover -v -s tools -p 'test_*.py'

@@ -103,8 +103,12 @@ how to build. Usage: [README.md](README.md). English only.
   the floor macOS's `/usr/bin/python3`; it finds the device by its USB
   product string through ioreg on macOS and sysfs on Linux, never by a
   `/dev` name or the USB IDs, keeps no table of the words' names, since the
-  firmware refuses an unknown one with its reason, and never sets the
-  port's rate). Each source's header carries its design and every reason.
+  firmware refuses an unknown one with its reason, sets 115200 and no other
+  rate, and sends more than LINE_LIMIT spaces and a newline before the line,
+  so that a leftover in the central's buffer is dropped rather than completed
+  and run; an Opus refutation of the first draft, 2026-11-08, found the bare
+  newline running a leftover set and its reply passing for the host's). Each
+  source's header carries its design and every reason.
   Device names follow canon's
   [docs/glossary.md](https://github.com/akira-toriyama/canon/blob/main/docs/glossary.md):
   Cyboard Imprint (the halves), Imprint Dongle, Prospector Dongle.
@@ -291,14 +295,20 @@ how to build. Usage: [README.md](README.md). English only.
   inputs plus that variant, which `dongle.py check` reports as `debug`.
 - The tool's tests, `python3 -m unittest discover tools`
   ([tools/test_lantern_port.py](tools/test_lantern_port.py)): a
-  pseudo-terminal in the port's place with a thread answering as
-  `src/port.c` does (the newline first, the reply found among a logging
-  image's lines, the stale output read away, `not ready` asked again within
-  `--wait`, the exit codes), ioreg's plist and a sysfs tree as fixtures; no
-  device, no port of the machine. The pty is set raw by the test before the
-  device's side writes, or its echo would come back as the host's line.
-  `.github/workflows/tools-test.yml` runs them on the Ubuntu and the macOS
-  runner on a change under `tools/`.
+  pseudo-terminal in the port's place with a thread fed as `src/port.c`'s
+  `feed()` is, LINE_LIMIT and the overflow included (the prelude dropping a
+  leftover set, the reply found among a logging image's lines, the stale
+  output read away, `not ready` asked again and a vanished device looked
+  for again within `--wait`, the exit codes), ioreg's plist and a sysfs tree
+  as fixtures, and one listing of the runner's own ports; no port of the
+  machine is opened. The pty is set raw by the test before the device's
+  side writes, or its echo would come back as the host's line, and the
+  device's thread reads through a select with a timeout, never a blocking
+  read: on macOS a close of the master waits for a read blocked on it, and
+  a failing test hung the suite that way once (the refutation above).
+  `.github/workflows/tools-test.yml` runs them on the Ubuntu runner's
+  python3 and the macOS runner's `/usr/bin/python3` (the 3.9 floor) on a
+  change under `tools/`, with a ten-minute limit.
 - The host harness, [scripts/harness/run.sh](scripts/harness/run.sh) (its
   header lists the steps, what a new effect or intro needs in the harness,
   and where the outputs go: a directory a checkout, one run at a time; clang

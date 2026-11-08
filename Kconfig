@@ -489,8 +489,8 @@ config LANTERN_EFFECT
       once, CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE at least 6 x
       the peripheral count with all four (12 for two halves; src/pick.c
       asserts the sum). tools/lantern_port.py sends the pick, as canon's
-      scripts/dongle.py effect does to its dongle (t-5hqx), and changes the
-      effect of the day without flashing. Default y where the
+      scripts/dongle.py effect does to its dongle, which changes the effect
+      of the day without flashing (t-5hqx). Default y where the
       node is present: the node is the switch, as the palette's.
 
 choice LANTERN_EFFECT_DEFAULT

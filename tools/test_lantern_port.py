@@ -1,9 +1,11 @@
 """Tests of lantern_port.py with a pseudo-terminal in the port's place and a
 thread answering as src/port.c does: python3 -m unittest discover tools. No
-device is needed, and no port of the machine is opened."""
+device is needed, and no port of the machine is opened (the one test that
+looks at this machine only lists)."""
 import contextlib
 import io
 import os
+import select
 import sys
 import tempfile
 import threading
@@ -15,15 +17,17 @@ import lantern_port  # noqa: E402
 
 NOT_READY = b"palette error: not ready: the settings have not loaded yet"
 SIX = b"112233 445566 778899 AABBCC DDEEFF 000000"
+LINE_LIMIT = 167  # src/port.c's with nine effect names
 
 
 class FakeCentral:
-    """The device's side of a pseudo-terminal: reads lines from the master
-    end, ignores empty ones (the newline the host sends first), and answers
-    each line in turn from the script, a list of (expected line, reply
-    bytes); the reply is written as the firmware writes it, a newline first
-    and last, unless it is None (no reply: a word the firmware does not
-    read)."""
+    """The device's side of a pseudo-terminal, fed as src/port.c's feed()
+    is: bytes into a line up to LINE_LIMIT, an overlong line dropped at its
+    newline without a reply, an empty line nothing. Each complete line is
+    answered in turn from the script, a list of (expected line, reply bytes),
+    the reply written as the firmware writes it, a newline first and last,
+    unless it is None (no reply: a word the firmware does not read, or a
+    line shaped like a reply)."""
 
     def __init__(self, script):
         self.master, self.slave = os.openpty()
@@ -31,43 +35,73 @@ class FakeCentral:
         self.path = os.ttyname(self.slave)
         self.script = list(script)
         self.lines = []
-        self.thread = threading.Thread(target=self.run, daemon=True)
+        self.dropped = 0
+        self.stop = False
+        self.thread = threading.Thread(target=self.run)
         self.thread.start()
 
     def run(self):
-        buf = b""
-        while self.script:
+        text, overflow = b"", False
+        while not self.stop:
+            # A select with a timeout, never a blocking read: on macOS a
+            # close of the master would wait for a read blocked on it.
+            if not select.select([self.master], [], [], 0.05)[0]:
+                continue
             try:
                 chunk = os.read(self.master, 4096)
             except OSError:
                 return
             if not chunk:
                 return
-            buf += chunk
-            *lines, buf = buf.split(b"\n")
-            for line in lines:
-                if not line:
-                    continue
-                self.lines.append(line)
-                expected, reply = self.script.pop(0)
-                if line != expected:
-                    os.write(self.master, b"\nunexpected " + line + b"\n")
-                elif reply is not None:
-                    os.write(self.master, b"\n" + reply + b"\n")
-                if not self.script:
-                    return
+            for c in chunk:
+                if c in (0x0A, 0x0D):
+                    if overflow:
+                        overflow = False
+                        self.dropped += 1
+                    elif text:
+                        self.answer(text)
+                    text = b""
+                elif overflow:
+                    pass
+                elif len(text) == LINE_LIMIT:
+                    overflow, text = True, b""
+                else:
+                    text += bytes([c])
+
+    def answer(self, line):
+        self.lines.append(line)
+        if not self.script:
+            return
+        expected, reply = self.script.pop(0)
+        if line != expected:
+            os.write(self.master, b"\nunexpected " + line + b"\n")
+        elif reply is not None:
+            os.write(self.master, b"\n" + reply + b"\n")
+
+    def cut(self):
+        """The device gone: its side of the pty closed, so the host's reads
+        on the slave end (macOS: end of file; Linux: EIO)."""
+        self.stop = True
+        self.thread.join(5.0)
+        os.close(self.master)
+        self.master = None
 
     def close(self):
-        os.close(self.master)
+        if self.master is not None:
+            self.cut()
         os.close(self.slave)
 
 
 class ExchangeTest(unittest.TestCase):
-    def exchange(self, script, word, line, timeout=2.0, stale=b""):
+    def exchange(self, script, word, line, timeout=2.0, stale=b"", leftover=b""):
         central = FakeCentral(script)
         try:
-            if stale:
+            if stale:  # the device's unread output
                 os.write(central.master, stale)
+            if leftover:  # a host's line that never got its newline
+                fd = os.open(central.path, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+                os.write(fd, leftover)
+                os.close(fd)
             return lantern_port.exchange(central.path, word, line, timeout), central
         finally:
             central.close()
@@ -77,22 +111,26 @@ class ExchangeTest(unittest.TestCase):
         self.assertEqual(reply, "palette none")
         self.assertEqual(central.lines, [b"palette?"])
 
-    def test_the_newline_first_ends_a_lost_line(self):
-        # The leftover of a lost connection ("pale") plus our newline is one
-        # line the firmware drops as unknown; our line follows whole.
-        central = FakeCentral([(b"pale", None), (b"effect stain", b"effect ok stain")])
-        try:
-            fd = os.open(central.path, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
-            os.write(fd, b"pale")
-            os.close(fd)
-            reply = lantern_port.exchange(central.path, "effect", "effect stain", 2.0)
-        finally:
-            central.close()
-        self.assertEqual(reply, "effect ok stain")
+    def test_the_prelude_drops_a_leftover_instead_of_running_it(self):
+        # A set typed in a terminal and never sent sits in the central's
+        # buffer; a bare newline would complete it, set the palette and
+        # answer `palette ok ...`, which would pass for our ask's reply.
+        reply, central = self.exchange([(b"palette?", b"palette none")], "palette", "palette?",
+                                       leftover=b"palette 112233")
+        self.assertEqual(reply, "palette none")
+        self.assertEqual(central.lines, [b"palette?"], "the leftover never became a line")
+        self.assertEqual(central.dropped, 1)
 
-    def test_log_lines_pass_and_the_reply_is_found_by_its_word(self):
+    def test_the_prelude_drops_a_leftover_already_overlong(self):
+        reply, central = self.exchange([(b"effect stain", b"effect ok stain")], "effect", "effect stain",
+                                       leftover=b"x" * (LINE_LIMIT + 40))
+        self.assertEqual(reply, "effect ok stain")
+        self.assertEqual(central.lines, [b"effect stain"])
+
+    def test_log_lines_pass_and_the_reply_is_found_at_the_start_of_its_line(self):
         noise = (b"[00:00:01.000,000] <inf> lantern_palette: 6 colour(s) from CDC_ACM_0\n"
                  b"[00:00:01.001,000] <inf> lantern_pick: effect: pick 00000004 000000 from CDC_ACM_0\n"
+                 b"uart:~$ palette " + SIX + b"\n"
                  b"[00:00:01.002,000] <inf> lantern_pa")
         reply, _ = self.exchange([(b"palette " + SIX, noise + b"\npalette ok " + SIX + b"\nlette: slots 0-1 stored")],
                                  "palette", "palette " + SIX.decode())
@@ -166,6 +204,42 @@ class MainTest(unittest.TestCase):
         self.assertEqual(status, 0)
         self.assertEqual(lines, [b"effect stain cross-ring 2060FF"])
 
+    def test_a_device_that_goes_away_is_tried_again_within_wait(self):
+        # The device vanishes while the host waits for the reply (the central
+        # rebooted, a KVM switch cut its power) and comes back as another
+        # port; with --wait left the host looks for it again.
+        gone = FakeCentral([(b"tempo?", None)])
+        back = FakeCentral([(b"tempo?", b"tempo on")])
+        out, err = io.StringIO(), io.StringIO()
+        found = []
+
+        def ports():
+            current = back if gone.master is None else gone
+            found.append(current.path)
+            return [lantern_port.Port(current.path, "Corne", "A1", "ZMK Project")]
+
+        def cut():
+            while len(gone.lines) < 1:
+                select.select([], [], [], 0.01)
+            gone.cut()
+
+        real = lantern_port.usb_serial_ports
+        lantern_port.usb_serial_ports = ports
+        try:
+            threading.Thread(target=cut).start()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                status = lantern_port.main(["--name", "Corne", "--timeout", "2", "--wait", "5", "tempo"])
+        finally:
+            lantern_port.usb_serial_ports = real
+            gone.close()
+            back.close()
+        self.assertEqual((status, out.getvalue()), (0, "tempo on\n"))
+        self.assertIn("lost", err.getvalue())
+        self.assertIn("trying again", err.getvalue())
+        self.assertEqual(found[0], gone.path)
+        self.assertEqual(found[-1], back.path)
+        self.assertEqual(back.lines, [b"tempo?"])
+
 
 class UsageTest(unittest.TestCase):
     def main(self, argv):
@@ -188,6 +262,12 @@ class UsageTest(unittest.TestCase):
         self.assertEqual(self.main(["--port", "/dev/null", "palette?"])[0], 2)
         self.assertEqual(self.main(["--port", "/dev/null", "Palette"])[0], 2)
 
+    def test_the_shape_of_a_reply_is_refused(self):
+        for first in ("none", "ok", "error:"):
+            status, _, err = self.main(["--port", "/dev/null", "effect", first, "x"])
+            self.assertEqual(status, 2, first)
+            self.assertIn("shape of a reply", err)
+
     def test_ports_takes_nothing_else(self):
         self.assertEqual(self.main(["ports", "x"])[0], 2)
         self.assertEqual(self.main(["--name", "Corne", "ports"])[0], 2)
@@ -198,16 +278,35 @@ class UsageTest(unittest.TestCase):
         self.assertEqual(status, 1)
         self.assertIn("plugged in", err)
 
+    def test_seconds_are_finite_and_a_timeout_is_more_than_0(self):
+        for bad in ("nan", "inf", "-1", "x"):
+            with self.assertRaises(SystemExit, msg=bad):
+                with contextlib.redirect_stderr(io.StringIO()):
+                    lantern_port.parser().parse_args(["--wait", bad, "palette"])
+        for bad in ("0", "nan", "inf", "-1"):
+            with self.assertRaises(SystemExit, msg=bad):
+                with contextlib.redirect_stderr(io.StringIO()):
+                    lantern_port.parser().parse_args(["--timeout", bad, "palette"])
+        args = lantern_port.parser().parse_args(["--wait", "0", "--timeout", "0.5", "palette"])
+        self.assertEqual((args.wait, args.timeout), (0.0, 0.5))
+
 
 class FindTest(unittest.TestCase):
     PORTS = [
         lantern_port.Port("/dev/cu.usbmodem1", "Corne", "A1", "ZMK Project"),
         lantern_port.Port("/dev/cu.usbmodem2", "Twin", "B2", "ZMK Project"),
         lantern_port.Port("/dev/cu.usbmodem3", "Twin", "B2", "ZMK Project"),
+        lantern_port.Port("/dev/cu.usbmodem4", "Pair", "C3", "ZMK Project"),
+        lantern_port.Port("/dev/cu.usbmodem5", "Pair", "C4", "ZMK Project"),
+        lantern_port.Port("/dev/cu.usbmodem6", "Blank", "", "ZMK Project"),
+        lantern_port.Port("/dev/cu.usbmodem7", "Blank", "", "ZMK Project"),
     ]
 
     def test_one_port_of_the_name(self):
         self.assertEqual(lantern_port.the_port("Corne", self.PORTS), "/dev/cu.usbmodem1")
+
+    def test_one_device_with_two_ports_gives_its_first(self):
+        self.assertEqual(lantern_port.the_port("Twin", self.PORTS), "/dev/cu.usbmodem2")
 
     def test_no_port_of_the_name(self):
         with self.assertRaises(lantern_port.Failure) as cm:
@@ -215,11 +314,16 @@ class FindTest(unittest.TestCase):
         self.assertEqual(cm.exception.status, 1)
         self.assertIn("ports lists", str(cm.exception))
 
-    def test_several_ports_of_the_name_need_port(self):
+    def test_two_devices_of_the_name_need_port(self):
         with self.assertRaises(lantern_port.Failure) as cm:
-            lantern_port.the_port("Twin", self.PORTS)
+            lantern_port.the_port("Pair", self.PORTS)
         self.assertEqual(cm.exception.status, 2)
-        self.assertIn("/dev/cu.usbmodem2, /dev/cu.usbmodem3", str(cm.exception))
+        self.assertIn("/dev/cu.usbmodem4, /dev/cu.usbmodem5", str(cm.exception))
+
+    def test_two_ports_without_serials_need_port(self):
+        with self.assertRaises(lantern_port.Failure) as cm:
+            lantern_port.the_port("Blank", self.PORTS)
+        self.assertEqual(cm.exception.status, 2)
 
 
 class IoregTest(unittest.TestCase):
@@ -287,28 +391,48 @@ class SysfsTest(unittest.TestCase):
             os.symlink("../../../devices/usb1/1-1/1-1.3/1-1.3:1.0", os.path.join(root, "class/tty/ttyACM0/device"))
             # A hub above it carries idVendor too: the walk stops at the first.
             mk("devices/usb1/1-1", idVendor="05e3", product="Hub")
+            # A USB-serial converter: the tty's device is the port under the interface.
+            mk("devices/usb1/1-2", idVendor="0403", product="FT232R", serial="FT1", manufacturer="FTDI")
+            mk("devices/usb1/1-2/1-2:1.0/ttyUSB0/tty/ttyUSB0")
+            mk("class/tty/ttyUSB0")
+            os.symlink("../../../devices/usb1/1-2/1-2:1.0/ttyUSB0", os.path.join(root, "class/tty/ttyUSB0/device"))
             # A UART on no USB device, and a virtual console with no device.
             mk("devices/platform/serial8250/tty/ttyS0")
             mk("class/tty/ttyS0")
             os.symlink("../../../devices/platform/serial8250", os.path.join(root, "class/tty/ttyS0/device"))
             mk("class/tty/tty0")
-            self.assertEqual(lantern_port.ports_sysfs(os.path.join(root, "class/tty"), "/dev"),
-                             [lantern_port.Port("/dev/ttyACM0", "Corne", "A1", "ZMK Project")])
+            self.assertEqual(lantern_port.ports_sysfs(os.path.join(root, "class/tty"), "/dev"), [
+                lantern_port.Port("/dev/ttyACM0", "Corne", "A1", "ZMK Project"),
+                lantern_port.Port("/dev/ttyUSB0", "FT232R", "FT1", "FTDI"),
+            ])
 
     def test_no_sysfs(self):
         self.assertEqual(lantern_port.ports_sysfs("/no/such/class/tty"), [])
 
 
+class ThisMachineTest(unittest.TestCase):
+    def test_listing_this_machine_works(self):
+        # ioreg on macOS, sysfs on Linux, as they are here: the output parses
+        # and every entry is a Port; whatever devices there are (CI has none).
+        # Nothing is opened.
+        ports = lantern_port.usb_serial_ports()
+        self.assertIsInstance(ports, list)
+        for p in ports:
+            self.assertIsInstance(p, lantern_port.Port)
+            self.assertTrue(p.path.startswith("/dev/"), p)
+
+
 class PatternTest(unittest.TestCase):
-    def test_the_word_as_a_word(self):
+    def test_the_word_at_the_start_of_the_line(self):
         p = lantern_port.reply_pattern("palette")
-        self.assertTrue(p.search("palette none"))
-        self.assertTrue(p.search("palette ok 112233"))
-        self.assertTrue(p.search("palette"))
-        self.assertFalse(p.search("<inf> lantern_palette: 6 colour(s)"))
-        self.assertFalse(p.search("palette: something"))
-        self.assertFalse(p.search("palettes"))
-        self.assertFalse(lantern_port.reply_pattern("effect").search("lantern_pick: effect: pick 00000004"))
+        self.assertTrue(p.match("palette none"))
+        self.assertTrue(p.match("palette ok 112233"))
+        self.assertTrue(p.match("palette"))
+        self.assertFalse(p.match("<inf> lantern_palette: 6 colour(s)"))
+        self.assertFalse(p.match("palette: something"))
+        self.assertFalse(p.match("palettes"))
+        self.assertFalse(p.match("uart:~$ palette 112233"))
+        self.assertFalse(lantern_port.reply_pattern("effect").match("lantern_pick: effect: pick 00000004"))
 
 
 if __name__ == "__main__":
