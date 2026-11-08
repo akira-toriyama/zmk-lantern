@@ -294,7 +294,8 @@ lights what is at hand. The sibling module
   bounds-check ([zmk#3522](https://github.com/zmkfirmware/zmk/issues/3522);
   the fix, [zmk#3556](https://github.com/zmkfirmware/zmk/pull/3556), is
   open): the disconnect of any Bluetooth connection that is not a half's, a
-  host's, makes the central write a 0 to index 234 of a two-byte array, which
+  host's, makes the central write a 0 to index 234 of an array of one byte
+  per peripheral (a single byte on a keyboard whose central is a half), which
   on the issue's keyboard zeroed a variable of the Bluetooth controller (late
   radio events, then a fatal controller assert); canon carries the fix as a
   patch, which a config repository built by ZMK's reusable workflow cannot,
