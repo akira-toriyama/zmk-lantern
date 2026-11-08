@@ -1,0 +1,5 @@
+// The right half of the Corne, a split peripheral: config/corne.dtsi alone
+// (it says why each half has an overlay of its own); the port is the
+// central's (config/corne_left.overlay).
+
+#include "corne.dtsi"

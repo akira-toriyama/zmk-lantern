@@ -1,0 +1,18 @@
+// The left half of the Corne, the split central with the shield's roles, as
+// a consumer's central half without a dongle: the host's port is on it. The
+// nice!nano's devicetree has no CDC ACM port (ZMK's board under
+// app/module/boards/nicekeyboards/nice_nano: usbd on, no zephyr,cdc-acm-uart
+// node; the XIAO BLE's has one, board_cdc_acm_uart, so a central on that
+// board adds none), so this overlay puts one under the board's USB device
+// controller; with the node and SERIAL (config/corne_left.conf),
+// CONFIG_USB_CDC_ACM defaults on and the module's port with it (src/port.c),
+// as on canon's Imprint Dongle. The rest is config/corne.dtsi, shared with
+// the right half (it says why not one corne.overlay).
+
+#include "corne.dtsi"
+
+&zephyr_udc0 {
+    cdc_acm_uart: cdc_acm_uart {
+        compatible = "zephyr,cdc-acm-uart";
+    };
+};

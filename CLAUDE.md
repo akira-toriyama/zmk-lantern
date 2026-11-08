@@ -116,14 +116,27 @@ how to build. Usage: [README.md](README.md). English only.
   the countdown off, both intros, every effect, the tempo and, with ZMK's
   sleep off, the wake; canon t-a0c6), so that a change which breaks canon's
   halves fails here first,
-  and ZMK's own Corne shield on the nice!nano (`config/corne.overlay`,
+  and ZMK's own Corne shield on the nice!nano (`config/corne.dtsi`, which
+  `config/corne_left.overlay` and `config/corne_right.overlay` include,
   `config/corne.conf`, `config/corne_left.conf`; canon t-41g7): a standard
   split with a `zmk,physical-layout` and the per-key strip ZMK's underglow
   would drive, built with the least a consumer writes, no `lantern,rail`
   node, no `slots`, no `coords`, every effect, both intros, the tempo and
   two of the conf's colours, so that the
   rail-less rule, the slot default and the layout's places compile for a
-  keyboard that is not the Imprint. With Cyboard's stock roles the Imprint's
+  keyboard that is not the Imprint; its left half, the central, with the
+  host's port the nice!nano's devicetree lacks (`config/corne_left.overlay`
+  adds the `zephyr,cdc-acm-uart` node, `corne_left.conf` the `SERIAL` that
+  `USB_CDC_ACM` depends on; canon t-c95r, 2026-11-08), the consumer's shape
+  without a dongle, so that `src/port.c` compiles on a half (the XIAO BLE's
+  board carries the node and `SERIAL`, so the dongle's conf writes none of
+  it). The halves have an overlay each because ZMK reads one user overlay a
+  build and tries the shield directory's name before the shield's
+  (`corne.overlay` before `corne_left.overlay`, `imprint.overlay` before
+  `imprint_left.overlay`, but `imprint_dongle.overlay` before
+  `imprint.overlay`, since Cyboard's dongle shield has a directory of its
+  own: zmk `app/boards/post_boards_shields.cmake`); a shared `corne.overlay`
+  took the left half's build on 2026-11-08 and left the port out. With Cyboard's stock roles the Imprint's
   left half is a split central (canon's is a peripheral), as the Corne's:
   the check builds compile the palette's and the picks' central side on the
   left halves and the dongle, their half side on every half. Every check
@@ -136,7 +149,7 @@ how to build. Usage: [README.md](README.md). English only.
 - The sibling module [zmk-beacon](https://github.com/akira-toriyama/zmk-beacon)
   (the status advertisement) is the model for this repository's shape; the two
   stay separate on purpose (canon t-26y4, 2026-10-19).
-- Tasks: on canon's board for now (`furrow list -r canon`, epic e-s8c7).
+- Tasks: on canon's board for now (`furrow list -r canon`, epic e-3sm7).
 - README is written for a consumer, in the order a consumer reads it (the
   least, then the options, then what it does): no canon task ids, dates or
   history there (canon t-41g7); they live here. The hardware record, the
@@ -186,10 +199,11 @@ how to build. Usage: [README.md](README.md). English only.
   Corne's right, the Imprint's right, whose conf turns off the
   `CONFIG_ZMK_SLEEP=y` of Cyboard's shield) `CONFIG_LANTERN_WAKE_ON_HIT=y`;
   a split
-  central's (the dongle, the stock left half) never the latency nor the wake, and with a
-  CDC ACM port (the dongle's board has one, the stock left half none)
-  `CONFIG_LANTERN_PORT=y` and `port.c.obj`; the dongle's nothing of the rail
-  or the keys; a half's `CONFIG_LANTERN_INTROS=y`, `CONFIG_LANTERN_INTRO_BANDS=y`
+  central's (the dongle, the stock left halves) never the latency nor the
+  wake, and with a CDC ACM port (the dongle's board has one, the Corne's left
+  half the node of `config/corne_left.overlay`, the Imprint's stock left half
+  none) `CONFIG_LANTERN_PORT=y` and `port.c.obj`; the dongle's nothing of
+  the rail or the keys; a half's `CONFIG_LANTERN_INTROS=y`, `CONFIG_LANTERN_INTRO_BANDS=y`
   and `bands.c.obj`, and `CONFIG_LANTERN_INTRO_DEFAULT_BANDS=y` where no star
   waves are built (the Imprint's left half); every target
   `CONFIG_LANTERN_EFFECT=y`, `CONFIG_LANTERN_INTRO=y`,
@@ -201,9 +215,11 @@ how to build. Usage: [README.md](README.md). English only.
   and `effect_next.c.obj` from the effect-next node (`config/effect_next.dtsi`,
   on every target, a driver on the central only), and with the effects or
   the effect-next node `CONFIG_LANTERN_EFFECT_COLOUR=0` (`.config` writes a hex symbol's default
-  as `0`, autoconf.h as `0x0`); the Corne's left half has no CDC ACM port in
-  its board's defaults, so no `CONFIG_LANTERN_PORT` (the dongle covers the
-  port); `config/pick_keys.dtsi` binds `&effect 1 0xFF0000`,
+  as `0`, autoconf.h as `0x0`); the Corne's left half has `CONFIG_SERIAL=y`,
+  `CONFIG_USB_CDC_ACM=y` and one `cdc-acm-uart` node in its `zephyr.dts`
+  (the Imprint's stock left half, whose board has no port, no
+  `CONFIG_LANTERN_PORT`: the dongle covers the port there);
+  `config/pick_keys.dtsi` binds `&effect 1 0xFF0000`,
   `&effect_next`, `&intro 2 0` and `&tempo 1 0` in a macro never invoked,
   so the bindings compile as a consumer's keymap would write them.
   `--kconfig CONFIG_LANTERN_THIN_RING=y`, `CONFIG_LANTERN_DISC=y`,
@@ -291,6 +307,22 @@ how to build. Usage: [README.md](README.md). English only.
   `shellcheck.yml`; the fleet gates. `release.yml` keeps a rolling draft
   release of the notes alone (glyph's reusable, verdict-only: the module ships
   no image), tagged when published by hand; consumers still pin a commit.
+- The consumer's shape under ZMK's own CI is
+  [zmk-config-lantern-check](https://github.com/akira-toriyama/zmk-config-lantern-check)
+  (canon t-c95r, 2026-11-08): a fork of ZMK's `unified-zmk-config-template`
+  with README's manifest (ZMK `main`, this module pinned by commit), the
+  Corne's overlays and confs written from README's snippets, and the
+  template's `build.yml` pointed at `build-user-config.yml@main`. A fork on
+  purpose: the fleet's fleet-sync and repo-settings-sync fan out to every
+  non-fork repository of the owner and would put the fleet's gates (zizmor's
+  hash-pinning, which a `@main` reusable fails) on a repository meant to
+  look like any user's; Actions on a fork are off until enabled, which
+  `gh api -X PUT repos/<owner>/<repo>/actions/permissions -F enabled=true`
+  did. Its pin is bumped by hand when README's least changes, never on each
+  merge here (its build is the proof that the recipe builds, not a gate).
+  README's zmk#3522 caveat says the fix zmk#3556 is open: true on
+  2026-11-08; when it merges, the caveat goes, and canon's patch with it
+  (canon's `patches/zmk/README.md`).
 
 ## Invariants
 

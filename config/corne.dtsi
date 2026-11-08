@@ -8,8 +8,12 @@
 // names: the left half's 21 per-key LEDs in key order, a stand-in for a
 // consumer's measurement (a real Corne's chain starts with six LEDs under no
 // key, which a consumer maps to the nearest key, and the right half's keys
-// are its own positions). Both halves read this overlay (ZMK takes the
-// first user overlay whose name is a prefix of the shield's).
+// are its own positions). Both halves' overlays include this file
+// (config/corne_left.overlay, config/corne_right.overlay): ZMK reads one
+// user overlay a build and tries the shield directory's name before the
+// shield's (corne.overlay before corne_left.overlay; zmk
+// app/boards/post_boards_shields.cmake), so a corne.overlay would serve both
+// halves and leave the left half no file of its own for the port.
 
 #include "palette.dtsi"
 #include "hit.dtsi"
