@@ -1,0 +1,37 @@
+name: Tools
+
+# The unit tests of tools/ (lantern_port.py, the host's tool) on the Python
+# that ships with the GitHub Ubuntu runner and with the macOS runner (the
+# tool's floor is macOS's /usr/bin/python3, 3.9): standard library only,
+# nothing to install, and no device: a pseudo-terminal stands for the port.
+# Both runners because the tool finds the device through sysfs on Linux and
+# through ioreg on macOS, and opens the port through termios on either.
+on:
+  # push only on main: a PR branch is checked once, through pull_request.
+  push:
+    branches: [main]
+    paths:
+      - "tools/**"
+      - ".github/workflows/tools-test.yml"
+  pull_request:
+    paths:
+      - "tools/**"
+      - ".github/workflows/tools-test.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Test-only, never pushes.
+          persist-credentials: false
+      - name: Run the tests
+        run: python3 -m unittest discover -v -s tools -p 'test_*.py'

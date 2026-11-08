@@ -95,8 +95,16 @@ how to build. Usage: [README.md](README.md). English only.
   keep in their settings (`CONFIG_LANTERN_PALETTE`;
   [src/palette.c](src/palette.c), binding `lantern,behavior-palette`); and
   the host's port, the split central's USB CDC ACM port reading the
-  palette's and the picks' lines (`CONFIG_LANTERN_PORT`; [src/port.c](src/port.c)).
-  Each source's header carries its design and every reason.
+  palette's and the picks' lines (`CONFIG_LANTERN_PORT`; [src/port.c](src/port.c)),
+  and the host's tool that writes them, [tools/lantern_port.py](tools/lantern_port.py)
+  (canon t-t63a, 2026-11-08: the path from a sprite's colours to the
+  palette for a keyboard that is not canon's; its header is the host's side
+  of the port, README's The host the consumer's text; stdlib Python 3.9,
+  the floor macOS's `/usr/bin/python3`; it finds the device by its USB
+  product string through ioreg on macOS and sysfs on Linux, never by a
+  `/dev` name or the USB IDs, keeps no table of the words' names, since the
+  firmware refuses an unknown one with its reason, and never sets the
+  port's rate). Each source's header carries its design and every reason.
   Device names follow canon's
   [docs/glossary.md](https://github.com/akira-toriyama/canon/blob/main/docs/glossary.md):
   Cyboard Imprint (the halves), Imprint Dongle, Prospector Dongle.
@@ -281,6 +289,16 @@ how to build. Usage: [README.md](README.md). English only.
   `./scripts/build-zmk.sh imprint --module <this checkout>` (canon #267,
   2026-10-19): the images carry `-lantern` and a stamp of canon's pinned
   inputs plus that variant, which `dongle.py check` reports as `debug`.
+- The tool's tests, `python3 -m unittest discover tools`
+  ([tools/test_lantern_port.py](tools/test_lantern_port.py)): a
+  pseudo-terminal in the port's place with a thread answering as
+  `src/port.c` does (the newline first, the reply found among a logging
+  image's lines, the stale output read away, `not ready` asked again within
+  `--wait`, the exit codes), ioreg's plist and a sysfs tree as fixtures; no
+  device, no port of the machine. The pty is set raw by the test before the
+  device's side writes, or its echo would come back as the host's line.
+  `.github/workflows/tools-test.yml` runs them on the Ubuntu and the macOS
+  runner on a change under `tools/`.
 - The host harness, [scripts/harness/run.sh](scripts/harness/run.sh) (its
   header lists the steps, what a new effect or intro needs in the harness,
   and where the outputs go: a directory a checkout, one run at a time; clang
@@ -715,7 +733,13 @@ how to build. Usage: [README.md](README.md). English only.
   imprint_left` / `imprint_right` (a data cable, USB power), read a `--logging`
   image's lines with its `dongle.py log`, set and ask the palette with its
   `dongle.py palette` and the picks with its `dongle.py effect`, `intro` and
-  `tempo`.
+  `tempo` (or with `tools/lantern_port.py --name "Imprint Dongle" <word> ...`,
+  which on 2026-11-08 asked canon's Imprint Dongle, its pinned image of
+  f29e307, its three picks (`intro none`, `tempo none`, `effect thin-ring`),
+  got `effect error: no such effect (the names: effect?)` for a made-up
+  name, exit 1, refused a name two ports carry with exit 2, and timed out
+  with exit 1 on a word the firmware does not read; no set was sent, the
+  dongle's palette being the morning's; canon t-t63a).
   Hardware claims here and in task bodies carry a date; README carries none
   (it is the consumer's). **The hardware record**, the one keyboard this
   module has run on, canon's Cyboard Imprint: builds for both halves
