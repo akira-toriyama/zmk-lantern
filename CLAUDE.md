@@ -803,9 +803,18 @@ how to build. Usage: [README.md](README.md). English only.
 - glyph: `<:code:>[(scope)]<sigil> <subject>`, English
   ([CONTRIBUTING.md](https://github.com/akira-toriyama/.github/blob/main/CONTRIBUTING.md),
   codes: `glyph emoji`); `glyph lint --range origin/main..HEAD` before pushing,
-  `glyph hook install` once per clone. PR bodies end with the `SetStatus-task:` line.
+  `glyph hook install` and `bash ../.github/scripts/picture-ban-check.sh --install-hook`
+  (the picture ban's pre-commit hook, from the hub's clone beside this one; it
+  fails a commit when that clone has moved, and says how to reinstall) once per
+  clone. PR bodies end with the `SetStatus-task:` line.
 - Public repository on free Actions minutes: PR gates are deterministic checks
-  only; never add a workflow that calls a paid API.
+  only; never add a workflow that calls a paid API. `picture-ban` (the hub's
+  reusable, caller `.github/workflows/picture-ban.yml`; canon t-gm39,
+  2026-11-08) fails a PR on a tracked picture by name or first bytes, a sprite
+  pack, a path naming the sprites' source or a `sprites/` directory, or a
+  binary of 16 KiB or more: the ban of the sprite repositories canon and
+  zmk-beacon, carried here too, so no screenshot or picture of the LEDs ever
+  enters this public tree (the repository tracks no binary).
 - Fleet-managed, never edited here (fleet-sync in akira-toriyama/.github
   overwrites them from its `fleet/`):
   `.github/workflows/{actionlint,commit-lint,repo-policy,taplo,task-status,version-preview,zizmor}.yml`,
