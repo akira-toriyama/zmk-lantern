@@ -3,8 +3,10 @@
  *
  * SPDX-License-Identifier: MIT
  *
- * The host's entry: a text line on any USB CDC ACM port of the split central
- * (canon's Imprint Dongle has one, its board's; tools/lantern_port.py writes
+ * The host's entry: a text line on any USB CDC ACM port of the central, the
+ * device where ZMK runs the keymap (a split central, or the keyboard itself
+ * when it is not a split; canon's Imprint Dongle has one, its board's;
+ * tools/lantern_port.py writes
  * one, and canon's scripts/dongle.py palette, effect, intro and tempo write
  * them to its dongle). Lines, ASCII, ended by LF or
  * CR, each a word and its arguments; the word picks the file that answers

@@ -7,7 +7,8 @@
 // half dark for idle at the other half's press (src/on_usb_power.c). A
 // consumer with a keymap of its own puts it among
 // the keymap's behaviors (canon: config/imprint_behaviors.dtsi); this check
-// build includes this file from every overlay.
+// build includes this file from every split target's overlay (the
+// Reviung41, a keyboard that is not a split, has no hit).
 
 / {
     behaviors {

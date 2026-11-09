@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: MIT
  *
  * The palette: six colours (0xRRGGBB, slots 0..5: five from the day's sprite
- * and a spare, canon t-0967) that the host hands the keyboard's split central
- * (src/port.c), which every half and the central keep in their
- * settings across boots, and which a half's key LEDs show in the picture
+ * and a spare, canon t-0967) that the host hands the keyboard's central
+ * (src/port.c; a split's, or the keyboard itself when it is not a split),
+ * which the central and every half keep in their settings across boots, and which a half's key LEDs show in the picture
  * (src/keys.c; by default the bands its lantern,keys node draws, slots 0..4
  * left to right across canon's halves; its effects, canon t-6ttk, paint
  * from the same colours).
@@ -15,7 +15,8 @@
  *   central's code invokes it with zmk_behavior_invoke_binding(), whose
  *   BEHAVIOR_LOCALITY_GLOBAL sends the same invocation to every half over
  *   ZMK's split transport (app/src/behavior.c) and then runs it here, so the
- *   central stores its own copy by the same handler the halves run. ZMK's
+ *   central stores its own copy by the same handler the halves run (on a
+ *   keyboard that is not a split it only runs here). ZMK's
  *   transport carries a behavior by its devicetree node name (at most 8
  *   characters: ZMK_SPLIT_RUN_BEHAVIOR_DEV_LEN 9 in the Bluetooth payload,
  *   app/include/zmk/split/bluetooth/service.h) and two 32-bit parameters
@@ -73,7 +74,7 @@
  *   hence CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING, asserted);
  *   there is no event on the central for a half's connection itself (ZMK
  *   4dd95d78 raises zmk_split_peripheral_status_changed on the half only).
- *   The send waits LANTERN_RESEND_DELAY_MS (src/resend.h, which the picks'
+ *   The send waits LANTERN_RESEND_DELAY_MS (src/send.h, which the picks'
  *   resends share): the read's answer may arrive before the discovery has
  *   found the half's run-behavior characteristic, and a command sent until
  *   then is dropped with "Run behavior handle not found". A level report is
@@ -124,11 +125,12 @@
 #include <zmk/event_manager.h>
 #include <zmk/events/battery_state_changed.h>
 #include <zmk/split/central.h>
-
-#include "resend.h"
 #endif
 
 #include "palette.h"
+#if !IS_ENABLED(CONFIG_ZMK_SPLIT) || IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
+#include "send.h"
+#endif
 
 #if IS_ENABLED(CONFIG_LANTERN_KEYS)
 #include "keys.h"
@@ -268,7 +270,7 @@ static int on_commit(void) {
 
 SETTINGS_STATIC_HANDLER_DEFINE(lantern_palette, SUBTREE, NULL, on_set, on_commit, NULL);
 
-#if IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
+#if !IS_ENABLED(CONFIG_ZMK_SPLIT) || IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
 
 static struct zmk_behavior_binding pair_binding(uint32_t pair, uint32_t a, uint32_t b) {
     return (struct zmk_behavior_binding){
@@ -302,6 +304,10 @@ int lantern_palette_send(const uint32_t *in, size_t count) {
     }
     return rc;
 }
+
+#endif /* where the keymap runs */
+
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
 
 struct resend {
     struct k_work_delayable work;

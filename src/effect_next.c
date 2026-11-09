@@ -7,17 +7,19 @@
  * lantern,behavior-effect-next, bound to a key of the central's keymap
  * (`&effect_next`), picks on press the effect after the stored pick in
  * LANTERN_EFFECT_LIST's bits' order (src/effect.h, lantern_effect_next()), over the
- * effects this central builds (a stock half as the central) or the whole table
- * where it builds none (a dongle, which cannot know what the halves build),
- * round again after the last, and keeps the pick's colour. The pick itself is
- * the effect behavior's (lantern_effect_send(), src/effect.c: the central
- * stores it and sends it to every half, as the host's pick), so this file
+ * effects this device builds (a stock half as the central, a keyboard that is
+ * not a split) or the whole table where it builds none (a dongle, which
+ * cannot know what the halves build), round again after the last, and keeps
+ * the pick's colour. The pick itself is the effect behavior's
+ * (lantern_effect_send(), src/effect.c: the central stores it and sends it to
+ * every half of a split, as the host's pick), so this file
  * neither stores nor sends anything of its own. For a keyboard without a host,
  * beside `&effect <mask> <colour>` on a key for a fixed pick; canon's keymap
- * binds neither (the host picks). Runs on the central only
- * (BEHAVIOR_LOCALITY_CENTRAL, where the keymap runs, so ZMK never carries it
- * over the split: the node's name is free of the transport's 8 characters,
- * and a half builds nothing of it); nothing on release. With no pick stored
+ * binds neither (the host picks). Runs where the keymap runs, the split
+ * central or a keyboard that is not a split (BEHAVIOR_LOCALITY_CENTRAL, so
+ * ZMK never carries it over the split: the node's name is free of the
+ * transport's 8 characters, and a half builds nothing of it); nothing on
+ * release. With no pick stored
  * the halves draw LANTERN_EFFECT_DEFAULT in CONFIG_LANTERN_EFFECT_COLOUR
  * (src/keys.c), so the first press picks the effect after the default where
  * this central builds effects, and keeps that colour, read from this

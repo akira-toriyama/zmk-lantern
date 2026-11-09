@@ -5,7 +5,7 @@
  *
  * The pick of the tempo (canon t-6ttk): whether the effects run faster the
  * faster the user types (the bits of src/tempo.h, on or off, one a pick),
- * chosen by the host on the split central's port (src/port.c), kept by the
+ * chosen by the host on the central's port (src/port.c), kept by the
  * central and every half in their settings across boots and read by the key
  * LEDs at every frame that reads the hits (src/keys.c: on for the on bit,
  * off for the off bit, and with no pick stored, or neither bit in it, the
@@ -89,9 +89,13 @@ static int on_commit(void) {
 
 SETTINGS_STATIC_HANDLER_DEFINE(lantern_tempo, "lantern/tempo", NULL, on_set, on_commit, NULL);
 
-#if IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
+#if !IS_ENABLED(CONFIG_ZMK_SPLIT) || IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
 
 int lantern_tempo_send(uint32_t mask, uint32_t arg) { return lantern_pick_send(&pick, mask, arg); }
+
+#endif /* where the keymap runs */
+
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
 
 static int battery_listener(const zmk_event_t *eh) {
     lantern_pick_resend_after(&pick, eh);

@@ -6,7 +6,7 @@
  * The pick of the effects (canon t-5hqx): which of the effects built into a
  * half's image draw, a mask of the bits src/effect.h gives them, and in which
  * colour (canon t-rgp5: the behavior's param2, 0xRRGGBB, or 0 for the effects'
- * own colours, the palette's), chosen by the host on the split central's port
+ * own colours, the palette's), chosen by the host on the central's port
  * (src/port.c) or by a key of the central's keymap bound to this behavior
  * (`&effect <mask> <colour>`; src/effect_next.c cycles the mask from a key),
  * kept by the central and every half in their settings across boots, and read
@@ -107,11 +107,15 @@ static int on_commit(void) {
 
 SETTINGS_STATIC_HANDLER_DEFINE(lantern_effect, "lantern/effect", NULL, on_set, on_commit, NULL);
 
-#if IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
+#if !IS_ENABLED(CONFIG_ZMK_SPLIT) || IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
 
 int lantern_effect_send(uint32_t mask, uint32_t colour) {
     return lantern_pick_send(&pick, mask, colour);
 }
+
+#endif /* where the keymap runs */
+
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
 
 static int battery_listener(const zmk_event_t *eh) {
     lantern_pick_resend_after(&pick, eh);

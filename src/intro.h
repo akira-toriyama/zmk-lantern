@@ -5,8 +5,8 @@
  *
  * The intros' table and the pick (src/intro.c): the shows the boot light can
  * play, those built into a half's image, of which the host's pick says which
- * (canon t-qvgv), chosen at run time by the split central's host and kept by
- * every device. For the port (src/port.c), which names them, the key LEDs
+ * (canon t-qvgv), chosen at run time by the host on the central (a split's,
+ * or the keyboard itself when it is not a split) and kept by every device. For the port (src/port.c), which names them, the key LEDs
  * (src/keys.c), which play them and hand the rail rule (src/on_usb_power.c)
  * the picked one's length. Layer contract: the port parses and replies and
  * never stores a pick; every change goes through the intro behavior, on the
@@ -73,12 +73,14 @@ BUILD_ASSERT(__builtin_popcount(LANTERN_INTRO_ALL) == LANTERN_INTRO_COUNT,
  * alone. */
 bool lantern_intro_get(uint32_t *mask, uint32_t *arg);
 
-/* Split central only: store the pick here and send it to every half. mask is
+/* Where the keymap runs (a split central, or a keyboard that is not a
+ * split): store the pick here and send it to every half of a split. mask is
  * one bit of LANTERN_INTRO_ALL, else -EINVAL (none, or a bit the table lacks)
  * or -E2BIG (several); arg is 0 (the intro takes none), else -EINVAL; -EAGAIN
  * until the settings have loaded at boot. 0 means this device stored the pick
- * and handed the halves' invocations to ZMK's split transport, which confirms
- * nothing: a half that is away gets the pick when it is back (src/pick.c). */
+ * and, on a split central, handed the halves' invocations to ZMK's split
+ * transport, which confirms nothing: a half that is away gets the pick when
+ * it is back (src/pick.c). */
 int lantern_intro_send(uint32_t mask, uint32_t arg);
 
 #else

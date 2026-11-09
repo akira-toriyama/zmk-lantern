@@ -2,7 +2,8 @@
 #
 # The host harness: the module's real sources compiled with clang for the
 # Mac over stubbed Zephyr and ZMK (stubs.h, stubinc/; central/cstub for
-# src/layer.c), under AddressSanitizer and UndefinedBehaviorSanitizer, each
+# src/layer.c; port/pstub for the palette, the picks and the port), under
+# AddressSanitizer and UndefinedBehaviorSanitizer, each
 # program checking what it draws or sends and ending in a summary line
 # ("fails 0", "0 failure(s)"). Never run by CI; CLAUDE.md says when to run it.
 #
@@ -32,6 +33,11 @@
 #            canon's keymap (central/canon_keymap.h, from central/gen_keymap.py)
 #            or a synthetic 76-key one, and the half
 #   lk76     harness_lk76: src/effects/layer_keys.c on a 76-key keymap
+#   port     port/harness_port over src/palette.c, src/pick.c, the picks'
+#            instances, src/effect_next.c and src/port.c, each its own
+#            translation unit as the build compiles them (port/fake.c the
+#            stubs' state): a keyboard that is not a split, a split central
+#            without key LEDs and two halves, and a split half
 #   equiv    harness_dump over unity.c with canon's halves' flags, REF's src/
 #            and this tree's: the same frames to the byte, for a change to the
 #            engine, an effect or an intro that must not move a pixel
@@ -312,6 +318,9 @@ step_combos() {
     -DCONFIG_LANTERN_STAIN=1 -DCONFIG_LANTERN_EFFECT_DEFAULT_STAIN=1
   combo cross "${bands[@]}" -DCONFIG_LANTERN_BANDS=1 "${eff[@]}" -DCONFIG_LANTERN_CROSS_RING=1 \
     -DCONFIG_LANTERN_HIT=1 -DCONFIG_LANTERN_EFFECT_DEFAULT_CROSS_RING=1
+  # a keyboard that is not a split: the crossing ring without the hit
+  combo cross-nohit "${bands[@]}" -DCONFIG_LANTERN_BANDS=1 "${eff[@]}" -DCONFIG_LANTERN_CROSS_RING=1 \
+    -DCONFIG_LANTERN_EFFECT_DEFAULT_CROSS_RING=1
   combo beams "${bands[@]}" -DCONFIG_LANTERN_BANDS=1 "${eff[@]}" -DCONFIG_LANTERN_BEAMS=1 \
     -DCONFIG_LANTERN_EFFECT_DEFAULT_BEAMS=1
   combo water "${bands[@]}" -DCONFIG_LANTERN_BANDS=1 "${eff[@]}" -DCONFIG_LANTERN_WATER=1 \
@@ -352,6 +361,43 @@ step_central() {
       run "hc_$name"
     else
       fail "hc_$name: compile error: $(grep -m1 error "$OUT/hc_$name.log")"
+    fi
+  done
+}
+
+# port: the same flags as the check builds' devices (a keyboard that is not
+# a split: config/reviung41.conf; a split central without key LEDs: the
+# Imprint Dongle's; a split half: a Corne right half's with the picks),
+# each source compiled on its own.
+step_port() {
+  local picks=(-DCONFIG_SETTINGS=1 -DCONFIG_LANTERN_PALETTE=1 -DCONFIG_LANTERN_PICK=1
+    -DCONFIG_LANTERN_EFFECT=1 -DCONFIG_LANTERN_INTRO=1 -DCONFIG_LANTERN_TEMPO_PICK=1
+    -DCONFIG_LANTERN_EFFECT_COLOUR=0x0)
+  local keys=(-DCONFIG_LANTERN_KEYS=1 -DCONFIG_LANTERN_EFFECTS=1 "${SEVEN[@]}"
+    -DCONFIG_LANTERN_HEATMAP=1 -DCONFIG_LANTERN_EFFECT_DEFAULT_STAIN=1)
+  local sends=(-DCONFIG_LANTERN_PORT=1 -DCONFIG_LANTERN_EFFECT_NEXT=1)
+  local split=(-DCONFIG_ZMK_SPLIT=1 -DCONFIG_ZMK_SPLIT_BLE=1)
+  local central=(-DCONFIG_ZMK_SPLIT_ROLE_CENTRAL=1
+    -DCONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING=1
+    -DCONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE=12)
+  local name flags files src
+  for name in unibody central half; do
+    files=(palette.c pick.c effect.c intro.c tempo.c)
+    case "$name" in
+      unibody) flags=("${picks[@]}" "${keys[@]}" "${sends[@]}"); files+=(effect_next.c port.c) ;;
+      central) flags=("${picks[@]}" "${sends[@]}" "${split[@]}" "${central[@]}"); files+=(effect_next.c port.c) ;;
+      half) flags=("${picks[@]}" "${keys[@]}" "${split[@]}") ;;
+    esac
+    src=()
+    for f in "${files[@]}"; do src+=("$SRC/$f"); done
+    if "$CC" "${CFLAGS[@]}" -I "$HERE/port/pstub" -I "$HERE/port" -I "$SRC" \
+        -include "$HERE/port/pstub_port.h" "${flags[@]}" "${src[@]}" "$HERE/port/fake.c" \
+        "$HERE/port/harness_port.c" -o "$OUT/hp_$name" 2>"$OUT/hp_$name.log"; then
+      BUILT=$((BUILT + 1))
+      warnings "hp_$name" "$OUT/hp_$name.log"
+      run "hp_$name"
+    else
+      fail "hp_$name: compile error: $(grep -m1 error "$OUT/hp_$name.log")"
     fi
   done
 }
@@ -402,7 +448,7 @@ step_equiv() {
   done
 }
 
-ALL=(effects colour colours intro layer tempo policy combos central lk76)
+ALL=(effects colour colours intro layer tempo policy combos central lk76 port)
 steps=()
 while [ $# -gt 0 ]; do
   case "$1" in

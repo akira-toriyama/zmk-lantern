@@ -8,9 +8,10 @@
  * t-qvgv) and the pick of the tempo (src/tempo.c, canon t-6ttk) share. A pick
  * is a mask of bits the instance's table gives a meaning (src/effect.h,
  * src/intro.h, src/tempo.h) and, where the instance has one, an argument
- * (the effects' colour, canon t-rgp5), chosen by the host on the split
- * central's port (src/port.c) or by a key of the central's keymap bound to the
- * behavior, kept by the central and every half in their settings across boots,
+ * (the effects' colour, canon t-rgp5), chosen by the host on the central's
+ * port (src/port.c; the central: a split's, or the keyboard itself when it is
+ * not a split) or by a key of the keymap bound to the behavior, kept by the
+ * central and every half in their settings across boots,
  * and read where it is used (the key LEDs, src/keys.c). The image carries
  * every effect and intro the consumer's conf turns on, and the tempo when it
  * does; the picks say which show and whether the tempo runs, so canon changes
@@ -24,7 +25,8 @@
  *   central's code with
  *   zmk_behavior_invoke_binding() as the palette's is (src/palette.c says how
  *   ZMK's split transport carries it by the node's name and why the name is at
- *   most 8 characters): param1 = the mask, absolute, param2 = the argument (0
+ *   most 8 characters; on a keyboard that is not a split ZMK runs it here
+ *   alone): param1 = the mask, absolute, param2 = the argument (0
  *   without one), press only (the release is nothing: src/effect.c,
  *   src/intro.c, src/tempo.c). A key of the central's keymap bound to the behavior
  *   invokes it the same way (ZMK app/src/behavior.c: a GLOBAL behavior goes
@@ -80,7 +82,7 @@
  *   next change saves, and until then a boot returns to the previous pick,
  *   whole.
  * - Delivery is not confirmed, as the palette's: the next battery report of a
- *   half resends the pick, LANTERN_RESEND_DELAY_MS after it (src/resend.h,
+ *   half resends the pick, LANTERN_RESEND_DELAY_MS after it (src/send.h,
  *   the palette's wait too; src/palette.c says why the wait).
  */
 
@@ -95,16 +97,19 @@
 #include <zephyr/sys/atomic.h>
 #include <zephyr/sys/util.h>
 
-#if IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
+#if !IS_ENABLED(CONFIG_ZMK_SPLIT) || IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
 #include <zmk/behavior.h>
+#endif
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
 #include <zmk/event_manager.h>
 #include <zmk/split/central.h>
-
-#include "resend.h"
 #endif
 
 #include "palette.h"
 #include "pick.h"
+#if !IS_ENABLED(CONFIG_ZMK_SPLIT) || IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
+#include "send.h"
+#endif
 
 LOG_MODULE_REGISTER(lantern_pick, LOG_LEVEL_INF);
 
@@ -223,7 +228,7 @@ int lantern_pick_set(struct lantern_pick *p, const char *name, size_t len, setti
 
 void lantern_pick_commit(struct lantern_pick *p) { atomic_set(&p->loaded, 1); }
 
-#if IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
+#if !IS_ENABLED(CONFIG_ZMK_SPLIT) || IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
 
 static struct zmk_behavior_binding binding_of(const struct lantern_pick *p, uint32_t m,
                                               uint32_t a) {
@@ -247,6 +252,10 @@ int lantern_pick_send(struct lantern_pick *p, uint32_t m, uint32_t a) {
     struct zmk_behavior_binding binding = binding_of(p, m, a);
     return zmk_behavior_invoke_binding(&binding, lantern_local_event(), true);
 }
+
+#endif /* where the keymap runs */
+
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
 
 /* System work queue. */
 static void resend(struct k_work *work) {

@@ -3,8 +3,9 @@
 # Build this repository's check images in Docker (zmkfirmware/zmk-build-arm:stable,
 # the image ZMK's own CI uses) and copy them to ./firmware/: every target of
 # build.yaml (both halves of the Cyboard Imprint and its dongle, from Cyboard's
-# stock shields, and both halves of ZMK's Corne on the nice!nano, each plus
-# the consumer-side lines in config/). They prove the module builds; they
+# stock shields, both halves of ZMK's Corne and ZMK's Reviung41, a keyboard
+# that is not a split, on the nice!nano, each plus the consumer-side lines in
+# config/). They prove the module builds; they
 # are not a keyboard's firmware (a consumer's keymap and roles are its own).
 #
 #   ./scripts/build.sh                    # every target in build.yaml
@@ -247,6 +248,12 @@ for t in $TARGETS; do
   west build -p -s zmk/app -d "$DIR" -b "$BOARD" -- \
     -DSHIELD="$SH" -DZMK_CONFIG=/workspace/ws/config -DZMK_EXTRA_MODULES=/workspace/module \
     "${EXTRA[@]}" 2>&1 | tee "$DIR/build.log"
+  # A line of a conf that does not take is a Kconfig warning only: fail on
+  # it, as CI does (.github/workflows/zmk-build.yml says why).
+  if grep -E "^warning: [A-Z0-9_]+ \\(defined at [^)]*\\) was assigned the value" "$DIR/build.log"; then
+    echo "build.sh: a Kconfig line did not take in $SH$SUFFIX (the warning above)" >&2
+    exit 1
+  fi
   cp "$DIR/zephyr/zmk.uf2" "/workspace/output/$SH$SUFFIX.uf2"
 done
 '

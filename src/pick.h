@@ -3,9 +3,10 @@
  *
  * SPDX-License-Identifier: MIT
  *
- * A pick (src/pick.c): a value the split central's host chooses, a mask of
- * bits and, where the instance has one, an argument (the effects' colour),
- * kept by the central and every half in their settings across boots and
+ * A pick (src/pick.c): a value the host chooses on the central (a split's,
+ * or the keyboard itself when it is not a split), a mask of bits and, where
+ * the instance has one, an argument (the effects' colour), kept by the
+ * central and every half in their settings across boots and, on a split,
  * resent by the central to a half that is back. Three instances: the pick of
  * the effects (src/effect.c), the pick of the intro (src/intro.c) and the
  * pick of the tempo (src/tempo.c), each with a behavior node, a settings key
@@ -84,17 +85,22 @@ int lantern_pick_set(struct lantern_pick *p, const char *name, size_t len, setti
                      void *cb_arg);
 void lantern_pick_commit(struct lantern_pick *p);
 
-#if IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
+#if !IS_ENABLED(CONFIG_ZMK_SPLIT) || IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
 
-/* Split central only, the system work queue (the port, a key's behavior):
- * store mask and arg here and send them to every half, one invocation of the
- * instance's behavior. mask is one or more bits of all, else -EINVAL; one bit
- * where the instance takes one, else -E2BIG; arg at most arg_max, else
- * -EINVAL; -EAGAIN until the settings have loaded at boot. 0 means this device
- * stored the pick and handed the halves' invocations to ZMK's split transport,
- * which confirms nothing: a half that is away gets the pick when it is back
- * (the resend). */
+/* Where the keymap runs (a split central, or a keyboard that is not a
+ * split), the system work queue (the port, a key's behavior): store mask and
+ * arg here and, on a split central, send them to every half, one invocation
+ * of the instance's behavior. mask is one or more bits of all, else -EINVAL;
+ * one bit where the instance takes one, else -E2BIG; arg at most arg_max,
+ * else -EINVAL; -EAGAIN until the settings have loaded at boot. 0 means this
+ * device stored the pick and, on a split central, handed the halves'
+ * invocations to ZMK's split transport, which confirms nothing: a half that
+ * is away gets the pick when it is back (the resend). */
 int lantern_pick_send(struct lantern_pick *p, uint32_t mask, uint32_t arg);
+
+#endif /* where the keymap runs */
+
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
 
 /* The instance's battery listener's body: a half's battery report, the one
  * signal ZMK's central raises for a half that is back, schedules a resend of
