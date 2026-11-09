@@ -311,7 +311,8 @@ lights what is at hand. The sibling module
 - **The host.** With a USB CDC ACM port on the split central
   (`CONFIG_USB_CDC_ACM`), `CONFIG_LANTERN_PORT` is on by default, and a host
   sets the palette and the picks by writing a text line on that port (The
-  palette and The picks, below). Whether the central has a port is its
+  palette and The picks, below; `tools/lantern_port.py` writes one: The
+  host, below). Whether the central has a port is its
   board's: the XIAO BLE's devicetree carries one (`board_cdc_acm_uart`), so a
   central on it, a dongle or a half, needs nothing more; the nice!nano's
   carries none, so a central on it adds one in its overlay and gives
@@ -699,7 +700,8 @@ than six colours clears the rest to `0x000000`, which the LEDs show as slot
   answered with `palette ok` and the six slots as stored; `palette` or
   `palette?` is answered with the six slots, or `palette none` before any; a
   bad line gets `palette error: <reason>` ([src/port.c](src/port.c) is the
-  grammar). The central's code invokes the `lantern,behavior-palette` node,
+  grammar; `tools/lantern_port.py` writes the line and prints the reply, The
+  host, below). The central's code invokes the `lantern,behavior-palette` node,
   which ZMK's split transport carries to every half by the node's name, one
   pair of slots per invocation ([src/palette.c](src/palette.c)); nothing is
   bound to a key.
@@ -754,7 +756,9 @@ host, below).
   are answered with the names (and the colour), or `effect none` / `intro
   none` / `tempo none` before any; a name not in the word's table gets
   `effect error: no such effect` (or the intro's, or `tempo error: no such
-  state`) and changes nothing ([src/port.c](src/port.c) is the grammar).
+  state`) and changes nothing ([src/port.c](src/port.c) is the grammar;
+  `tools/lantern_port.py` writes the line and prints the reply, The host,
+  below).
   The names, and the bit each carries on the wire: the effects'
   `thin-ring`, `disc`, `stain`, `cross-ring`, `beams`, `water`, `dart`,
   `heatmap`, `layer-keys` ([src/effect.h](src/effect.h)'s table; bits 7
@@ -816,6 +820,153 @@ The bindings compile in this repository's check
 build ([config/pick_keys.dtsi](config/pick_keys.dtsi)) and are unverified on
 hardware: canon's keymap binds none, its host picks.
 
+## The host
+
+The host is whatever writes the lines of The palette and The picks on the
+split central's port; `tools/lantern_port.py` writes one and prints the
+reply (standard library Python 3.9 or later, with termios: macOS and Linux).
+
+```sh
+python3 tools/lantern_port.py ports                                # this machine's USB serial ports, each with its product string
+python3 tools/lantern_port.py --name Corne palette 2060FF FF2060  # slots 0 and 1, the rest cleared (shown as slot 0): palette ok 2060FF FF2060 000000 000000 000000 000000
+python3 tools/lantern_port.py --name Corne palette                # ask: palette 2060FF FF2060 000000 000000 000000 000000, or palette none
+python3 tools/lantern_port.py --name Corne effect stain 2060FF    # the stain, in one colour
+python3 tools/lantern_port.py --name Corne intro bands
+python3 tools/lantern_port.py --name Corne tempo off
+```
+
+`--name` is the keyboard's USB product string, `CONFIG_ZMK_KEYBOARD_NAME` (on
+a stock split shield the central's; `ports` shows it), looked up among the
+machine's USB serial ports through macOS's I/O Registry or Linux's sysfs,
+never by a `/dev` name, which follows the USB socket, nor by the USB IDs,
+which every ZMK keyboard shares; a device with several CDC ACM ports answers
+on every one, so its first is taken, and a name that several devices carry
+(two keyboards, told apart by their serial numbers) needs `--port <device>`
+instead. The tool passes the word and its arguments through as they are and
+knows no name and no colour: the firmware refuses what it does not know and
+says why (an argument shaped like a reply, `effect none`, is refused here,
+since the firmware would ignore the line: there is no none, a pick names one
+or more of the built names). Exit 0 for `ok` or an ask's answer, 1 for an
+error reply, no reply (an image without `CONFIG_LANTERN_PORT`, or another
+program reading the port, which takes the reply) or no device, 2 for bad
+usage. `--wait S` first polls up to S seconds for the device (plugged in,
+rebooting, hidden by a KVM switch), tries again within the same S when it
+goes away meanwhile, and asks again while the central answers `not ready`
+(its USB up before its settings loaded), but not a port that cannot be
+opened for another reason (no permission, another program holding it);
+`--timeout S` (3) bounds the write and then the reply, after up to three
+seconds of reading away what arrived earlier. On Linux the port needs the
+permission to open it (the `dialout` group, or a udev rule). canon's
+`scripts/dongle.py palette`,
+`effect`, `intro` and `tempo` write the same lines to its Imprint Dongle,
+found canon's own way.
+
+A host of your own writes the same lines and keeps to what the tool does:
+the port opened raw, 8N1 at 115200, DTR and RTS raised, and 115200 the only
+rate it ever sets (1200 baud is zmk-beacon's bootloader entry on a central
+that builds it, 2400 its screen dump); before the line, more spaces than
+the central's line buffer holds (the tool sends 1024) and a newline, so
+that whatever a lost connection left in the buffer overflows with them and
+is dropped at the newline without a reply, where a bare newline would
+complete the leftover, run it when it is a command (a set typed in a
+terminal and never sent) and answer it, the answer passing for the line's;
+then one line at a time, its reply awaited (the central keeps two lines
+waiting and drops a third); the reply read at the start of a line by its
+word, since a logging image's log lines pass by and one may be finished
+after it; `ok` read as stored on the central and queued for the halves, a
+half that is away getting it a second after its next battery report;
+nothing shaped like a reply ever written (`<word> ok ...`, `<word> none`,
+`<word> error: ...`: the central ignores such a line, so an echoing terminal
+cannot start a loop, but a host that answered replies would); and one
+reader of the port at a time.
+
+### A sprite's colours
+
+[zmk-beacon](https://github.com/akira-toriyama/zmk-beacon)'s Prospector
+Dongle plays a sprite, and the keys can take its colours: zmk-beacon's
+`tools/sprite_colours.py <front.gif> [<back.gif>]` prints the colours the
+sprite shows most, one line of five `RRGGBB` words (`--count 6` for six),
+the one for slot 0 first, from the GIF alone (zmk-beacon's README, The sprite
+pack), and the line is the palette's arguments:
+
+```sh
+python3 tools/lantern_port.py --name Corne palette $(python3 ../zmk-beacon/tools/sprite_colours.py sprite.gif)
+```
+
+The GIF is the one the device shows. For an image built with a sprite
+(zmk-beacon's Actions route, or its `./scripts/build.sh --sprite`) it is the
+GIF the image was built from, which zmk-beacon's `python3
+tools/sprite_fetch.py --number <n> --out <dir>` fetches as `<dir>/sprite.gif`
+(with the run's inputs as its flags where they were not the defaults); the
+image embeds the front view alone, so that GIF's colours are the screen's.
+For a device whose sprite the sprite sender swaps, `sprite-sender colours
+--config <sender.json>` prints the same line for the GIF it sent last, its
+back view counted (zmk-beacon's README, The sprite sender). The colours are
+the GIF's: like the GIF, keep them out of anything public.
+
+A keyboard without a host, or one to have the colours from its first boot,
+takes them in its conf instead, `CONFIG_LANTERN_COLOUR_0` to `_5` (Using it:
+the colours), in the conf of each device with a `lantern,keys` node: each
+half's own, or one both halves share, as the Corne's `corne.conf`, which ZMK
+merges into every `corne_*` shield's build (a dongle has no keys for them):
+
+```sh
+python3 ../zmk-beacon/tools/sprite_colours.py sprite.gif | awk '{ for (i = 1; i <= NF; i++) printf "CONFIG_LANTERN_COLOUR_%d=0x%s\n", i - 1, $i }' >> config/corne.conf
+```
+
+A slot left 0 shows slot 0's colour, so five colours give slot 5 slot 0's;
+and a host's palette, once one arrives, replaces them for good: nothing but
+a settings reset clears it. This is the one route for a keyboard that is not a split, which
+has no port; the conf's colours are read from the sources and the check
+build, not tried on a keyboard.
+
+### Every morning
+
+The sprite sender swaps the Prospector Dongle's sprite from a LaunchAgent
+(zmk-beacon's README, The Mac route, whose agent runs the sender alone). For
+the keys to follow the day's sprite, the agent runs a script in the sender's
+place: the swap, then the colours, so that a morning whose swap failed
+changes nothing and the keys keep matching the screen, and then, say, the
+effect of the day, one of the built ones in turn by the date.
+`/Users/you/sprite-morning.sh`:
+
+```sh
+#!/bin/sh
+set -eu
+sender=/Users/you/zmk-beacon/tools/sprite-sender/SpriteSender.app/Contents/MacOS/sprite-sender
+config=/Users/you/sprite-sender/sender.json
+port() { python3 /Users/you/zmk-lantern/tools/lantern_port.py --name Corne --wait 600 "$@"; }
+
+"$sender" daily --config "$config"
+colours=$("$sender" colours --config "$config")
+# shellcheck disable=SC2086
+port palette ${colours:?}
+# the effect of the day: the built ones in turn, by the day (UTC)
+set -- thin-ring disc stain cross-ring beams water dart heatmap
+shift $(( $(date +%s) / 86400 % $# ))
+port effect "$1"
+```
+
+The agent's `ProgramArguments`, in place of the sender's:
+
+```xml
+  <array>
+    <string>/bin/sh</string>
+    <string>/Users/you/sprite-morning.sh</string>
+  </array>
+```
+
+The rest of the plist is zmk-beacon's: six every morning, the log in
+`~/Library/Logs`, which now keeps the colours along with the sender's lines
+(read by you alone). `--wait 600` waits up to ten minutes for the keyboard
+(hidden by a KVM switch, say) and asks again while a rebooted central has
+not loaded its settings; the exit status is the first failed step's (`set
+-e`; `${colours:?}` stops an empty line, which would ask instead of set), and
+a failed swap sends nothing. The effect's names are the port's (The picks):
+list the ones your conf builds, and a stored pick of the layer keys is
+replaced by the day's (`effect <name> layer-keys` adds them back). canon's
+keyboard runs this way, with its own `dongle.py` in the tool's place.
+
 ## Building this repository
 
 ```sh
@@ -839,7 +990,9 @@ shield's physical layout; the left half the central with the port its board
 lacks, [config/corne_left.overlay](config/corne_left.overlay)). A consumer's
 keymap and roles are its own, and the check builds' `positions` are the chain
 in key order, not a measurement. CI builds the same
-targets on every pull request and weekly against the moving branches. Every
+targets on every pull request and weekly against the moving branches, and
+runs the host tool's tests, `python3 -m unittest discover tools`, on Linux
+and macOS (a pseudo-terminal stands for the port). Every
 push to `main` refreshes one rolling draft release of the notes, with nothing
 attached; publishing the draft by hand creates the tag.
 

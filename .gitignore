@@ -3,3 +3,7 @@
 
 # scripts/build.sh output
 /firmware/
+
+# Python (tools/ and its tests)
+__pycache__/
+*.pyc

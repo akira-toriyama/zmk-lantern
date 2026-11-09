@@ -95,8 +95,29 @@ how to build. Usage: [README.md](README.md). English only.
   keep in their settings (`CONFIG_LANTERN_PALETTE`;
   [src/palette.c](src/palette.c), binding `lantern,behavior-palette`); and
   the host's port, the split central's USB CDC ACM port reading the
-  palette's and the picks' lines (`CONFIG_LANTERN_PORT`; [src/port.c](src/port.c)).
-  Each source's header carries its design and every reason.
+  palette's and the picks' lines (`CONFIG_LANTERN_PORT`; [src/port.c](src/port.c)),
+  and the host's tool that writes them, [tools/lantern_port.py](tools/lantern_port.py)
+  (canon t-t63a, 2026-11-08: the path from a sprite's colours to the
+  palette for a keyboard that is not canon's; its header is the host's side
+  of the port, README's The host the consumer's text; stdlib Python 3.9,
+  the floor macOS's `/usr/bin/python3`; it finds the device by its USB
+  product string through ioreg on macOS and sysfs on Linux, never by a
+  `/dev` name or the USB IDs, keeps no table of the words' names, since the
+  firmware refuses an unknown one with its reason, sets 115200 and no other
+  rate, and sends more than LINE_LIMIT spaces and a newline before the line,
+  so that a leftover in the central's buffer is dropped rather than completed
+  and run; an Opus refutation of the first draft, 2026-11-08, found the bare
+  newline running a leftover set and its reply passing for the host's; a
+  second refutation of the fix, the same day, found the tests' device thread
+  able to hang the suite and the prelude's boundary unpinned, both fixed, and
+  left two windows the host cannot close, traced in the sources and not
+  reproduced: a complete line that a USB reset leaves in the CDC ACM ring,
+  `cdc_acm_reset_port` clearing `rx_ready` but not the ring, which the next
+  host's first packet feeds before its prelude; and a reply a central slower
+  than `--timeout` writes after the next run's drain. `--wait` tries again
+  only what a device that is away causes, `Failure.retry`, never a port
+  refused for permission or held by another program). Each
+  source's header carries its design and every reason.
   Device names follow canon's
   [docs/glossary.md](https://github.com/akira-toriyama/canon/blob/main/docs/glossary.md):
   Cyboard Imprint (the halves), Imprint Dongle, Prospector Dongle.
@@ -281,6 +302,22 @@ how to build. Usage: [README.md](README.md). English only.
   `./scripts/build-zmk.sh imprint --module <this checkout>` (canon #267,
   2026-10-19): the images carry `-lantern` and a stamp of canon's pinned
   inputs plus that variant, which `dongle.py check` reports as `debug`.
+- The tool's tests, `python3 -m unittest discover tools`
+  ([tools/test_lantern_port.py](tools/test_lantern_port.py)): a
+  pseudo-terminal in the port's place with a thread fed as `src/port.c`'s
+  `feed()` is, LINE_LIMIT and the overflow included (the prelude dropping a
+  leftover set, the reply found among a logging image's lines, the stale
+  output read away, `not ready` asked again and a vanished device looked
+  for again within `--wait`, the exit codes), ioreg's plist and a sysfs tree
+  as fixtures, and one listing of the runner's own ports; no port of the
+  machine is opened. The pty is set raw by the test before the device's
+  side writes, or its echo would come back as the host's line, and the
+  device's thread reads through a select with a timeout, never a blocking
+  read: on macOS a close of the master waits for a read blocked on it, and
+  a failing test hung the suite that way once (the refutation above).
+  `.github/workflows/tools-test.yml` runs them on the Ubuntu runner's
+  python3 and the macOS runner's `/usr/bin/python3` (the 3.9 floor) on a
+  change under `tools/`, with a ten-minute limit.
 - The host harness, [scripts/harness/run.sh](scripts/harness/run.sh) (its
   header lists the steps, what a new effect or intro needs in the harness,
   and where the outputs go: a directory a checkout, one run at a time; clang
@@ -715,7 +752,16 @@ how to build. Usage: [README.md](README.md). English only.
   imprint_left` / `imprint_right` (a data cable, USB power), read a `--logging`
   image's lines with its `dongle.py log`, set and ask the palette with its
   `dongle.py palette` and the picks with its `dongle.py effect`, `intro` and
-  `tempo`.
+  `tempo` (or with `tools/lantern_port.py --name "Imprint Dongle" <word> ...`,
+  which on 2026-11-08 asked canon's Imprint Dongle, its pinned image of
+  f29e307, its three picks (`intro none`, `tempo none`, `effect thin-ring`),
+  before and after the prelude was added, got `effect error: no such effect
+  (the names: effect?)` for a made-up name, exit 1, exit 2 for `effect none`
+  as usage, and timed out with exit 1 on a word the firmware does not read;
+  the first draft refused the name of a device with two ports (another ZMK
+  device on the same Mac) with exit 2, and the rule since, one device's
+  first port, is the unit test's, not re-measured; no set was sent, the
+  dongle's palette being the morning's; canon t-t63a).
   Hardware claims here and in task bodies carry a date; README carries none
   (it is the consumer's). **The hardware record**, the one keyboard this
   module has run on, canon's Cyboard Imprint: builds for both halves

@@ -233,8 +233,9 @@ config LANTERN_INTRO
       LANTERN_INTRO_DEFAULT names. On a split central the pick is resent to a
       half at each of its battery reports, with the palette and the other
       picks (src/pick.c; the run queue must hold one more invocation a half,
-      LANTERN_EFFECT says). canon's scripts/dongle.py intro sends it
-      (t-qvgv). Default y where the node is present: the node is the switch,
+      LANTERN_EFFECT says). tools/lantern_port.py sends it, as canon's
+      scripts/dongle.py intro does to its dongle (t-qvgv). Default y where
+      the node is present: the node is the switch,
       as the palette's.
 
 choice LANTERN_INTRO_DEFAULT
@@ -487,8 +488,9 @@ config LANTERN_EFFECT
       (LANTERN_INTRO) and the tempo's (LANTERN_TEMPO_PICK) for every half at
       once, CONFIG_ZMK_SPLIT_BLE_CENTRAL_SPLIT_RUN_QUEUE_SIZE at least 6 x
       the peripheral count with all four (12 for two halves; src/pick.c
-      asserts the sum). canon's scripts/dongle.py effect sends the pick (t-5hqx), and
-      changes the effect of the day without flashing. Default y where the
+      asserts the sum). tools/lantern_port.py sends the pick, as canon's
+      scripts/dongle.py effect does to its dongle, which changes the effect
+      of the day without flashing (t-5hqx). Default y where the
       node is present: the node is the switch, as the palette's.
 
 choice LANTERN_EFFECT_DEFAULT
@@ -637,9 +639,10 @@ config LANTERN_TEMPO_PICK
       On a split central the pick is resent to a half at each of its battery
       reports, with the palette and the other picks (src/pick.c; the run
       queue must hold one more invocation a half, LANTERN_EFFECT says: 12
-      for two halves with the palette and all three picks). canon's
-      scripts/dongle.py tempo sends it (t-6ttk). Default y where the node is
-      present: the node is the switch, as the palette's.
+      for two halves with the palette and all three picks).
+      tools/lantern_port.py sends it, as canon's scripts/dongle.py tempo does
+      to its dongle (t-6ttk). Default y where the node is present: the node
+      is the switch, as the palette's.
 
 config LANTERN_GEOMETRY
     bool
@@ -1013,9 +1016,10 @@ config LANTERN_PORT
       "intro ok" and the name, and "intro" or "intro?" asks (LANTERN_INTRO);
       "tempo on" or "tempo off" (src/tempo.h's names, one) picks whether
       the tempo runs the same way, answered with "tempo ok" and the state,
-      and "tempo" or "tempo?" asks (LANTERN_TEMPO_PICK).
-      canon's scripts/dongle.py palette, effect, intro and tempo send them
-      to the Imprint Dongle. The port's rate is untouched: 1200 baud is zmk-beacon's
+      and "tempo" or "tempo?" asks (LANTERN_TEMPO_PICK). tools/lantern_port.py
+      writes a line and prints the reply (README, The host), and canon's
+      scripts/dongle.py palette, effect, intro and tempo write them to its
+      Imprint Dongle. The port's rate is untouched: 1200 baud is zmk-beacon's
       bootloader entry. A reply is written without waiting for a reader; a
       line that begins with none of the words gets none. It takes the UART
       interrupt callback of every CDC ACM port, of which a device keeps one,
