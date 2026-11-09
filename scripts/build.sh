@@ -248,6 +248,12 @@ for t in $TARGETS; do
   west build -p -s zmk/app -d "$DIR" -b "$BOARD" -- \
     -DSHIELD="$SH" -DZMK_CONFIG=/workspace/ws/config -DZMK_EXTRA_MODULES=/workspace/module \
     "${EXTRA[@]}" 2>&1 | tee "$DIR/build.log"
+  # A line of a conf that does not take is a Kconfig warning only: fail on
+  # it, as CI does (.github/workflows/zmk-build.yml says why).
+  if grep -E "^warning: [A-Z0-9_]+ \\(defined at [^)]*\\) was assigned the value" "$DIR/build.log"; then
+    echo "build.sh: a Kconfig line did not take in $SH$SUFFIX (the warning above)" >&2
+    exit 1
+  fi
   cp "$DIR/zephyr/zmk.uf2" "/workspace/output/$SH$SUFFIX.uf2"
 done
 '

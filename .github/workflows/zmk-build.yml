@@ -92,4 +92,12 @@ jobs:
           west build -p -s zmk/app -b "$BOARD" -- \
             -DSHIELD="$SHIELD" \
             -DZMK_CONFIG="$RUNNER_TEMP/ws/config" \
-            -DZMK_EXTRA_MODULES="$GITHUB_WORKSPACE"
+            -DZMK_EXTRA_MODULES="$GITHUB_WORKSPACE" 2>&1 | tee build.log
+          # Kconfig only warns when a line of a conf does not take (its symbol's
+          # dependencies unmet, the port off on 8428682's Reviung41): every line
+          # of config/ must take, or the image is not the check config/ says
+          # (scripts/build.sh fails the same way).
+          if grep -E '^warning: [A-Z0-9_]+ \(defined at [^)]*\) was assigned the value' build.log; then
+            echo "::error::a line of config/ did not take (the warning above)"
+            exit 1
+          fi

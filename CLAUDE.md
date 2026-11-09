@@ -276,8 +276,9 @@ how to build. Usage: [README.md](README.md). English only.
   effect>=y` unless a line names another;
   `CONFIG_LANTERN_STAIN=y` adds `CONFIG_LANTERN_THIN_RING=y`;
   `CONFIG_LANTERN_CROSS_RING=y` adds `CONFIG_LANTERN_EFFECTS=y`,
-  `CONFIG_LANTERN_GEOMETRY=y` and, on a BLE split, `CONFIG_LANTERN_HIT=y`, which the hit node
-  (`config/hit.dtsi`, on every target) turns on by itself, with `hit.c.obj`
+  `CONFIG_LANTERN_GEOMETRY=y` and, on a BLE split, `CONFIG_LANTERN_HIT=y`,
+  which the hit node (`config/hit.dtsi`, on every split target) turns on
+  by itself, with `hit.c.obj`
   in zmk.map;
   `CONFIG_LANTERN_HEATMAP=y` adds `CONFIG_LANTERN_EFFECTS=y`,
   `CONFIG_LANTERN_FRAMES=y` and `CONFIG_LANTERN_GEOMETRY=y` and no node, with
@@ -290,8 +291,9 @@ how to build. Usage: [README.md](README.md). English only.
   `CONFIG_LANTERN_EFFECT_DEFAULT_LAYER_KEYS=y`, and no
   `CONFIG_LANTERN_GEOMETRY` (it measures nothing); it needs
   `CONFIG_LANTERN_LAYER=y`, which the layer node (`config/layer.dtsi`, on
-  every target) turns on by itself, with `layer.c.obj` in every target's
-  zmk.map and `layer_keys.c.obj` where the effect is built; a split central
+  every split target) turns on by itself, with `layer.c.obj` in every
+  split target's zmk.map and `layer_keys.c.obj` where the effect is built
+  (the layer keys depend on `ZMK_SPLIT_BLE`); a split central
   (the dongle, the stock left halves) shows `CONFIG_LANTERN_RELAY=y` and
   `relay.c.obj` from the hit and the layer, a peripheral neither (the
   check builds of 2026-10-28: all five targets, and the Imprint halves with
@@ -364,18 +366,28 @@ how to build. Usage: [README.md](README.md). English only.
   asked back, refused before the load), a split central without key LEDs
   (a line to both halves, the resend a second after a half's report) and
   a split half (the central's invocations stored and applied); on
-  2026-11-09 each of 12 mutants of the sources failed it (a send left to
+  2026-11-09 each of 13 mutants of the sources failed it (a send left to
   the split central, the event's source unguarded, no settings gate, no
   repaint, no clearing of the effects, a resend at once or at a report of
-  0, an unchanged palette saved, the next key's colour dropped, two
-  intros taken, the pairs' packing). A change to the engine, an effect, an
+  0, an unchanged palette saved, the next key's colour dropped, the next
+  key over the whole table where the keyboard builds effects, which an
+  Opus review found its first checks blind to, two intros taken, the
+  pairs' packing). The flags are written out, so the step sees no Kconfig
+  gate: the Reviung41's check build does (below). A change to the engine,
+  an effect, an
   intro, the rule or `src/layer.c` runs `./scripts/harness/run.sh` before
   the Docker check builds (exit 0: every program exited 0, each ending in
   `fails 0` or `0 failure(s)`). A change to the engine, an effect or an
   intro that must not move a pixel also runs `run.sh equiv`, which compiles
   neither `src/on_usb_power.c` nor `src/layer.c` (the `policy` and
   `central` steps check those).
-- CI: `build.yml` → the local reusable `zmk-build.yml` (it says why not ZMK's);
+- CI: `build.yml` → the local reusable `zmk-build.yml` (it says why not ZMK's),
+  whose build fails when a line of `config/` does not take, Kconfig's
+  `was assigned the value` warning, which Zephyr prints and builds on
+  (canon t-5tyw, 2026-11-09: 8428682's Reviung41 dropped `CONFIG_LANTERN_PORT`
+  so and built green; `scripts/build.sh` fails the same way, so a
+  `--kconfig` line that does not take fails a local build too; all six
+  targets had none of the warning then);
   `shellcheck.yml`; the fleet gates. `release.yml` keeps a rolling draft
   release of the notes alone (glyph's reusable, verdict-only: the module ships
   no image), tagged when published by hand; consumers still pin a commit.
@@ -883,8 +895,9 @@ how to build. Usage: [README.md](README.md). English only.
   rule, the slot default and the physical layout's places (the Corne
   check build and the host harness only, canon t-41g7; no such keyboard
   at hand), and a keyboard that is not a split, its port, its sends and
-  the crossing ring without the hit (the Reviung41 check build and the
-  host harness's port step only, canon t-5tyw; none at hand either).
+  the crossing ring without the hit (the Reviung41 check build, the host
+  harness's port step and, for the ring, its combos step only, canon
+  t-5tyw; none at hand either).
 
 ## Commits, pull requests, fleet files
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""A host for the port: one line to a keyboard's split central over USB, and
-its reply printed (README, The host).
+"""A host for the port: one line to a keyboard's central over USB (a split's
+central, or the keyboard itself when it is not a split), and its reply
+printed (README, The host).
 
   lantern_port.py (--name <product string> | --port <device>) [--wait S] [--timeout S] <word> [<argument> ...]
   lantern_port.py ports
@@ -13,7 +14,7 @@ This tool knows no name and no colour: the firmware refuses what it does not
 know and says why, so a new effect needs nothing here. Exit 0 for `ok` or an
 ask's answer, 1 for an error reply, no reply or no device, 2 for bad usage.
 
-The device is the split central, found by its USB product string
+The device is the central, found by its USB product string
 (CONFIG_ZMK_KEYBOARD_NAME; on a stock split shield the central's), `--name
 Corne`, among this machine's USB serial ports: macOS's I/O Registry (ioreg)
 or Linux's sysfs, never by a /dev name, which follows the USB socket, nor by
@@ -390,7 +391,8 @@ def timeout_seconds(text):
 def parser():
     p = argparse.ArgumentParser(
         prog="lantern_port.py",
-        description="Write one line on the USB serial port of a keyboard running zmk-lantern (its split central) "
+        description="Write one line on the USB serial port of a keyboard running zmk-lantern (its central: a "
+                    "split's, or the keyboard itself when it is not a split) "
                     "and print the reply: WORD and its ARGUMENTs as the port takes them (palette RRGGBB ..., "
                     "effect NAME ... [RRGGBB], intro NAME, tempo on|off; the README's The palette and The picks), "
                     "or WORD alone to ask. 115200 is the only rate it sets. 'ports' instead lists this machine's "
@@ -400,7 +402,7 @@ def parser():
     )
     which = p.add_mutually_exclusive_group()
     which.add_argument("--name", metavar="PRODUCT",
-                       help="the keyboard's USB product string (CONFIG_ZMK_KEYBOARD_NAME, the split central's; "
+                       help="the keyboard's USB product string (CONFIG_ZMK_KEYBOARD_NAME, the central's; "
                             "'ports' shows it)")
     which.add_argument("--port", metavar="DEVICE",
                        help="the port itself (/dev/cu.usbmodem..., /dev/ttyACM0): when several devices carry the name")

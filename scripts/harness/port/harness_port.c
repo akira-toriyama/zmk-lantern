@@ -6,7 +6,8 @@
  *   port is stored here and applied to its own LEDs (the palette's repaint,
  *   the pick's clearing of the effects), saved, asked back, refused before
  *   the settings load and for two intros or both tempo states; a key's
- *   &effect and &effect_next pick the same way, the next over what it builds;
+ *   &effect and &effect_next pick the same way, the next over what it builds
+ *   (the dart to the heatmap, not to the layer keys it does not build);
  * - a split central without key LEDs (a dongle) and two halves: a line goes
  *   to both halves (the palette's three invocations, a pick's one) and is
  *   kept here, a half's battery report resends the palette and the stored
@@ -103,13 +104,18 @@ static void scenario(void) {
     CHECK(lantern_tempo_get(&m, NULL) && m == LANTERN_TEMPO_OFF, "the tempo's pick stored here");
 
     /* the keys: &effect_next over what this keyboard builds, the colour
-     * kept; the last built wraps to the first; &effect <mask> <colour> */
+     * kept (from the dart the heatmap, where the whole table has the layer
+     * keys next); the last built wraps to the first; &effect <mask>
+     * <colour> */
     changes = fake_effect_changes;
     fake_press("effect_next", 0, 0);
     CHECK(effect_is(LANTERN_EFFECT_CROSS_RING, 0x00FF00),
           "&effect_next: the stain to the crossing ring");
     CHECK(fake_effect_changes > changes, "&effect_next cleared this keyboard's effects");
-    fake_press("effect", LANTERN_EFFECT_HEATMAP, 0);
+    fake_press("effect", LANTERN_EFFECT_DART, 0);
+    fake_press("effect_next", 0, 0);
+    CHECK(effect_is(LANTERN_EFFECT_HEATMAP, 0),
+          "&effect_next: the dart to the heatmap, past the layer keys, which are not built");
     fake_press("effect_next", 0, 0);
     CHECK(effect_is(LANTERN_EFFECT_THIN_RING, 0),
           "&effect_next: the heatmap round to the thin ring");

@@ -318,6 +318,9 @@ step_combos() {
     -DCONFIG_LANTERN_STAIN=1 -DCONFIG_LANTERN_EFFECT_DEFAULT_STAIN=1
   combo cross "${bands[@]}" -DCONFIG_LANTERN_BANDS=1 "${eff[@]}" -DCONFIG_LANTERN_CROSS_RING=1 \
     -DCONFIG_LANTERN_HIT=1 -DCONFIG_LANTERN_EFFECT_DEFAULT_CROSS_RING=1
+  # a keyboard that is not a split: the crossing ring without the hit
+  combo cross-nohit "${bands[@]}" -DCONFIG_LANTERN_BANDS=1 "${eff[@]}" -DCONFIG_LANTERN_CROSS_RING=1 \
+    -DCONFIG_LANTERN_EFFECT_DEFAULT_CROSS_RING=1
   combo beams "${bands[@]}" -DCONFIG_LANTERN_BANDS=1 "${eff[@]}" -DCONFIG_LANTERN_BEAMS=1 \
     -DCONFIG_LANTERN_EFFECT_DEFAULT_BEAMS=1
   combo water "${bands[@]}" -DCONFIG_LANTERN_BANDS=1 "${eff[@]}" -DCONFIG_LANTERN_WATER=1 \

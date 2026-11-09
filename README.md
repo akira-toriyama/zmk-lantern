@@ -214,9 +214,9 @@ lights what is at hand. The sibling module
   idle dark; `=n` keeps the picture. The effects are built one by one:
   `CONFIG_LANTERN_THIN_RING=y`, `CONFIG_LANTERN_DISC=y`,
   `CONFIG_LANTERN_STAIN=y` (the ring that dyes), `CONFIG_LANTERN_CROSS_RING=y`
-  (it brings the hit, below), `CONFIG_LANTERN_BEAMS=y`,
+  (on a BLE split it brings the hit, below), `CONFIG_LANTERN_BEAMS=y`,
   `CONFIG_LANTERN_WATER=y`, `CONFIG_LANTERN_DART=y`, `CONFIG_LANTERN_HEATMAP=y`,
-  `CONFIG_LANTERN_LAYER_KEYS=y` (it brings the layer, below); which of the built ones
+  `CONFIG_LANTERN_LAYER_KEYS=y` (a BLE split's: it brings the layer, below); which of the built ones
   draw is the pick's (below), and without a pick the choice
   `LANTERN_EFFECT_DEFAULT` (`CONFIG_LANTERN_EFFECT_DEFAULT_<EFFECT>=y`; the
   stain when built, else the first built) in `CONFIG_LANTERN_EFFECT_COLOUR`
@@ -232,7 +232,10 @@ lights what is at hand. The sibling module
   full scale) sets the frame's cap and, by default, the picture's
   brightness, which `CONFIG_LANTERN_PICTURE_BRIGHTNESS` (at most it) lowers
   alone; the effects go to full scale under the cap. A missing or
-  conflicting option fails the build with a message naming it.
+  conflicting option fails the build with a message naming it; a line
+  whose dependencies the keyboard does not meet (the layer keys where no
+  BLE split is, the port without a CDC ACM port) is dropped, with a
+  Kconfig warning that names them.
 
 - **The palette and the picks.** The host's palette and picks (The host,
   below) and a key's pick (Without a host, below) are ZMK behaviors, a node
@@ -530,10 +533,10 @@ workflow (Building this repository, below).
 - The crossing ring (`CONFIG_LANTERN_CROSS_RING`; the pick's `cross-ring`, and
   on a BLE split it brings the hit, below): the thin ring's shape, one key
   wide at twelve key units a second, from a pressed key across the whole
-  board: on a split, a press of this half spreads out through the other
+  board: on a BLE split, a press of this half spreads out through the other
   half, and a press of the other half, relayed by the split central, comes
-  in from the gap; on a keyboard that is not a split, each press spreads
-  across it. It
+  in from the gap; elsewhere each press spreads from its key across the
+  board, a keyboard that is not a split all of it. It
   keeps its strength until it has left the board, at full brightness within
   the frame's cap (above), and its colour is the pressed key's slot (the
   node's `slots`), so both halves draw one press in one colour. A key under
@@ -943,9 +946,9 @@ python3 ../zmk-beacon/tools/sprite_colours.py sprite.gif | awk '{ for (i = 1; i 
 
 A slot left 0 shows slot 0's colour, so five colours give slot 5 slot 0's;
 and a host's palette, once one arrives, replaces them for good: nothing but
-a settings reset clears it. This is the one route for a keyboard that is not a split, which
-has no port; the conf's colours are read from the sources and the check
-build, not tried on a keyboard.
+a settings reset clears it. This is the one route for a keyboard whose
+central has no host on its port; the conf's colours are read from the
+sources and the check build, not tried on a keyboard.
 
 ### Every morning
 
@@ -1019,7 +1022,8 @@ Reviung41 on the nice!nano, a keyboard that is not a split, with the port
 on the keyboard ([config/reviung41.overlay](config/reviung41.overlay)). A consumer's
 keymap and roles are its own, and the check builds' `positions` are the chain
 in key order, not a measurement. CI builds the same
-targets on every pull request and weekly against the moving branches, and
+targets on every pull request and weekly against the moving branches,
+failing one where a line of its conf does not take (Kconfig only warns), and
 runs the host tool's tests, `python3 -m unittest discover tools`, on Linux
 and macOS (a pseudo-terminal stands for the port). Every
 push to `main` refreshes one rolling draft release of the notes, with nothing
