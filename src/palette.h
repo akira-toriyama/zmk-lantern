@@ -27,11 +27,13 @@
  * set on this device, and colours[] is then left alone. */
 bool lantern_palette_get(uint32_t colours[LANTERN_PALETTE_SLOTS]);
 
-/* Split central only: set slots 0..count-1 on every half and on this device,
- * and clear the slots from count on to 0x000000 (the key LEDs show such a slot
- * as slot 0). count is 1..LANTERN_PALETTE_SLOTS and every colour at most
+/* Where the keymap runs (a split central, or a keyboard that is not a
+ * split): set slots 0..count-1 on this device and every half, and clear the
+ * slots from count on to 0x000000 (the key LEDs show such a slot as slot 0).
+ * count is 1..LANTERN_PALETTE_SLOTS and every colour at most
  * LANTERN_PALETTE_RGB_MAX, else -EINVAL; -EAGAIN until the settings have
- * loaded at boot. 0 means this device stored the colours and handed the
- * halves' invocations to ZMK's split transport, which confirms nothing: a
- * half that is away gets the palette when it is back (src/palette.c). */
+ * loaded at boot. 0 means this device stored the colours and, on a split
+ * central, handed the halves' invocations to ZMK's split transport, which
+ * confirms nothing: a half that is away gets the palette when it is back
+ * (src/palette.c). */
 int lantern_palette_send(const uint32_t *colours, size_t count);

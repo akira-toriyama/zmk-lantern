@@ -9,8 +9,10 @@
 # no LED rail, the check that the module builds for a keyboard that is not
 # the Imprint with the least in its overlay (config/corne.dtsi), its left
 # half the central with the host's port (config/corne_left.overlay), the
-# consumer's shape without a dongle. The module has no shield or board of its
-# own.
+# consumer's shape without a dongle; and ZMK's own Reviung41 shield on the
+# nice!nano, a keyboard that is not a split, with the host's port on the
+# keyboard itself (config/reviung41.overlay). The module has no shield or
+# board of its own.
 ---
 include:
   - board: assimilator-bt
@@ -23,3 +25,5 @@ include:
     shield: corne_left
   - board: nice_nano/nrf52840/zmk
     shield: corne_right
+  - board: nice_nano/nrf52840/zmk
+    shield: reviung41

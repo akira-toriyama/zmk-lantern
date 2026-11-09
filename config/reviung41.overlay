@@ -1,0 +1,36 @@
+// The Reviung41 (ZMK's reviung41 shield on the nice!nano): a keyboard that is
+// not a split, with a zmk,physical-layout and the strip ZMK's underglow would
+// drive, the check build of a consumer with the least in its overlay and the
+// host's port on the keyboard itself. No lantern,rail node, no slots, no
+// coords (as config/corne.dtsi), and none of the split's nodes, the hit's and
+// the layer's: the palette's and the picks' nodes and the effect-next key's
+// alone. The strip is the shield's board overlay's (chosen zmk,underglow, 11
+// LEDs under the board), each LED named by a key over it, a stand-in for a
+// consumer's measurement. The nice!nano's devicetree has no CDC ACM port, so
+// this overlay adds one, as config/corne_left.overlay does for the Corne's
+// central half (it says why); config/reviung41.conf gives it SERIAL.
+
+#include "palette.dtsi"
+#include "effect.dtsi"
+#include "intro.dtsi"
+#include "tempo.dtsi"
+#include "effect_next.dtsi"
+#include "pick_keys.dtsi"
+
+/ {
+    lantern_keys: lantern_keys {
+        compatible = "lantern,keys";
+        strip = <&led_strip>;
+        positions = <
+             0  3  5  6  8 11
+            24 35
+               36 38 40
+        >;
+    };
+};
+
+&zephyr_udc0 {
+    cdc_acm_uart: cdc_acm_uart {
+        compatible = "zephyr,cdc-acm-uart";
+    };
+};

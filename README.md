@@ -10,15 +10,14 @@ ring, a disc, a stain, a ring crossing both halves, beams, water, a dart or
 a heatmap, in the palette's colours or in one colour of the host's choosing,
 faster the faster you type when the host says so; or, while
 you hold a layer, lights the keys that layer gives a meaning, in its colour.
-On a split keyboard each half lights from its own USB port, the central
-relays the key presses, the held layer and the host's choices to the halves,
-a half gone dark for idle lights again at the other half's key (where ZMK's
-sleep is off), and a half
-that was away catches up when it
-is back; the host's channel is the split central's USB port, so a keyboard
-that is not a split has the conf's defaults and a key's pick, without a
-palette. A keyboard whose LED supply has an enable pin can hand that pin to
-the module, which then cuts the LEDs' power whenever they are dark.
+The host's channel is a USB port of the central, the device that runs the
+keymap: a split's central (a half or a dongle), or the keyboard itself when
+it is not a split. On a split keyboard each half lights from its own USB
+port, the central relays the key presses, the held layer and the host's
+choices to the halves, a half gone dark for idle lights again at the other
+half's key (where ZMK's sleep is off), and a half that was away catches up
+when it is back. A keyboard whose LED supply has an enable pin can hand that
+pin to the module, which then cuts the LEDs' power whenever they are dark.
 
 The module paints the strip itself: ZMK's underglow stays off on a keyboard
 that carries it. The name: a beacon shows others where you are; a lantern
@@ -99,7 +98,12 @@ lights what is at hand. The sibling module
    check build of ZMK's Corne is this least plus the split's nodes, every
    effect, both intros, the tempo and two colours:
    [config/corne.dtsi](config/corne.dtsi), which both halves' overlays
-   include, [config/corne.conf](config/corne.conf).
+   include, [config/corne.conf](config/corne.conf); that of ZMK's
+   Reviung41, a keyboard that is not a split, is this least plus the
+   palette's and the picks' nodes, the port, every effect but the layer
+   keys, both intros, the tempo and two colours:
+   [config/reviung41.overlay](config/reviung41.overlay),
+   [config/reviung41.conf](config/reviung41.conf).
 
 3. The keyboard's conf:
 
@@ -230,14 +234,12 @@ lights what is at hand. The sibling module
   alone; the effects go to full scale under the cap. A missing or
   conflicting option fails the build with a message naming it.
 
-- **The split.** The palette and the picks travel from the central to the
-  halves as ZMK behaviors, carried by the split transport under the node's
-  name, so each node exists on every device of the split under the one name
-  (the keymap's behaviors, or an overlay every device includes; the module's
-  own check build includes [config/palette.dtsi](config/palette.dtsi),
-  [config/effect.dtsi](config/effect.dtsi), [config/intro.dtsi](config/intro.dtsi),
-  [config/tempo.dtsi](config/tempo.dtsi), [config/hit.dtsi](config/hit.dtsi)
-  and [config/layer.dtsi](config/layer.dtsi) from every overlay):
+- **The palette and the picks.** The host's palette and picks (The host,
+  below) and a key's pick (Without a host, below) are ZMK behaviors, a node
+  each, in the keymap's behaviors or an overlay (the module's own check
+  build includes [config/palette.dtsi](config/palette.dtsi),
+  [config/effect.dtsi](config/effect.dtsi), [config/intro.dtsi](config/intro.dtsi)
+  and [config/tempo.dtsi](config/tempo.dtsi) from every overlay):
 
   ```dts
   / {
@@ -258,6 +260,27 @@ lights what is at hand. The sibling module
               compatible = "lantern,behavior-tempo";
               #binding-cells = <2>;
           };
+      };
+  };
+  ```
+
+  `CONFIG_LANTERN_PALETTE`, `CONFIG_LANTERN_EFFECT`, `CONFIG_LANTERN_INTRO`
+  and `CONFIG_LANTERN_TEMPO_PICK` are on wherever their node exists. A
+  keyboard that is not a split needs these four nodes and nothing of the
+  split below: the crossing ring then draws the keyboard's own presses
+  across it without the hit, and the layer keys, whose layer a split
+  central sends, are not built.
+
+- **The split.** The palette and the picks travel from the central to the
+  halves as ZMK behaviors, carried by the split transport under the node's
+  name, so each node exists on every device of the split under the one
+  name, with two more of a BLE split's (the check build includes
+  [config/hit.dtsi](config/hit.dtsi) and [config/layer.dtsi](config/layer.dtsi)
+  from every split overlay too):
+
+  ```dts
+  / {
+      behaviors {
           hit: hit {
               compatible = "lantern,behavior-hit";
               #binding-cells = <2>;
@@ -271,9 +294,8 @@ lights what is at hand. The sibling module
   };
   ```
 
-  `CONFIG_LANTERN_PALETTE`, `CONFIG_LANTERN_EFFECT`, `CONFIG_LANTERN_INTRO`,
-  `CONFIG_LANTERN_TEMPO_PICK`, `CONFIG_LANTERN_HIT` and `CONFIG_LANTERN_LAYER`
-  are on wherever their node exists; the hit (the central relaying each
+  `CONFIG_LANTERN_HIT` and `CONFIG_LANTERN_LAYER` are on wherever their node
+  exists on a BLE split; the hit (the central relaying each
   half's key presses to the other half) is what the crossing ring and the
   beams need, and every other effect but the heatmap and the layer keys
   draws from it, the tempo counts it and the wake lights at it; the layer
@@ -308,17 +330,21 @@ lights what is at hand. The sibling module
   what the central relays shows at once (The split link, below); `=n` leaves
   the link at the central's latency.
 
-- **The host.** With a USB CDC ACM port on the split central
-  (`CONFIG_USB_CDC_ACM`), `CONFIG_LANTERN_PORT` is on by default, and a host
+- **The host.** With a USB CDC ACM port on the central, the split's or the
+  keyboard itself when it is not a split (`CONFIG_USB_CDC_ACM`),
+  `CONFIG_LANTERN_PORT` is on by default, and a host
   sets the palette and the picks by writing a text line on that port (The
   palette and The picks, below; `tools/lantern_port.py` writes one: The
   host, below). Whether the central has a port is its
   board's: the XIAO BLE's devicetree carries one (`board_cdc_acm_uart`), so a
-  central on it, a dongle or a half, needs nothing more; the nice!nano's
-  carries none, so a central on it adds one in its overlay and gives
-  `CONFIG_USB_CDC_ACM` the `CONFIG_SERIAL` it depends on (the check build's
-  central half: [config/corne_left.overlay](config/corne_left.overlay),
-  [config/corne_left.conf](config/corne_left.conf)):
+  central on it, a dongle, a half or a keyboard that is not a split, needs
+  nothing more; the nice!nano's carries none, so a central on it adds one in
+  its overlay and gives `CONFIG_USB_CDC_ACM` the `CONFIG_SERIAL` it depends
+  on (the check build's central half of the Corne:
+  [config/corne_left.overlay](config/corne_left.overlay),
+  [config/corne_left.conf](config/corne_left.conf); its Reviung41:
+  [config/reviung41.overlay](config/reviung41.overlay),
+  [config/reviung41.conf](config/reviung41.conf)):
 
   ```dts
   &zephyr_udc0 {
@@ -338,10 +364,8 @@ lights what is at hand. The sibling module
   `studio-rpc-usb-uart` snippet's port) and the module's port do not share a
   build, so a Studio build sets `CONFIG_LANTERN_PORT=n` (read from the
   sources, not tried: Studio sets its callback at `POST_KERNEL`, the module
-  at `APPLICATION`, after it). The port and the palette are a split
-  central's: a keyboard that is not a split has neither. Without a host the
-  keyboard has the Kconfig defaults, and a key of the central's keymap can
-  pick (Without a host, below).
+  at `APPLICATION`, after it). Without a host the keyboard has the Kconfig
+  defaults, and a key of the keymap can pick (Without a host, below).
 
 ### Building it with ZMK's CI
 
@@ -504,10 +528,12 @@ workflow (Building this repository, below).
   whenever the LEDs light; without the countdown it stays until the LEDs go
   dark.
 - The crossing ring (`CONFIG_LANTERN_CROSS_RING`; the pick's `cross-ring`, and
-  it brings the hit, below): the thin ring's shape, one key wide at twelve key
-  units a second, from a pressed key of either half across the whole board:
-  a press of this half spreads out through the other half, and a press of
-  the other half, relayed by the split central, comes in from the gap. It
+  on a BLE split it brings the hit, below): the thin ring's shape, one key
+  wide at twelve key units a second, from a pressed key across the whole
+  board: on a split, a press of this half spreads out through the other
+  half, and a press of the other half, relayed by the split central, comes
+  in from the gap; on a keyboard that is not a split, each press spreads
+  across it. It
   keeps its strength until it has left the board, at full brightness within
   the frame's cap (above), and its colour is the pressed key's slot (the
   node's `slots`), so both halves draw one press in one colour. A key under
@@ -562,7 +588,8 @@ workflow (Building this repository, below).
   presses cools every key to its end; more than sixteen presses of both
   halves within one frame, and the oldest never count.
 - The layer keys (`CONFIG_LANTERN_LAYER_KEYS`; the pick's `layer-keys`, and
-  it brings the layer, below): while you hold a layer that the `layer` node's
+  it brings the layer, below, so a BLE split's alone: the split central
+  sends the layer): while you hold a layer that the `layer` node's
   `layers` names, the keys that layer gives a meaning of its own light in
   its colour, the palette slot `layers` gives it, at full brightness within
   the frame's cap (above), and the rest stay as the picture and the other
@@ -687,7 +714,7 @@ each state whole.
 
 ## The palette
 
-Six colours (`0xRRGGBB`, slots 0..5) that the host hands the keyboard's split
+Six colours (`0xRRGGBB`, slots 0..5) that the host hands the keyboard's
 central and that the central and every half keep in their settings
 (`lantern/palette/colours`); a half's key LEDs show them in the picture
 (by default the bands its `lantern,keys` node draws), repainted when a
@@ -805,8 +832,8 @@ picks the next effect in the bits' order (the layer keys before the
 heatmap), round again after the last, and
 keeps the colour (the node `lantern,behavior-effect-next`, in the keymap's
 behaviors with `#binding-cells = <0>`, on the central's keymap;
-`CONFIG_LANTERN_EFFECT_NEXT` is on wherever it exists on a split central,
-and a split central it must be: the send is the central's). With no pick
+`CONFIG_LANTERN_EFFECT_NEXT` is on wherever it exists on the central, and
+only there: the send is the central's). With no pick
 stored its first press picks the effect after `LANTERN_EFFECT_DEFAULT` where
 the central builds effects (a dongle builds none: the table's first) and
 keeps `CONFIG_LANTERN_EFFECT_COLOUR` as read on the central, so a dongle's
@@ -823,7 +850,7 @@ hardware: canon's keymap binds none, its host picks.
 ## The host
 
 The host is whatever writes the lines of The palette and The picks on the
-split central's port; `tools/lantern_port.py` writes one and prints the
+central's port; `tools/lantern_port.py` writes one and prints the
 reply (standard library Python 3.9 or later, with termios: macOS and Linux).
 
 ```sh
@@ -987,7 +1014,9 @@ wake: [config/imprint_right.conf](config/imprint_right.conf)) and its
 ZMK's Corne on the nice!nano ([config/corne.dtsi](config/corne.dtsi), both
 halves' overlays: no rail, no `slots`, no `coords`, the places from the
 shield's physical layout; the left half the central with the port its board
-lacks, [config/corne_left.overlay](config/corne_left.overlay)). A consumer's
+lacks, [config/corne_left.overlay](config/corne_left.overlay)), and ZMK's
+Reviung41 on the nice!nano, a keyboard that is not a split, with the port
+on the keyboard ([config/reviung41.overlay](config/reviung41.overlay)). A consumer's
 keymap and roles are its own, and the check builds' `positions` are the chain
 in key order, not a measurement. CI builds the same
 targets on every pull request and weekly against the moving branches, and

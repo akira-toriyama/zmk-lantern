@@ -5,7 +5,8 @@
  *
  * The tempo's pick (src/tempo.c): whether the tempo runs (src/keys.c,
  * CONFIG_LANTERN_TEMPO: the effects faster the faster the user types),
- * chosen at run time by the split central's host and kept by every device.
+ * chosen at run time by the host on the central (a split's, or the keyboard
+ * itself when it is not a split) and kept by every device.
  * For the port (src/port.c), which names the two states, and the key LEDs
  * (src/keys.c), which read it. Layer contract: the port parses and replies
  * and never stores a pick; every change goes through the tempo behavior, on
@@ -54,12 +55,14 @@ BUILD_ASSERT(__builtin_popcount(LANTERN_TEMPO_ALL) == LANTERN_TEMPO_COUNT,
  * False while none has been stored, and *mask is then left alone. */
 bool lantern_tempo_get(uint32_t *mask, uint32_t *arg);
 
-/* Split central only: store the pick here and send it to every half. mask is
+/* Where the keymap runs (a split central, or a keyboard that is not a
+ * split): store the pick here and send it to every half of a split. mask is
  * one bit of LANTERN_TEMPO_ALL, else -EINVAL (none, or a bit the list lacks)
  * or -E2BIG (both); arg is 0 (the tempo takes none), else -EINVAL; -EAGAIN
  * until the settings have loaded at boot. 0 means this device stored the pick
- * and handed the halves' invocations to ZMK's split transport, which confirms
- * nothing: a half that is away gets the pick when it is back (src/pick.c). */
+ * and, on a split central, handed the halves' invocations to ZMK's split
+ * transport, which confirms nothing: a half that is away gets the pick when
+ * it is back (src/pick.c). */
 int lantern_tempo_send(uint32_t mask, uint32_t arg);
 
 #else

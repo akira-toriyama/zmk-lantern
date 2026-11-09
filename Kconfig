@@ -216,16 +216,17 @@ config LANTERN_INTRO_STAR_WAVES
       that builds this one gets it as the default (LANTERN_INTRO_DEFAULT).
 
 config LANTERN_INTRO
-    bool "Take the pick of the intro from the split central's host, and keep it across boots"
+    bool "Take the pick of the intro from the host, and keep it across boots"
     default y
     depends on DT_HAS_LANTERN_BEHAVIOR_INTRO_ENABLED
     depends on SETTINGS
     select LANTERN_PICK
     help
       Which of the intros built into a half's image the boot light plays,
-      chosen at run time: the host hands the split central a pick, one intro
-      by name (LANTERN_PORT), the central invokes the lantern,behavior-intro
-      node, which ZMK's split transport carries to every half by its name
+      chosen at run time: the host hands the central (a split's, or the
+      keyboard itself when it is not a split) a pick, one intro by name
+      (LANTERN_PORT), the central invokes the lantern,behavior-intro node,
+      which ZMK's split transport carries to every half by its name
       (the node is named intro on every device, src/intro.c, the binding),
       and the central and every half keep the pick in their settings
       ("lantern/intro/mask"). A half plays the picked intro when it builds
@@ -455,22 +456,24 @@ config LANTERN_EFFECTS
 config LANTERN_PICK
     bool
     help
-      The picks' mechanism (src/pick.c): a value the split central's host
-      chooses, kept by every device in its settings and resent to a half
-      that is back. The pick of the effects (LANTERN_EFFECT), the pick of
+      The picks' mechanism (src/pick.c): a value the host chooses on the
+      central (a split's, or the keyboard itself when it is not a split),
+      kept by every device in its settings and, on a split, resent to a
+      half that is back. The pick of the effects (LANTERN_EFFECT), the pick of
       the intro (LANTERN_INTRO) and the pick of the tempo (LANTERN_TEMPO_PICK)
       are its instances and select it; nothing to set.
 
 config LANTERN_EFFECT
-    bool "Take the pick of the effects from the split central's host, and keep it across boots"
+    bool "Take the pick of the effects from the host, and keep it across boots"
     default y
     depends on DT_HAS_LANTERN_BEHAVIOR_EFFECT_ENABLED
     depends on SETTINGS
     select LANTERN_PICK
     help
       Which of the effects built into a half's image draw, and in which
-      colour, chosen at run time: the host hands the split central a pick,
-      one or more of the effects by name and a colour or none (LANTERN_PORT),
+      colour, chosen at run time: the host hands the central (a split's, or
+      the keyboard itself when it is not a split) a pick, one or more of the
+      effects by name and a colour or none (LANTERN_PORT),
       or a key of the central's keymap bound to the node does (`&effect
       <mask> <colour>`; LANTERN_EFFECT_NEXT cycles the mask from a key), the
       central invokes the lantern,behavior-effect node, which ZMK's split
@@ -570,25 +573,27 @@ config LANTERN_EFFECT_COLOUR
       the central cannot read theirs.
 
 config LANTERN_EFFECT_NEXT
-    bool "Cycle the effects' pick from a key of the central's keymap: the lantern,behavior-effect-next node"
+    bool "Cycle the effects' pick from a key of the keymap: the lantern,behavior-effect-next node"
     default y
     depends on DT_HAS_LANTERN_BEHAVIOR_EFFECT_NEXT_ENABLED
     depends on LANTERN_EFFECT
-    depends on ZMK_SPLIT_ROLE_CENTRAL
+    depends on !ZMK_SPLIT || ZMK_SPLIT_ROLE_CENTRAL
     help
       A key bound to the lantern,behavior-effect-next node (`&effect_next`
       in the keymap) picks, on press, the effect after the stored pick in
       LANTERN_EFFECT_LIST's bits' order (the layer keys before the
-      heatmap), over the effects this central builds, or
-      the whole table where it builds none (a dongle), round again after the
-      last, and keeps the pick's colour (src/effect_next.c); with no pick
-      stored, the effect after LANTERN_EFFECT_DEFAULT where this central
+      heatmap), over the effects the device that runs the keymap builds
+      (a split central with key LEDs, or a keyboard that is not a split),
+      or the whole table where it builds none (a dongle), round again after
+      the last, and keeps the pick's colour (src/effect_next.c); with no
+      pick stored, the effect after LANTERN_EFFECT_DEFAULT where that device
       builds effects (a dongle: the table's first) in LANTERN_EFFECT_COLOUR.
-      The pick goes to every half through the effect behavior, as the
-      host's does. For a keyboard without a host; `&effect <mask> <colour>`
-      on a key is the fixed pick. The behavior runs on the central only,
-      where the keymap runs, and the send is a split central's, hence the
-      dependency. Default y where the node is present on a split central.
+      The pick goes through the effect behavior, as the host's does, to
+      every half of a split. For a keyboard without a host; `&effect <mask>
+      <colour>` on a key is the fixed pick. The behavior runs where the
+      keymap runs, the split central or a keyboard that is not a split, and
+      so does the send, hence the dependency. Default y where the node is
+      present there.
       Neither key binding is verified on hardware (canon's keymap binds
       none; the check build compiles both).
 
@@ -622,15 +627,16 @@ config LANTERN_TEMPO_DEFAULT
       conf that builds the tempo wants to see it, as the intros' default.
 
 config LANTERN_TEMPO_PICK
-    bool "Take the pick of the tempo from the split central's host, and keep it across boots"
+    bool "Take the pick of the tempo from the host, and keep it across boots"
     default y
     depends on DT_HAS_LANTERN_BEHAVIOR_TEMPO_ENABLED
     depends on SETTINGS
     select LANTERN_PICK
     help
       Whether the tempo runs (LANTERN_TEMPO), chosen at run time: the host
-      hands the split central a pick, on or off (LANTERN_PORT), the central
-      invokes the lantern,behavior-tempo node, which ZMK's split transport
+      hands the central (a split's, or the keyboard itself when it is not a
+      split) a pick, on or off (LANTERN_PORT), the central invokes the
+      lantern,behavior-tempo node, which ZMK's split transport
       carries to every half by its name (the node is named tempo on every
       device, src/tempo.c, the binding), and the central and every half keep
       the pick in their settings ("lantern/tempo/mask"). A half that builds
@@ -721,11 +727,11 @@ config LANTERN_STAIN
       ring.
 
 config LANTERN_CROSS_RING
-    bool "Build the crossing ring: a thin ring from each pressed key across the whole board, both halves, in the key's band colour"
+    bool "Build the crossing ring: a thin ring from each pressed key across the whole board, both halves of a split, in the key's band colour"
     depends on LANTERN_KEYS
     select LANTERN_EFFECTS
     select LANTERN_GEOMETRY
-    select LANTERN_HIT
+    select LANTERN_HIT if ZMK_SPLIT_BLE
     help
       The effect cross-ring (src/effect.h), built into the image and drawn
       when the pick names it (LANTERN_EFFECT, LANTERN_EFFECT_DEFAULT):
@@ -733,8 +739,9 @@ config LANTERN_CROSS_RING
       pressed key at twelve key units a second over the whole board: from a
       key of this half out through the other half, and from a key of the
       other half, which the split central relays here (LANTERN_HIT,
-      selected: this half and the central need the hit node, on a BLE
-      split), in at the thumbs and then the inner columns. The ring keeps
+      selected on a BLE split: this half and the central need the hit
+      node), in at the thumbs and then the inner columns; on a keyboard
+      that is not a split, from each key across the board. The ring keeps
       its strength until it has left the board, a second and a half on
       canon's Imprint, where the thin ring fades within a half; its colour
       is the pressed key's band (the lantern,keys node's slots), so both
@@ -853,6 +860,7 @@ config LANTERN_HEATMAP
 config LANTERN_LAYER_KEYS
     bool "Build the layer keys: while a layer is held, the keys it binds light in its colour"
     depends on LANTERN_KEYS
+    depends on ZMK_SPLIT_BLE
     select LANTERN_EFFECTS
     select LANTERN_LAYER
     help
@@ -867,8 +875,9 @@ config LANTERN_LAYER_KEYS
       layer held, nothing. The central knows the keymap and its layers,
       a half neither: the central sends each half the keys and the slot
       (LANTERN_LAYER, selected: this half and the central need the layer
-      node, on a BLE split), a layer coming into view 60 ms after it does,
-      so a short tap of a key that raises a layer does not flash, and no
+      node; a BLE split's, hence the dependency, so a keyboard that is not
+      a split builds no layer keys), a layer coming into view 60 ms after
+      it does, so a short tap of a key that raises a layer does not flash, and no
       layer at once. A press draws nothing; with other effects picked the
       layer keys draw over them and share the frame's cap with them, so
       they dim while a press's effect lives, and a layer of many keys or a
@@ -968,14 +977,15 @@ config LANTERN_USB_LATENCY
       central's host accepts it; src/latency.c says why and how.
 
 config LANTERN_PALETTE
-    bool "Keep a palette of six colours, set from the split central's host; the key LEDs show them"
+    bool "Keep a palette of six colours, set from the host; the key LEDs show them"
     default y
     depends on DT_HAS_LANTERN_BEHAVIOR_PALETTE_ENABLED
     depends on SETTINGS
     help
-      Six colours (0xRRGGBB, slots 0..5) that the host hands the split
-      central (LANTERN_PORT) and that the central and every half keep
-      in their settings ("lantern/palette/colours"); a half's key LEDs show
+      Six colours (0xRRGGBB, slots 0..5) that the host hands the central
+      (LANTERN_PORT; a split's, or the keyboard itself when it is not a
+      split) and that the central and every half keep in their settings
+      ("lantern/palette/colours"); a half's key LEDs show
       them in the picture (LANTERN_KEYS; the bands by default), repainted
       when a palette arrives while they are lit and shown at every boot. A
       set of fewer than six colours clears the rest to 0x000000, which the
@@ -996,20 +1006,22 @@ config LANTERN_PALETTE
       lantern,rail node is for LANTERN_RAIL.
 
 config LANTERN_PORT
-    bool "Take palette, effect, intro and tempo commands on the split central's USB CDC ACM port"
+    bool "Take palette, effect, intro and tempo commands on a USB CDC ACM port of the device that runs the keymap"
     default y
     depends on LANTERN_PALETTE || LANTERN_EFFECT || LANTERN_INTRO || LANTERN_TEMPO_PICK
-    depends on ZMK_SPLIT_ROLE_CENTRAL
+    depends on !ZMK_SPLIT || ZMK_SPLIT_ROLE_CENTRAL
     depends on USB_CDC_ACM
     select UART_INTERRUPT_DRIVEN
     help
-      Text lines on any CDC ACM port of the split central (src/port.c is the
-      whole grammar): "palette RRGGBB [RRGGBB ...]" (one to six colours)
-      sets slots 0.. on every half and on the central and clears the rest,
-      answered with "palette ok" and the six slots, and "palette" or
+      Text lines on any CDC ACM port of the central, the device where ZMK
+      runs the keymap (the split central, or the keyboard itself when it is
+      not a split; src/port.c is the whole grammar): "palette RRGGBB
+      [RRGGBB ...]" (one to six colours) sets slots 0.. on the central and
+      every half and clears the rest, answered with "palette ok" and the
+      six slots, and "palette" or
       "palette?" asks for them (LANTERN_PALETTE); "effect <name> [<name>
       ...] [RRGGBB]" (src/effect.h's names, and a colour or none for the
-      palette's) picks the effects on every half and on the central,
+      palette's) picks the effects on the central and every half,
       answered with "effect ok", the names and the colour when set, and
       "effect" or "effect?" asks (LANTERN_EFFECT); "intro <name>" (src/intro.h's names,
       one) picks the intro the boot light plays the same way, answered with

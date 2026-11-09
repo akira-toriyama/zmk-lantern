@@ -5,7 +5,8 @@
  *
  * The effects' table and the pick (src/effect.c): which of the effects built
  * into a half's image draw, and in which colour, chosen at run time by the
- * split central's host, or by a key of the central's keymap bound to the
+ * host on the central (a split's, or the keyboard itself when it is not a
+ * split), or by a key of the keymap bound to the
  * behavior (the next effect in turn: src/effect_next.c), and kept by every
  * device. For the port (src/port.c), which names them, and the key LEDs
  * (src/keys.c), which draw them. Layer contract: the port parses and replies
@@ -101,12 +102,14 @@ static inline uint32_t lantern_effect_next(uint32_t mask, uint32_t set) {
  * NULL). False while none has been stored, and both are then left alone. */
 bool lantern_effect_get(uint32_t *mask, uint32_t *colour);
 
-/* Split central only: store the pick here and send it to every half. mask is
+/* Where the keymap runs (a split central, or a keyboard that is not a
+ * split): store the pick here and send it to every half of a split. mask is
  * one or more bits of LANTERN_EFFECT_ALL and colour at most
  * LANTERN_EFFECT_COLOUR_MAX, else -EINVAL; -EAGAIN until the settings have
- * loaded at boot. 0 means this device stored the pick and handed the halves'
- * invocations to ZMK's split transport, which confirms nothing: a half that is
- * away gets the pick when it is back (src/pick.c). */
+ * loaded at boot. 0 means this device stored the pick and, on a split
+ * central, handed the halves' invocations to ZMK's split transport, which
+ * confirms nothing: a half that is away gets the pick when it is back
+ * (src/pick.c). */
 int lantern_effect_send(uint32_t mask, uint32_t colour);
 
 #else

@@ -91,11 +91,13 @@ how to build. Usage: [README.md](README.md). English only.
   latency, 0 while USB powers a split peripheral and the central's on battery
   (`CONFIG_LANTERN_USB_LATENCY`; [src/latency.c](src/latency.c)); the palette: six
   colours the host hands the
-  split central, which the central and every half
+  central, which the central and every half
   keep in their settings (`CONFIG_LANTERN_PALETTE`;
   [src/palette.c](src/palette.c), binding `lantern,behavior-palette`); and
-  the host's port, the split central's USB CDC ACM port reading the
-  palette's and the picks' lines (`CONFIG_LANTERN_PORT`; [src/port.c](src/port.c)),
+  the host's port, the central's USB CDC ACM port reading the
+  palette's and the picks' lines (`CONFIG_LANTERN_PORT`; [src/port.c](src/port.c);
+  the central is the device that runs the keymap, a split's central or a
+  keyboard that is not a split, canon t-5tyw),
   and the host's tool that writes them, [tools/lantern_port.py](tools/lantern_port.py)
   (canon t-t63a, 2026-11-08: the path from a sprite's colours to the
   palette for a keyboard that is not canon's; its header is the host's side
@@ -151,7 +153,16 @@ how to build. Usage: [README.md](README.md). English only.
   `USB_CDC_ACM` depends on; canon t-c95r, 2026-11-08), the consumer's shape
   without a dongle, so that `src/port.c` compiles on a half (the XIAO BLE's
   board carries the node and `SERIAL`, so the dongle's conf writes none of
-  it). The halves have an overlay each because ZMK reads one user overlay a
+  it); and ZMK's own Reviung41 shield on the nice!nano
+  (`config/reviung41.overlay`, `config/reviung41.conf`; canon t-5tyw,
+  2026-11-09): a keyboard that is not a split, with a
+  `zmk,physical-layout` and ZMK's 11-LED underglow strip, the host's port
+  on the keyboard itself (the overlay adds the node the nice!nano lacks),
+  the palette's, the picks' and the effect-next key's nodes and no hit or
+  layer node, every effect but the layer keys (a BLE split's, the Kconfig
+  dependency) and both intros, so that the port, the sends and the
+  crossing ring without the hit compile where no split is. The halves
+  have an overlay each because ZMK reads one user overlay a
   build and tries the shield directory's name before the shield's
   (`corne.overlay` before `corne_left.overlay`, `imprint.overlay` before
   `imprint_left.overlay`, but `imprint_dongle.overlay` before
@@ -160,7 +171,7 @@ how to build. Usage: [README.md](README.md). English only.
   took the left half's build on 2026-11-08 and left the port out. With Cyboard's stock roles the Imprint's
   left half is a split central (canon's is a peripheral), as the Corne's:
   the check builds compile the palette's and the picks' central side on the
-  left halves and the dongle, their half side on every half. Every check
+  left halves, the dongle and the Reviung41, their half side on every half. Every check
   build's `lantern,keys` node takes the chain in key order (`positions`), a
   placeholder a consumer replaces with its measurement.
 - The one consumer, [canon](https://github.com/akira-toriyama/canon), pins
@@ -170,7 +181,7 @@ how to build. Usage: [README.md](README.md). English only.
 - The sibling module [zmk-beacon](https://github.com/akira-toriyama/zmk-beacon)
   (the status advertisement) is the model for this repository's shape; the two
   stay separate on purpose (canon t-26y4, 2026-10-19).
-- Tasks: on canon's board for now (`furrow list -r canon`, epic e-3sm7).
+- Tasks: on canon's board for now (`furrow list -r canon`, epic e-exg9).
 - README is written for a consumer, in the order a consumer reads it (the
   least, then the options, then what it does): no canon task ids, dates or
   history there (canon t-41g7); they live here. The hardware record, the
@@ -221,9 +232,10 @@ how to build. Usage: [README.md](README.md). English only.
   `CONFIG_ZMK_SLEEP=y` of Cyboard's shield) `CONFIG_LANTERN_WAKE_ON_HIT=y`;
   a split
   central's (the dongle, the stock left halves) never the latency nor the
-  wake, and with a CDC ACM port (the dongle's board has one, the Corne's left
-  half the node of `config/corne_left.overlay`, the Imprint's stock left half
-  none) `CONFIG_LANTERN_PORT=y` and `port.c.obj`; the dongle's nothing of
+  wake, and a central's (those and the Reviung41) with a CDC ACM port (the
+  dongle's board has one, the Corne's left half and the Reviung41 the node
+  of their overlays, the Imprint's stock left half none)
+  `CONFIG_LANTERN_PORT=y` and `port.c.obj`; the dongle's nothing of
   the rail or the keys; a half's `CONFIG_LANTERN_INTROS=y`, `CONFIG_LANTERN_INTRO_BANDS=y`
   and `bands.c.obj`, and `CONFIG_LANTERN_INTRO_DEFAULT_BANDS=y` where no star
   waves are built (the Imprint's left half); every target
@@ -231,15 +243,27 @@ how to build. Usage: [README.md](README.md). English only.
   `CONFIG_LANTERN_TEMPO_PICK=y`, `CONFIG_LANTERN_PICK=y` and `effect.c.obj`,
   `intro.c.obj`, `tempo.c.obj`, `pick.c.obj` from the effect, intro and tempo
   nodes (`config/effect.dtsi`, `config/intro.dtsi`, `config/tempo.dtsi`, on
-  every target); a split
-  central's (the dongle, the stock left half) `CONFIG_LANTERN_EFFECT_NEXT=y`
+  every target); a
+  central's (the dongle, the stock left halves, the Reviung41)
+  `CONFIG_LANTERN_EFFECT_NEXT=y`
   and `effect_next.c.obj` from the effect-next node (`config/effect_next.dtsi`,
   on every target, a driver on the central only), and with the effects or
   the effect-next node `CONFIG_LANTERN_EFFECT_COLOUR=0` (`.config` writes a hex symbol's default
   as `0`, autoconf.h as `0x0`); the Corne's left half has `CONFIG_SERIAL=y`,
-  `CONFIG_USB_CDC_ACM=y` and one `cdc-acm-uart` node in its `zephyr.dts`
+  `CONFIG_USB_CDC_ACM=y` and one `cdc-acm-uart` node in its `zephyr.dts`,
+  as the Reviung41 has
   (the Imprint's stock left half, whose board has no port, no
-  `CONFIG_LANTERN_PORT`: the dongle covers the port there);
+  `CONFIG_LANTERN_PORT`: the dongle covers the port there); the
+  Reviung41's no `CONFIG_ZMK_SPLIT`, none of the hit, the layer, the relay,
+  the latency and the wake nor their files, and `cross_ring.c.obj` (the
+  check build of 2026-11-09, canon t-5tyw; on 8428682, before the gates,
+  its build had `LANTERN_PORT` assigned y and got n for
+  `ZMK_SPLIT_ROLE_CENTRAL`, no `CONFIG_LANTERN_EFFECT_NEXT`, and
+  `--kconfig CONFIG_LANTERN_CROSS_RING=y` or `CONFIG_LANTERN_LAYER_KEYS=y`
+  stopped the configure with "Aborting due to Kconfig warnings", the hit
+  or the layer y-selected with unmet dependencies; the five other images
+  were the same to the byte before and after the gates, sha256 and
+  `.config`);
   `config/pick_keys.dtsi` binds `&effect 1 0xFF0000`,
   `&effect_next`, `&intro 2 0` and `&tempo 1 0` in a macro never invoked,
   so the bindings compile as a consumer's keymap would write them.
@@ -252,7 +276,7 @@ how to build. Usage: [README.md](README.md). English only.
   effect>=y` unless a line names another;
   `CONFIG_LANTERN_STAIN=y` adds `CONFIG_LANTERN_THIN_RING=y`;
   `CONFIG_LANTERN_CROSS_RING=y` adds `CONFIG_LANTERN_EFFECTS=y`,
-  `CONFIG_LANTERN_GEOMETRY=y` and `CONFIG_LANTERN_HIT=y`, which the hit node
+  `CONFIG_LANTERN_GEOMETRY=y` and, on a BLE split, `CONFIG_LANTERN_HIT=y`, which the hit node
   (`config/hit.dtsi`, on every target) turns on by itself, with `hit.c.obj`
   in zmk.map;
   `CONFIG_LANTERN_HEATMAP=y` adds `CONFIG_LANTERN_EFFECTS=y`,
@@ -333,7 +357,18 @@ how to build. Usage: [README.md](README.md). English only.
   under one program built as canon's halves are, their frames compared to
   the byte: both intros, every effect, the layer keys over a state, the
   pick's colour and the tempo (`harness_dump.c` lists the script; REF has
-  the tempo, aeec40c, or later). A change to the engine, an effect, an
+  the tempo, aeec40c, or later); and the port step, the palette, the picks,
+  the effect-next key and the port over their real sources, each its own
+  translation unit as the build compiles them (`port/`, canon t-5tyw):
+  a keyboard that is not a split (a line stored and applied here, saved,
+  asked back, refused before the load), a split central without key LEDs
+  (a line to both halves, the resend a second after a half's report) and
+  a split half (the central's invocations stored and applied); on
+  2026-11-09 each of 12 mutants of the sources failed it (a send left to
+  the split central, the event's source unguarded, no settings gate, no
+  repaint, no clearing of the effects, a resend at once or at a report of
+  0, an unchanged palette saved, the next key's colour dropped, two
+  intros taken, the pairs' packing). A change to the engine, an effect, an
   intro, the rule or `src/layer.c` runs `./scripts/harness/run.sh` before
   the Docker check builds (exit 0: every program exited 0, each ending in
   `fails 0` or `0 failure(s)`). A change to the engine, an effect or an
@@ -643,7 +678,12 @@ how to build. Usage: [README.md](README.md). English only.
   ones): an effect never reads the colour itself, and a new effect needs
   nothing for it. Without a pick the colour is `CONFIG_LANTERN_EFFECT_COLOUR`
   (default 0).
-- The port (`src/port.c`) is central-only, reads every word (the palette's,
+- The port (`src/port.c`) is the central's, the device where the keymap
+  runs, as are the sends it calls (`src/pick.c`, `src/palette.c`) and the
+  effect-next key: `!ZMK_SPLIT || ZMK_SPLIT_ROLE_CENTRAL`, ZMK's own form
+  (its `app/src/studio/Kconfig`, `app/src/pm.c`), in Kconfig and C alike;
+  the resends stay a split central's (`ZMK_SPLIT_ROLE_CENTRAL`), and ZMK's
+  binding event has a source only on a split (`src/send.h`). It reads every word (the palette's,
   the picks') in one file because a device keeps one UART callback, and never
   touches the port's rate: 1200 baud is zmk-beacon's bootloader entry, 2400
   its screen dump, both the CDC driver's rate callback; this file is the UART
@@ -842,7 +882,9 @@ how to build. Usage: [README.md](README.md). English only.
   and `&tempo`, the rail-less
   rule, the slot default and the physical layout's places (the Corne
   check build and the host harness only, canon t-41g7; no such keyboard
-  at hand).
+  at hand), and a keyboard that is not a split, its port, its sends and
+  the crossing ring without the hit (the Reviung41 check build and the
+  host harness's port step only, canon t-5tyw; none at hand either).
 
 ## Commits, pull requests, fleet files
 

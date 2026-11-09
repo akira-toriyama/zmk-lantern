@@ -5,7 +5,7 @@
  *
  * The pick of the intro (canon t-qvgv): which of the intros built into a
  * half's image the boot light plays (the bits of src/intro.h, one a pick),
- * chosen by the host on the split central's port (src/port.c), kept by the
+ * chosen by the host on the central's port (src/port.c), kept by the
  * central and every half in their settings across boots and read by the key
  * LEDs when the boot light opens (src/keys.c: the first built bit of the pick
  * in the table's order, and with none of them built, or no pick stored, the
@@ -89,9 +89,13 @@ static int on_commit(void) {
 
 SETTINGS_STATIC_HANDLER_DEFINE(lantern_intro, "lantern/intro", NULL, on_set, on_commit, NULL);
 
-#if IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
+#if !IS_ENABLED(CONFIG_ZMK_SPLIT) || IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
 
 int lantern_intro_send(uint32_t mask, uint32_t arg) { return lantern_pick_send(&pick, mask, arg); }
+
+#endif /* where the keymap runs */
+
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
 
 static int battery_listener(const zmk_event_t *eh) {
     lantern_pick_resend_after(&pick, eh);
