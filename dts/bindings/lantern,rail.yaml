@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 description: |
-  The LED power rail that zmk-lantern switches with its rule
+  The LED power rail that zmk-vfx-lantern switches with its rule
   (CONFIG_LANTERN_RAIL under CONFIG_LANTERN_ON_USB_POWER): one GPIO that
   enables the supply of the key LEDs, the pin the board's
   zmk,ext-power-generic node has as control-gpios. That node stays disabled

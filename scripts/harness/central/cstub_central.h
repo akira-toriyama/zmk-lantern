@@ -1,4 +1,4 @@
-/* Host stubs for zmk-lantern's src/layer.c (force-included; cstub/ holds empty
+/* Host stubs for zmk-vfx-lantern's src/layer.c (force-included; cstub/ holds empty
  * stand-ins for the headers it names): Zephyr's macros it uses, the work item
  * run by the harness, ZMK's keymap over a table (canon's, generated from the
  * dongle's zephyr.dts, or a synthetic one with -DSYNTH76), the relay and the

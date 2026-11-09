@@ -178,9 +178,15 @@ how to build. Usage: [README.md](README.md). English only.
   this repository by commit SHA in its `config/west.yml` and carries the real
   overlays and confs; a merge here reaches the halves with canon's pin bump,
   which moves every canon image's firmware stamp (canon's CLAUDE.md).
-- The sibling module [zmk-beacon](https://github.com/akira-toriyama/zmk-beacon)
+- The sibling module [zmk-vfx-beacon](https://github.com/akira-toriyama/zmk-vfx-beacon)
   (the status advertisement) is the model for this repository's shape; the two
   stay separate on purpose (canon t-26y4, 2026-10-19).
+- The name is ZMK's module rule `zmk-<type>-<description>` (ZMK docs, Module
+  Creation) with type `vfx`, "RGB animations": `zephyr/module.yml`'s name,
+  the repository and a consumer's west project and path are all
+  `zmk-vfx-lantern`, never the old `zmk-lantern` (canon t-g1p7, 2026-11-09;
+  a rename moves all four together, canon's `build-zmk.sh --module` matches
+  the module.yml name against its west project).
 - Tasks: on canon's board for now (`furrow list -r canon`, epic e-exg9).
 - README is written for a consumer, in the order a consumer reads it (the
   least, then the options, then what it does): no canon task ids, dates or
@@ -192,7 +198,7 @@ how to build. Usage: [README.md](README.md). English only.
 - `./scripts/build.sh [shield | board:shield] [--logging] [--kconfig CONFIG_X=V]...
   [--tag <name>] [--update]`, or `--clean` alone to delete the workspace
   (flags: its header). Docker, workspace `$ZMK_WS`
-  (default `~/.cache/zmk-lantern`), images `firmware/<shield>[-logging][-kconfig][-<tag>].uf2`,
+  (default `~/.cache/zmk-vfx-lantern`), images `firmware/<shield>[-logging][-kconfig][-<tag>].uf2`,
   then a summary (sha256 prefix, FLASH, RAM, revisions). `--update` moves
   zmk@main and zmk-keyboards@zephyr-4.1.
 - The west topdir is never the module root: `$RUNNER_TEMP/ws` in CI, `$ZMK_WS/ws`
@@ -697,7 +703,7 @@ how to build. Usage: [README.md](README.md). English only.
   the resends stay a split central's (`ZMK_SPLIT_ROLE_CENTRAL`), and ZMK's
   binding event has a source only on a split (`src/send.h`). It reads every word (the palette's,
   the picks') in one file because a device keeps one UART callback, and never
-  touches the port's rate: 1200 baud is zmk-beacon's bootloader entry, 2400
+  touches the port's rate: 1200 baud is zmk-vfx-beacon's bootloader entry, 2400
   its screen dump, both the CDC driver's rate callback; this file is the UART
   interrupt callback, which nothing else in a canon image sets. **The
   callback runs on the USB device work queue (1 KiB of stack) and only
@@ -864,7 +870,7 @@ how to build. Usage: [README.md](README.md). English only.
   `layer-keys` alone, canon t-6ttk): holding a layer lit its keys in its
   colour, the user's OK on sight; the state went from the relay's queue
   (`src/relay.c`). The wake and the hit from the relay's queue
-  (2026-11-02, canon's trial images of zmk-lantern#34, merged as ef90f08,
+  (2026-11-02, canon's trial images of zmk-vfx-lantern#34, merged as ef90f08,
   on both halves,
   `CONFIG_ZMK_IDLE_TIMEOUT=20000`, the pick `cross-ring`, the dongle on
   its pinned image, canon t-6ttk): both halves left untouched past the
@@ -914,7 +920,7 @@ how to build. Usage: [README.md](README.md). English only.
   2026-11-08) fails a PR on a tracked picture by name or first bytes, a sprite
   pack, a path naming the sprites' source or a `sprites/` directory, or a
   binary of 16 KiB or more: the ban of the sprite repositories canon and
-  zmk-beacon, carried here too, so no screenshot or picture of the LEDs ever
+  zmk-vfx-beacon, carried here too, so no screenshot or picture of the LEDs ever
   enters this public tree (the repository tracks no binary).
 - Fleet-managed, never edited here (fleet-sync in akira-toriyama/.github
   overwrites them from its `fleet/`):

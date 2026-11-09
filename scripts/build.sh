@@ -35,7 +35,7 @@
 # copied once every target of the run has built. The run ends with one line per
 # image (sha256 prefix, FLASH and RAM use) and the revisions it built from.
 #
-# Workspace under $ZMK_WS (default ~/.cache/zmk-lantern), kept between runs so
+# Workspace under $ZMK_WS (default ~/.cache/zmk-vfx-lantern), kept between runs so
 # that west update runs once:
 #   ws/       west topdir: ws/config (a copy of this repository's config/),
 #             .west/, zmk/, zephyr/, zmk-keyboards/, modules/, and
@@ -54,7 +54,7 @@ set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO"
 
-WS="${ZMK_WS:-$HOME/.cache/zmk-lantern}"
+WS="${ZMK_WS:-$HOME/.cache/zmk-vfx-lantern}"
 IMAGE="${ZMK_IMAGE:-zmkfirmware/zmk-build-arm:stable}"
 TOP="$WS/ws"
 MOD="$WS/module"
@@ -66,7 +66,7 @@ SHIELDS=()
 
 # Under CONFIG_ZMK_USB_LOGGING ZMK defaults to a 1 KiB CDC ring and ZMK at DEBUG
 # (zmk app/Kconfig). With 4 KiB a port opened 70 s after boot still returned the
-# whole boot log (zmk-beacon, hardware 2026-09-29). The ring is allocated twice
+# whole boot log (zmk-vfx-beacon, hardware 2026-09-29). The ring is allocated twice
 # (RX and TX, Zephyr cdc_acm.c): 6 KiB more RAM.
 LOGGING_CONF=(
   CONFIG_ZMK_USB_LOGGING=y
@@ -280,4 +280,4 @@ for row in "${TARGETS[@]}"; do
 done
 zmk_rev="$(git -C "$TOP/zmk" log -1 --format='%h %cs' 2>/dev/null || true)"
 kb_rev="$(git -C "$TOP/zmk-keyboards" log -1 --format='%h %cs' 2>/dev/null || true)"
-echo "revisions: zmk ${zmk_rev:-?}, zmk-keyboards ${kb_rev:-?}, zmk-lantern ${lantern_rev:-?}"
+echo "revisions: zmk ${zmk_rev:-?}, zmk-keyboards ${kb_rev:-?}, zmk-vfx-lantern ${lantern_rev:-?}"

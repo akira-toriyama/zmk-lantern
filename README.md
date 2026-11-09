@@ -1,4 +1,4 @@
-# zmk-lantern
+# zmk-vfx-lantern
 
 A [ZMK](https://zmk.dev) module for a keyboard's per-key LEDs. It lights them
 while USB powers the keyboard and the keyboard is in use, keeps them dark on
@@ -22,7 +22,7 @@ pin to the module, which then cuts the LEDs' power whenever they are dark.
 The module paints the strip itself: ZMK's underglow stays off on a keyboard
 that carries it. The name: a beacon shows others where you are; a lantern
 lights what is at hand. The sibling module
-[zmk-beacon](https://github.com/akira-toriyama/zmk-beacon) is the beacon.
+[zmk-vfx-beacon](https://github.com/akira-toriyama/zmk-vfx-beacon) is the beacon.
 
 ## Using it in a ZMK config
 
@@ -43,10 +43,10 @@ lights what is at hand. The sibling module
          remote: zmkfirmware
          revision: main
          import: app/west.yml
-       - name: zmk-lantern
+       - name: zmk-vfx-lantern
          remote: akira-toriyama
          revision: <commit sha>
-         path: modules/zmk-lantern
+         path: modules/zmk-vfx-lantern
      self:
        path: config
    ```
@@ -893,7 +893,7 @@ found canon's own way.
 
 A host of your own writes the same lines and keeps to what the tool does:
 the port opened raw, 8N1 at 115200, DTR and RTS raised, and 115200 the only
-rate it ever sets (1200 baud is zmk-beacon's bootloader entry on a central
+rate it ever sets (1200 baud is zmk-vfx-beacon's bootloader entry on a central
 that builds it, 2400 its screen dump); before the line, more spaces than
 the central's line buffer holds (the tool sends 1024) and a newline, so
 that whatever a lost connection left in the buffer overflows with them and
@@ -912,26 +912,26 @@ reader of the port at a time.
 
 ### A sprite's colours
 
-[zmk-beacon](https://github.com/akira-toriyama/zmk-beacon)'s Prospector
-Dongle plays a sprite, and the keys can take its colours: zmk-beacon's
+[zmk-vfx-beacon](https://github.com/akira-toriyama/zmk-vfx-beacon)'s Prospector
+Dongle plays a sprite, and the keys can take its colours: zmk-vfx-beacon's
 `tools/sprite_colours.py <front.gif> [<back.gif>]` prints the colours the
 sprite shows most, one line of five `RRGGBB` words (`--count 6` for six),
-the one for slot 0 first, from the GIF alone (zmk-beacon's README, The sprite
+the one for slot 0 first, from the GIF alone (zmk-vfx-beacon's README, The sprite
 pack), and the line is the palette's arguments:
 
 ```sh
-python3 tools/lantern_port.py --name Corne palette $(python3 ../zmk-beacon/tools/sprite_colours.py sprite.gif)
+python3 tools/lantern_port.py --name Corne palette $(python3 ../zmk-vfx-beacon/tools/sprite_colours.py sprite.gif)
 ```
 
 The GIF is the one the device shows. For an image built with a sprite
-(zmk-beacon's Actions route, or its `./scripts/build.sh --sprite`) it is the
-GIF the image was built from, which zmk-beacon's `python3
+(zmk-vfx-beacon's Actions route, or its `./scripts/build.sh --sprite`) it is the
+GIF the image was built from, which zmk-vfx-beacon's `python3
 tools/sprite_fetch.py --number <n> --out <dir>` fetches as `<dir>/sprite.gif`
 (with the run's inputs as its flags where they were not the defaults); the
 image embeds the front view alone, so that GIF's colours are the screen's.
 For a device whose sprite the sprite sender swaps, `sprite-sender colours
 --config <sender.json>` prints the same line for the GIF it sent last, its
-back view counted (zmk-beacon's README, The sprite sender). The colours are
+back view counted (zmk-vfx-beacon's README, The sprite sender). The colours are
 the GIF's: like the GIF, keep them out of anything public.
 
 A keyboard without a host, or one to have the colours from its first boot,
@@ -941,7 +941,7 @@ half's own, or one both halves share, as the Corne's `corne.conf`, which ZMK
 merges into every `corne_*` shield's build (a dongle has no keys for them):
 
 ```sh
-python3 ../zmk-beacon/tools/sprite_colours.py sprite.gif | awk '{ for (i = 1; i <= NF; i++) printf "CONFIG_LANTERN_COLOUR_%d=0x%s\n", i - 1, $i }' >> config/corne.conf
+python3 ../zmk-vfx-beacon/tools/sprite_colours.py sprite.gif | awk '{ for (i = 1; i <= NF; i++) printf "CONFIG_LANTERN_COLOUR_%d=0x%s\n", i - 1, $i }' >> config/corne.conf
 ```
 
 A slot left 0 shows slot 0's colour, so five colours give slot 5 slot 0's;
@@ -953,7 +953,7 @@ sources and the check build, not tried on a keyboard.
 ### Every morning
 
 The sprite sender swaps the Prospector Dongle's sprite from a LaunchAgent
-(zmk-beacon's README, The Mac route, whose agent runs the sender alone). For
+(zmk-vfx-beacon's README, The Mac route, whose agent runs the sender alone). For
 the keys to follow the day's sprite, the agent runs a script in the sender's
 place: the swap, then the colours, so that a morning whose swap failed
 changes nothing and the keys keep matching the screen, and then, say, the
@@ -963,9 +963,9 @@ effect of the day, one of the built ones in turn by the date.
 ```sh
 #!/bin/sh
 set -eu
-sender=/Users/you/zmk-beacon/tools/sprite-sender/SpriteSender.app/Contents/MacOS/sprite-sender
+sender=/Users/you/zmk-vfx-beacon/tools/sprite-sender/SpriteSender.app/Contents/MacOS/sprite-sender
 config=/Users/you/sprite-sender/sender.json
-port() { python3 /Users/you/zmk-lantern/tools/lantern_port.py --name Corne --wait 600 "$@"; }
+port() { python3 /Users/you/zmk-vfx-lantern/tools/lantern_port.py --name Corne --wait 600 "$@"; }
 
 "$sender" daily --config "$config"
 colours=$("$sender" colours --config "$config")
@@ -986,7 +986,7 @@ The agent's `ProgramArguments`, in place of the sender's:
   </array>
 ```
 
-The rest of the plist is zmk-beacon's: six every morning, the log in
+The rest of the plist is zmk-vfx-beacon's: six every morning, the log in
 `~/Library/Logs`, which now keeps the colours along with the sender's lines
 (read by you alone). `--wait 600` waits up to ten minutes for the keyboard
 (hidden by a KVM switch, say) and asks again while a rebooted central has
@@ -1006,7 +1006,7 @@ keyboard runs this way, with its own `dongle.py` in the tool's place.
 ./scripts/build.sh --help       # every option
 ```
 
-Docker, a west workspace under `~/.cache/zmk-lantern`, the images in
+Docker, a west workspace under `~/.cache/zmk-vfx-lantern`, the images in
 `firmware/`. They are build checks, not a keyboard's firmware: both halves
 of the Cyboard Imprint (Cyboard's stock config plus the consumer-side lines
 of [config/imprint.overlay](config/imprint.overlay), with the rail; the left

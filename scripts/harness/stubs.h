@@ -1,4 +1,4 @@
-/* Host stubs for zmk-lantern's src/keys.c, force-included (-include) into
+/* Host stubs for zmk-vfx-lantern's src/keys.c, force-included (-include) into
  * every program over the engine: just enough Zephyr/ZMK to run the real
  * file's frame code on a Mac (stubinc/ holds the empty headers the sources
  * #include). Tables are canon's halves' (its config/lantern_keys.dtsi and

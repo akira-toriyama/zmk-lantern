@@ -1031,7 +1031,7 @@ config LANTERN_PORT
       and "tempo" or "tempo?" asks (LANTERN_TEMPO_PICK). tools/lantern_port.py
       writes a line and prints the reply (README, The host), and canon's
       scripts/dongle.py palette, effect, intro and tempo write them to its
-      Imprint Dongle. The port's rate is untouched: 1200 baud is zmk-beacon's
+      Imprint Dongle. The port's rate is untouched: 1200 baud is zmk-vfx-beacon's
       bootloader entry. A reply is written without waiting for a reader; a
       line that begins with none of the words gets none. It takes the UART
       interrupt callback of every CDC ACM port, of which a device keeps one,
