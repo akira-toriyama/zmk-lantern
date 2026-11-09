@@ -70,7 +70,7 @@
 # with origin/main for equiv's default), no $CC, outputs it cannot write, or
 # another run on them. Outputs (the programs, their logs and outputs, the
 # CSVs) go to $LANTERN_HARNESS_OUT, by default
-# ~/.cache/zmk-lantern/harness/<checkout>-<hash of its physical path>, one
+# ~/.cache/zmk-vfx-lantern/harness/<checkout>-<hash of its physical path>, one
 # directory a checkout and locked while a run uses it, never into the
 # repository; nothing
 # in them is personal (no keystroke, no palette of the day). sheet.py draws
@@ -84,7 +84,7 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO="$(cd "$HERE/../.." && pwd -P)"
 SRC="$REPO/src"
-OUT="${LANTERN_HARNESS_OUT:-$HOME/.cache/zmk-lantern/harness/$(basename "$REPO")-$(printf '%s' "$REPO" | shasum | cut -c1-8)}"
+OUT="${LANTERN_HARNESS_OUT:-$HOME/.cache/zmk-vfx-lantern/harness/$(basename "$REPO")-$(printf '%s' "$REPO" | shasum | cut -c1-8)}"
 CC="${CC:-clang}"
 CFLAGS=(-std=gnu11 -O1 -g -Wall -Wextra "-fsanitize=address,undefined" -fno-sanitize-recover=all)
 FAILED=()

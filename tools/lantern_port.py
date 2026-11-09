@@ -33,7 +33,7 @@ to DRAIN_LIMIT_S of reading away what arrived earlier.
 The host's side of the port, which a host of its own follows too:
 
 - The port is opened raw, 8N1 at 115200, DTR and RTS raised, and 115200 is
-  the only rate a host ever sets: 1200 baud is zmk-beacon's bootloader entry
+  the only rate a host ever sets: 1200 baud is zmk-vfx-beacon's bootloader entry
   on a central that builds it, 2400 its screen dump.
 - The line is preceded by more spaces than the central's line buffer holds
   and a newline (PRELUDE): whatever a lost connection left in the buffer,
@@ -391,7 +391,7 @@ def timeout_seconds(text):
 def parser():
     p = argparse.ArgumentParser(
         prog="lantern_port.py",
-        description="Write one line on the USB serial port of a keyboard running zmk-lantern (its central: a "
+        description="Write one line on the USB serial port of a keyboard running zmk-vfx-lantern (its central: a "
                     "split's, or the keyboard itself when it is not a split) "
                     "and print the reply: WORD and its ARGUMENTs as the port takes them (palette RRGGBB ..., "
                     "effect NAME ... [RRGGBB], intro NAME, tempo on|off; the README's The palette and The picks), "

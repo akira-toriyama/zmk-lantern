@@ -95,11 +95,11 @@
  *   ZMK's console (CONFIG_UART_CONSOLE, the board's) and its USB logging
  *   write with uart_poll_out() and set no callback (zephyr
  *   drivers/console/uart_console.c sets one only with CONFIG_CONSOLE_HANDLER),
- *   and zmk-beacon's 1200 baud entry is the class driver's separate rate
+ *   and zmk-vfx-beacon's 1200 baud entry is the class driver's separate rate
  *   callback. The reply goes out with uart_poll_out(), which drops bytes on a
  *   full ring and never blocks: with no host reading, the reply is lost and
  *   nothing waits.
- * - Every CDC ACM instance, as zmk-beacon's bootloader entry registers on
+ * - Every CDC ACM instance, as zmk-vfx-beacon's bootloader entry registers on
  *   every one: a board or a consumer's overlay may add a node, and the host
  *   may open any of the resulting ports. A device keeps one UART callback,
  *   which is why one file reads every word: a consumer that gives a port to

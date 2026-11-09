@@ -1,4 +1,4 @@
-name: zmk-lantern
+name: zmk-vfx-lantern
 build:
   cmake: .
   kconfig: Kconfig

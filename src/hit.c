@@ -38,7 +38,7 @@
  *   the second and later ones again from the first listener, combo.c's
  *   release_pressed_keys(), with the timestamp split/central.c stamped once:
  *   the last SEEN pairs of position and timestamp are remembered, as
- *   zmk-beacon's status broadcaster does; a second press of one key raised
+ *   zmk-vfx-beacon's status broadcaster does; a second press of one key raised
  *   within the same millisecond, in a burst of notifications raised at once,
  *   is dropped with it, one ring the fewer) and queues the press for the
  *   relay's work queue (src/relay.c, which says why not the system work

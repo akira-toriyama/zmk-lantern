@@ -27,7 +27,7 @@
  *   off: rgb_underglow.c repaints every LED with its one colour and effect at
  *   each 50 ms tick while on, so a per-LED picture cannot share the strip
  *   with it, and it saves its state (on, colour) and restores it at the next
- *   boot, which the rail rule had to override every time (zmk-lantern up to
+ *   boot, which the rail rule had to override every time (zmk-vfx-lantern up to
  *   2406809 lit the LEDs through it). With it off nothing else touches the
  *   strip, and a frame is written only when something changed.
  * - The picture: LED i shows the colour of one slot, base_slot(i), which the

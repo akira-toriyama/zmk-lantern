@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 description: |
-  The key LEDs zmk-lantern paints (CONFIG_LANTERN_KEYS, src/keys.c): the LED
+  The key LEDs zmk-vfx-lantern paints (CONFIG_LANTERN_KEYS, src/keys.c): the LED
   strip under the keys and the key each LED sits under, and where the
   consumer says so the palette slot each key shows in the bands, the
   default picture, and where each key is. Exactly one per target with key
