@@ -25,5 +25,5 @@ properties:
     default: 100
     description: |
       Milliseconds between enabling the rail and the first frame to the LEDs,
-      their power-up time. The zmk,ext-power-generic node's init-delay-ms
-      (100 on the Cyboard assimilator-bt board).
+      their power-up time: the zmk,ext-power-generic node's init-delay-ms,
+      where the board's node gives one.

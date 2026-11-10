@@ -3,7 +3,8 @@
 
 description: |
   The effect behavior (CONFIG_LANTERN_EFFECT, src/effect.c): one node, named
-  effect, on the split central and on every half, in the keymap's behaviors
+  effect, on the central (a split's, or the keyboard itself when it is not a
+  split) and on every half, in the keymap's behaviors
   or an overlay (a name of at most 8 characters, as the palette's). The
   central's code invokes it with the host's pick, which of the effects built
   into a half's image draw and in which colour (param1 = a mask of
@@ -12,7 +13,7 @@ description: |
   node's name. A key of the central's keymap may bind it the same way
   (`&effect 1 0xFF0000`: the thin ring in red; `&effect 8 0`: the crossing
   ring in the palette's colours), for a keyboard without a host; the key
-  binding is unverified on hardware (canon's keymap binds none).
+  binding is unverified on hardware (the one consumer's keymap binds none).
 
 compatible: "lantern,behavior-effect"
 

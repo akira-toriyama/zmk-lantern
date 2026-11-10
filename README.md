@@ -322,10 +322,11 @@ lights what is at hand. The sibling module
   host's, makes the central write a 0 to index 234 of an array of one byte
   per peripheral (a single byte on a keyboard whose central is a half), which
   on the issue's keyboard zeroed a variable of the Bluetooth controller (late
-  radio events, then a fatal controller assert); canon carries the fix as a
-  patch, which a config repository built by ZMK's reusable workflow cannot,
-  so a central that hosts connect to over Bluetooth carries the bug until
-  the fix merges. A device without a
+  radio events, then a fatal controller assert); a config repository that
+  patches ZMK can carry the fix (The one consumer, below, does), but ZMK's
+  reusable workflow applies no patch, so a central it builds from ZMK `main`
+  that hosts connect to over Bluetooth carries the bug until the fix merges.
+  A device without a
   `lantern,keys` node, such as a dongle, keeps and forwards the palette and
   the picks without painting anything. On a split
   peripheral `CONFIG_LANTERN_USB_LATENCY` is on by default with the rule:
@@ -811,9 +812,8 @@ host, below).
   none` or `tempo none` when it knows none of the stored bits) and an image with more effects
   or intros shows it. The colour is measured in the host harness
   ([scripts/harness/run.sh](scripts/harness/run.sh): every effect in one
-  colour);
-  what ran on hardware is in canon's CLAUDE.md (Invariants, the effect
-  paragraph).
+  colour); what ran on hardware is in [CLAUDE.md](CLAUDE.md)'s hardware
+  record.
 
 ### Without a host
 
@@ -848,7 +848,8 @@ waves for the next boot light the same way (the node
 on and `&tempo 2 0` off (the node `lantern,behavior-tempo`, named `tempo`).
 The bindings compile in this repository's check
 build ([config/pick_keys.dtsi](config/pick_keys.dtsi)) and are unverified on
-hardware: canon's keymap binds none, its host picks.
+hardware: the one consumer's keymap binds none, its host picks (The one
+consumer, below).
 
 ## The host
 
@@ -886,10 +887,7 @@ goes away meanwhile, and asks again while the central answers `not ready`
 opened for another reason (no permission, another program holding it);
 `--timeout S` (3) bounds the write and then the reply, after up to three
 seconds of reading away what arrived earlier. On Linux the port needs the
-permission to open it (the `dialout` group, or a udev rule). canon's
-`scripts/dongle.py palette`,
-`effect`, `intro` and `tempo` write the same lines to its Imprint Dongle,
-found canon's own way.
+permission to open it (the `dialout` group, or a udev rule).
 
 A host of your own writes the same lines and keeps to what the tool does:
 the port opened raw, 8N1 at 115200, DTR and RTS raised, and 115200 the only
@@ -994,8 +992,7 @@ not loaded its settings; the exit status is the first failed step's (`set
 -e`; `${colours:?}` stops an empty line, which would ask instead of set), and
 a failed swap sends nothing. The effect's names are the port's (The picks):
 list the ones your conf builds, and a stored pick of the layer keys is
-replaced by the day's (`effect <name> layer-keys` adds them back). canon's
-keyboard runs this way, with its own `dongle.py` in the tool's place.
+replaced by the day's (`effect <name> layer-keys` adds them back).
 
 ## Building this repository
 
@@ -1046,10 +1043,16 @@ stored`, `intro: pick 0000000X from <port>`, `intro: resent to half N`, and
 the same with `tempo:`); the picture logs only a frame the strip refused
 (`frame not written`).
 
+## The one consumer
+
 The one keyboard this module has run on is the Cyboard Imprint of
 [akira-toriyama/canon](https://github.com/akira-toriyama/canon), whose config
 carries the real overlays and confs; what was seen on its hardware, and when,
-is in [CLAUDE.md](CLAUDE.md).
+is in [CLAUDE.md](CLAUDE.md). Its host is its own `scripts/dongle.py`, whose
+`palette`, `effect`, `intro` and `tempo` write the lines of The host to its
+Imprint Dongle; its mornings run as Every morning says, with that script in
+the tool's place. Its keymap binds no pick keys (Without a host), and its
+patches carry the fix of zmk#3522 (Then, as you want them: the split).
 
 ## License
 
