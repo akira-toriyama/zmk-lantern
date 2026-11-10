@@ -6,7 +6,8 @@ description: |
   strip under the keys and the key each LED sits under, and where the
   consumer says so the palette slot each key shows in the bands, the
   default picture, and where each key is. Exactly one per target with key
-  LEDs (a split half); a target without one (a dongle) builds none of the
+  LEDs (a split half, or a keyboard that is not a split); a target without
+  one (a dongle) builds none of the
   painting. ZMK's underglow stays off on such a target: this module is the
   strip's one writer.
 
@@ -32,9 +33,7 @@ properties:
       One entry per LED, in the chain's order: the key position the LED sits
       under, an index into the keymap (the longest physical layout's map
       where the keyboard has layouts, else the chosen matrix transform's;
-      global across a split) and into slots. canon's is Cyboard's own chain
-      order (its QMK firmware's LED map), seen right on the hardware band by
-      band, the order within a band unmeasured (canon t-69g7).
+      global across a split) and into slots.
 
   slots:
     type: array
@@ -54,10 +53,11 @@ properties:
       Two entries per key position, in position order: the key's x and then
       its y in hundredths of a key unit, on the whole board (both halves of a
       split, so a distance reads the same from either), at most 30000 each.
-      canon: imprint.json, keymap-drawer's physical layout, times 100 (each
-      key's top left corner; every key is one unit, so the offset to the
-      centre cancels). For what measures the board (CONFIG_LANTERN_GEOMETRY:
-      an effect, the gradient and the star waves), which asserts it twice
+      A QMK-style layout's x and y times 100 serve where every key is one
+      unit and none is rotated (they are the keys' top left corners, the
+      same offset from every centre). For what measures the board
+      (CONFIG_LANTERN_GEOMETRY: an effect, the gradient and the star waves),
+      which asserts it twice
       the keymap's length. Without it the keyboard's chosen
       zmk,physical-layout (else its first) places the keys, each at its
       centre in the layout's hundredths of a key unit (a rotated key as if
@@ -72,5 +72,5 @@ properties:
       the slot takes in the scatter (CONFIG_LANTERN_SCATTER), at most 100
       in all (asserted). Slots 1.. take their rounded share and slot 0, the
       heaviest colour, the rest, so slot 0's own entry only documents the
-      intent. canon t-skdt: 50 20 10 5 5 0 (the 10 the shares leave go to
-      slot 0 too). A target without the scatter needs none.
+      intent: 50 20 10 5 5 0 gives slot 0 the rest, 60 percent before the
+      rounding. A target without the scatter needs none.

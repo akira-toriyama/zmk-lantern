@@ -190,8 +190,13 @@ how to build. Usage: [README.md](README.md). English only.
 - Tasks: on canon's board for now (`furrow list -r canon`, epic e-exg9).
 - README is written for a consumer, in the order a consumer reads it (the
   least, then the options, then what it does): no canon task ids, dates or
-  history there (canon t-41g7); they live here. The hardware record, the
-  last item of Invariants, is where a hardware fact and its date go.
+  history there (canon t-41g7); they live here. canon is named only in its
+  section The one consumer, the one before License (the one keyboard, its
+  host and its patch), and is "the one consumer" elsewhere. Kconfig help and
+  the bindings' descriptions are a consumer's text under the same rule (canon t-e5pa,
+  2026-11-10): what they carried lives in the item before the hardware
+  record. The hardware record, the last item of Invariants, is where a
+  hardware fact and its date go.
 
 ## Build
 
@@ -411,8 +416,9 @@ how to build. Usage: [README.md](README.md). English only.
   did. Its pin is bumped by hand when README's least changes, never on each
   merge here (its build is the proof that the recipe builds, not a gate).
   README's zmk#3522 caveat says the fix zmk#3556 is open: true on
-  2026-11-08; when it merges, the caveat goes, and canon's patch with it
-  (canon's `patches/zmk/README.md`).
+  2026-11-08; when it merges, the caveat goes, with The one consumer's clause
+  on canon's patch, and canon's patch with it (canon's
+  `patches/zmk/README.md`).
 
 ## Invariants
 
@@ -806,6 +812,41 @@ how to build. Usage: [README.md](README.md). English only.
   changes its meaning only warns: `CONFIG_LANTERN_INTRO=y` meant the show up
   to that change and means the pick since, so an old line builds the bands
   alone, with a Kconfig warning where the node is missing.
+- **What the consumer's text leaves here** (moved out of Kconfig help, the
+  bindings and README, canon t-e5pa, 2026-11-10). The defaults' reasons:
+  `CONFIG_LANTERN_BRIGHTNESS`'s 16 is what ZMK's underglow drove on canon's
+  halves before the module painted the strip, Cyboard's stock brightness 25
+  scaled into its 5 to 50 (zmk-keyboards'
+  `boards/shields/imprint/Kconfig.defconfig`); the rail's, a canon half of
+  29 LEDs at rest drew 10-18 mA with it on and 0.79 mA off (2026-09-15, canon
+  #207); `lantern,rail`'s `settle-ms` default 100 is the Cyboard
+  assimilator-bt board's `init-delay-ms`; the star waves' red, blue and green
+  are the user's pick, after Pokémon's first games (canon t-5v1f, t-ky8x);
+  the countdown's ten seconds a picture is the user's choice on hardware, a
+  minute a colour, the colours running out at the idle timeout, having read
+  as still (2026-10-20, canon t-x82q); the stain as the default effect where
+  it is built is an Opus review's (2026-10-26). canon t-skdt tried
+  `CONFIG_LANTERN_PICTURE_BRIGHTNESS` at half under the disc and the pictures
+  one image at a time, chose the no picture, and gave the scatter its ten
+  seconds and `scatter-weights` 50 20 10 5 5 0 (the user's shares of
+  2026-10-21). canon's lines, which its config holds: the no picture with
+  `CONFIG_LANTERN_COUNTDOWN=n` (t-skdt), `CONFIG_LANTERN_INTRO_DEFAULT_STAR_WAVES=y`
+  (t-qvgv) and `CONFIG_LANTERN_EFFECT_DEFAULT_CROSS_RING=y` (t-5hqx) on both
+  halves, `CONFIG_ZMK_IDLE_TIMEOUT=300000`, five bands, slots 0..4 from left
+  to right, `positions` in Cyboard's own chain order (t-69g7, above), `coords`
+  from its `imprint.json`, keymap-drawer's physical layout, times 100 (each
+  key's top left corner: every key is one unit and none is rotated, so the
+  offset to the centres is the same), no conf colours (its host hands the
+  day's palette, t-0967), no pick keys in its keymap (its host picks), and
+  its `scripts/dongle.py palette` (t-k9e9), `effect` (t-5hqx: its daily run
+  changes the effect of the day without a flash), `intro` (t-qvgv) and
+  `tempo` (t-6ttk) as the host. On its board (58 keys, the farthest two 16.8
+  units apart) the crossing ring lives its design's 1.6 s, the board's own
+  crossing taking 1.48 s (computed from `imprint.json` and
+  `src/effects/cross_ring.c`,
+  2026-11-10), and the thumb clusters, half a unit off the bottom row and the
+  inner column, are the beams' two rows of three and three columns of two a
+  half, the two clusters sharing their rows.
 - Hardware verification is canon's: flash with canon's `scripts/flash-dongle.sh
   imprint_left` / `imprint_right` (a data cable, USB power), read a `--logging`
   image's lines with its `dongle.py log`, set and ask the palette with its
